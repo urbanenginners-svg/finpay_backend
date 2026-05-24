@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Razorpay Test</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 540px; margin: 60px auto; padding: 0 16px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; margin-top: 16px; }
+    input, textarea {
+      width: 100%; padding: 10px; border: 1px solid #ccc;
+      border-radius: 6px; font-size: 13px; box-sizing: border-box;
+    }
+    textarea { height: 140px; font-family: monospace; }
+    button {
+      margin-top: 16px; width: 100%; padding: 12px;
+      background: #528ff0; color: #fff; border: none;
+      border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    button:hover { background: #3a78e0; }
+    #status {
+      margin-top: 16px; padding: 12px; border-radius: 8px;
+      font-size: 13px; display: none;
+    }
+    .ok   { background: #f0fdf4; border: 1px solid #22c55e; color: #166534; }
+    .fail { background: #fef2f2; border: 1px solid #ef4444; color: #991b1b; }
+  </style>
+</head>
+<body>
+  <h2>Razorpay Payment Tester</h2>
+  <p style="color:#666;font-size:13px">
+    Call <code>POST /api/v1/orders</code> with <code>paymentMethod: "online"</code>,
+    paste the full response below, then hit Pay.
+  </p>
+
+  <label>Backend Base URL</label>
+  <input id="baseUrl" value="http://localhost:6010/api/v1" />
+
+  <label>JWT Token</label>
+  <input id="token" type="password" placeholder="eyJhbGci..." />
+
+  <label>Paste <code>/api/v1/orders</code> response here</label>
+  <textarea id="orderResponse" placeholder='{ "data": { "order": { "_id": "..." }, "razorpayOrder": { "id": "order_xxx", "amount": 29500, "currency": "INR", "keyId": "rzp_test_xxx" } } }'></textarea>
+
+  <button onclick="startPayment()">Pay Now</button>
+
+  <div id="status"></div>
+
+  <script>
+    function showStatus(msg, ok) {
+      const el = document.getElementById('status');
+      el.style.display = 'block';
+      el.className = ok ? 'ok' : 'fail';
+      el.innerHTML = msg;
+    }
+
+    async function startPayment() {
+      const raw = document.getElementById('orderResponse').value.trim();
+      if (!raw) return showStatus('❌ Please paste the order API response.', false);
+
+      let parsed;
+      try { parsed = JSON.parse(raw); }
+      catch { return showStatus('❌ Invalid JSON in the pasted response.', false); }
+
+      const order        = parsed?.data?.order;
+      const rzpOrder     = parsed?.data?.razorpayOrder;
+
+      if (!order?._id)        return showStatus('❌ Could not find <b>data.order._id</b> in response.', false);
+      if (!rzpOrder?.id)      return showStatus('❌ Could not find <b>data.razorpayOrder.id</b> — was paymentMethod set to "online"?', false);
+      if (!rzpOrder?.keyId)   return showStatus('❌ <b>data.razorpayOrder.keyId</b> is missing. Check RAZORPAY_KEY_ID in .env.', false);
+
+      showStatus('⏳ Opening Razorpay checkout...', true);
+
+      const rzp = new Razorpay({
+        key:      rzpOrder.keyId,
+        amount:   rzpOrder.amount,
+        currency: rzpOrder.currency || 'INR',
+        order_id: rzpOrder.id,
+        name:     'SchoolPad',
+        description: `Order ${order._id}`,
+        theme: { color: '#528ff0' },
+
+        handler: async function (response) {
+          showStatus('⏳ Verifying payment with backend...', true);
+
+          const base  = document.getElementById('baseUrl').value.replace(/\/$/, '');
+          const token = document.getElementById('token').value.trim();
+
+          try {
+            const res = await fetch(`${base}/payments/orders/${order._id}/verify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token && { Authorization: `Bearer ${token}` }),
+              },
+              body: JSON.stringify({
+                razorpayOrderId:   response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              }),
+            });
+
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.message || `HTTP ${res.status}`);
+
+            const finalOrder = data?.data?.order;
+            showStatus(
+              `✅ Payment verified!<br>Order <b>${order._id}</b> → status: <b>${finalOrder?.status}</b> | payment: <b>${finalOrder?.paymentStatus}</b>`,
+              true,
+            );
+          } catch (err) {
+            showStatus(`❌ Verification failed: ${err.message}`, false);
+          }
+        },
+
+        modal: {
+          ondismiss: () => showStatus('⚠️ Widget closed without payment. Order remains PENDING.', false),
+        },
+      });
+
+      rzp.on('payment.failed', (r) =>
+        showStatus(`❌ Payment failed: ${r.error.description} (${r.error.reason})`, false),
+      );
+
+      rzp.open();
+    }
+  </script>
+</body>
+</html>

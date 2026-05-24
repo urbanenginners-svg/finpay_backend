@@ -1,0 +1,7 @@
+export enum WalletTransactionSourceEnum {
+  RECHARGE = 'RECHARGE',
+  OFFER_BONUS = 'OFFER_BONUS',
+  DEBIT = 'DEBIT',
+  REFUND = 'REFUND',
+  ADMIN_ADJUSTMENT = 'ADMIN_ADJUSTMENT',
+}

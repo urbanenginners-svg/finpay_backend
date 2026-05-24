@@ -1,0 +1,6 @@
+export enum FranchiseStockRequestStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  PARTIALLY_APPROVED = 'PARTIALLY_APPROVED',
+  REJECTED = 'REJECTED',
+}

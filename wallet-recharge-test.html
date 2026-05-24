@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wallet Recharge Tester</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 560px; margin: 60px auto; padding: 0 16px; }
+    h2  { margin-bottom: 4px; }
+    p.sub { color: #666; font-size: 13px; margin-top: 0; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; margin-top: 16px; }
+    input, textarea {
+      width: 100%; padding: 10px; border: 1px solid #ccc;
+      border-radius: 6px; font-size: 13px; box-sizing: border-box;
+    }
+    textarea { height: 160px; font-family: monospace; }
+    .row { display: flex; gap: 10px; }
+    .row input { flex: 1; }
+    button {
+      margin-top: 16px; width: 100%; padding: 12px;
+      background: #10b981; color: #fff; border: none;
+      border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    button:hover { background: #059669; }
+    #btnInitiate {
+      background: #528ff0;
+    }
+    #btnInitiate:hover { background: #3a78e0; }
+    #status {
+      margin-top: 16px; padding: 12px; border-radius: 8px;
+      font-size: 13px; display: none; line-height: 1.7;
+    }
+    .ok   { background: #f0fdf4; border: 1px solid #22c55e; color: #166534; }
+    .fail { background: #fef2f2; border: 1px solid #ef4444; color: #991b1b; }
+    .info { background: #eff6ff; border: 1px solid #3b82f6; color: #1e40af; }
+    hr { margin: 32px 0; border: none; border-top: 1px solid #e5e7eb; }
+    .section-title { font-size: 12px; font-weight: 700; text-transform: uppercase;
+      color: #9ca3af; letter-spacing: .05em; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+
+  <h2>Wallet Recharge Tester</h2>
+  <p class="sub">
+    Step 1 — enter amount and hit <b>Initiate Recharge</b>.<br>
+    Step 2 — complete the Razorpay checkout (auto-opened).<br>
+    Step 3 — the verify call happens automatically on success.
+  </p>
+
+  <label>Backend Base URL</label>
+  <input id="baseUrl" value="http://localhost:6010/api/v1" />
+
+  <label>JWT Token</label>
+  <input id="token" type="password" placeholder="eyJhbGci..." />
+
+  <label>Recharge Amount (₹)</label>
+  <input id="amount" type="number" min="1" placeholder="200" value="200" />
+
+  <button id="btnInitiate" onclick="initiateRecharge()">Initiate Recharge</button>
+
+  <hr />
+
+  <div class="section-title">Initiate API Response</div>
+  <p style="color:#666;font-size:12px;margin:4px 0 6px">
+    Auto-filled after clicking Initiate, or paste a previous
+    <code>POST /wallet/me/recharge/initiate</code> response to re-open checkout manually.
+  </p>
+  <textarea id="initiateResponse" placeholder='{ "data": { "wallet": { "_id": "..." }, "razorpayOrder": { "id": "order_xxx", "amount": 20000, "currency": "INR", "keyId": "rzp_test_xxx" } } }'></textarea>
+
+  <button onclick="openCheckout()">Open Checkout from Pasted Response</button>
+
+  <div id="status"></div>
+
+  <script>
+    function showStatus(msg, type /* 'ok' | 'fail' | 'info' */) {
+      const el = document.getElementById('status');
+      el.style.display = 'block';
+      el.className = type;
+      el.innerHTML = msg;
+    }
+
+    // ── Step 1: Initiate ────────────────────────────────────────────────────
+    async function initiateRecharge() {
+      const base   = document.getElementById('baseUrl').value.replace(/\/$/, '');
+      const token  = document.getElementById('token').value.trim();
+      const amount = parseFloat(document.getElementById('amount').value);
+
+      if (!token)          return showStatus('❌ Please enter your JWT token.', 'fail');
+      if (!amount || amount < 1) return showStatus('❌ Enter a valid amount (≥ ₹1).', 'fail');
+
+      showStatus('⏳ Initiating recharge...', 'info');
+
+      try {
+        const res = await fetch(`${base}/wallet/me/recharge/initiate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ amount }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message || `HTTP ${res.status}`);
+
+        // Fill textarea so user can inspect / reuse
+        document.getElementById('initiateResponse').value = JSON.stringify(data, null, 2);
+
+        const offer = data?.data?.applicableOffer;
+        if (offer) {
+          showStatus(
+            `✅ Recharge initiated!<br>🎁 Offer applied: <b>${offer.name}</b> — ${offer.description}`,
+            'ok',
+          );
+        } else {
+          showStatus('✅ Recharge initiated! No offer applicable for this amount.', 'ok');
+        }
+
+        // Automatically open checkout
+        openCheckoutFromData(data);
+      } catch (err) {
+        showStatus(`❌ Initiate failed: ${err.message}`, 'fail');
+      }
+    }
+
+    // ── Step 2: Open checkout from pasted/auto-filled response ───────────── 
+    function openCheckout() {
+      const raw = document.getElementById('initiateResponse').value.trim();
+      if (!raw) return showStatus('❌ No response to open. Either initiate first or paste a response.', 'fail');
+
+      let parsed;
+      try { parsed = JSON.parse(raw); }
+      catch { return showStatus('❌ Invalid JSON in the response textarea.', 'fail'); }
+
+      openCheckoutFromData(parsed);
+    }
+
+    function openCheckoutFromData(parsed) {
+      const wallet    = parsed?.data?.wallet;
+      const rzpOrder  = parsed?.data?.razorpayOrder;
+
+      if (!wallet?._id)   return showStatus('❌ Could not find <b>data.wallet._id</b> in response.', 'fail');
+      if (!rzpOrder?.id)  return showStatus('❌ Could not find <b>data.razorpayOrder.id</b> in response.', 'fail');
+      if (!rzpOrder?.keyId) return showStatus('❌ <b>data.razorpayOrder.keyId</b> is missing. Check RAZORPAY_KEY_ID in .env.', 'fail');
+
+      const base  = document.getElementById('baseUrl').value.replace(/\/$/, '');
+      const token = document.getElementById('token').value.trim();
+
+      const rzp = new Razorpay({
+        key:      rzpOrder.keyId,
+        amount:   rzpOrder.amount,
+        currency: rzpOrder.currency || 'INR',
+        order_id: rzpOrder.id,
+        name:     'SchoolPad Wallet',
+        description: `Wallet recharge for ${wallet._id}`,
+        theme: { color: '#10b981' },
+
+        handler: async function (response) {
+          showStatus('⏳ Verifying payment with backend...', 'info');
+
+          try {
+            const res = await fetch(`${base}/wallet/me/recharge/verify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token && { Authorization: `Bearer ${token}` }),
+              },
+              body: JSON.stringify({
+                razorpayOrderId:   response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              }),
+            });
+
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.message || `HTTP ${res.status}`);
+
+            const updatedWallet = data?.data;
+            showStatus(
+              `✅ Wallet recharged successfully!<br>` +
+              `New balance: <b>₹${updatedWallet?.balance ?? '—'}</b>`,
+              'ok',
+            );
+          } catch (err) {
+            showStatus(`❌ Verification failed: ${err.message}`, 'fail');
+          }
+        },
+
+        modal: {
+          ondismiss: () => showStatus('⚠️ Checkout closed without payment. Recharge remains PENDING.', 'fail'),
+        },
+      });
+
+      rzp.on('payment.failed', (r) =>
+        showStatus(`❌ Payment failed: ${r.error.description} (${r.error.reason})`, 'fail'),
+      );
+
+      rzp.open();
+    }
+  </script>
+</body>
+</html>

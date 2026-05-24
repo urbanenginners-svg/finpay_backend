@@ -1,0 +1,17 @@
+export enum FileResourceEnum {
+  VENDOR = 'vendor',
+  MANDI = 'mandi',
+  USER = 'user',
+  DELIVERY_PARTNER = 'delivery-partner',
+  CATEGORY = 'category',
+  SOCIETY = 'society',
+  INSTITUTION = 'institution',
+  PRODUCT = 'product',
+  AUDIT = 'audit',
+  DOCUMENT = 'document',
+  OTHER = 'other',
+  VENDOR_INVOICE = 'vendor-invoice',
+  FRANCHISE = 'franchise',
+  CONSIGNMENT = 'consignment',
+  PUTAWAY_MANAGEMENT = 'putaway-management',
+}

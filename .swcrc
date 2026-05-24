@@ -1,0 +1,22 @@
+{
+  "jsc": {
+    "parser": {
+      "syntax": "typescript",
+      "decorators": true,
+      "dynamicImport": true
+    },
+    "target": "es2021",
+    "keepClassNames": true,
+    "loose": true,
+    // Important part bellow, copy it from your tsconfig.json
+    "baseUrl": "./",
+    "paths": {
+      "src/*": ["./src/*"]
+    },
+    // Important part above, copy it from your tsconfig.json
+  },
+  "module": {
+    "type": "commonjs"
+  },
+  "sourceMaps": true
+}
