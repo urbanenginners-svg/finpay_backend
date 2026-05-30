@@ -5,7 +5,7 @@ import {
 import { plainToInstance } from 'class-transformer';
 import {
   IsDateString,
-  IsIn,
+  // IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -78,17 +78,17 @@ class OutwardRemittanceDetailsDto {
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'currency is required' })
-  @IsIn([...SUPPORTED_CURRENCIES], {
-    message: `currency must be one of: ${SUPPORTED_CURRENCIES.join(', ')}`,
-  })
+  // @IsIn([...SUPPORTED_CURRENCIES], {
+  //   message: `currency must be one of: ${SUPPORTED_CURRENCIES.join(', ')}`,
+  // })
   currency: SupportedCurrency;
 
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'purpose is required' })
-  @IsIn([...REMITTANCE_PURPOSES], {
-    message: `purpose must be one of: ${REMITTANCE_PURPOSES.join(', ')}`,
-  })
+  // @IsIn([...REMITTANCE_PURPOSES], {
+  //   message: `purpose must be one of: ${REMITTANCE_PURPOSES.join(', ')}`,
+  // })
   purpose: string;
 
   @Type(() => Number)
@@ -110,17 +110,17 @@ class ForeignExchangeDetailsDto {
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'serviceType is required' })
-  @IsIn([...FOREX_SERVICE_TYPES], {
-    message: `serviceType must be one of: ${FOREX_SERVICE_TYPES.join(', ')}`,
-  })
+  // @IsIn([...FOREX_SERVICE_TYPES], {
+  //   message: `serviceType must be one of: ${FOREX_SERVICE_TYPES.join(', ')}`,
+  // })
   serviceType: string;
 
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'currency is required' })
-  @IsIn([...SUPPORTED_CURRENCIES], {
-    message: `currency must be one of: ${SUPPORTED_CURRENCIES.join(', ')}`,
-  })
+  // @IsIn([...SUPPORTED_CURRENCIES], {
+  //   message: `currency must be one of: ${SUPPORTED_CURRENCIES.join(', ')}`,
+  // })
   currency: SupportedCurrency;
 
   @TrimString()
@@ -138,9 +138,9 @@ class MutualFundDetailsDto {
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'investmentType is required' })
-  @IsIn([...MUTUAL_FUND_INVESTMENT_TYPES], {
-    message: `investmentType must be one of: ${MUTUAL_FUND_INVESTMENT_TYPES.join(', ')}`,
-  })
+  // @IsIn([...MUTUAL_FUND_INVESTMENT_TYPES], {
+  //   message: `investmentType must be one of: ${MUTUAL_FUND_INVESTMENT_TYPES.join(', ')}`,
+  // })
   investmentType: (typeof MUTUAL_FUND_INVESTMENT_TYPES)[number];
 
   @Type(() => Number)
@@ -150,9 +150,9 @@ class MutualFundDetailsDto {
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'goal is required' })
-  @IsIn([...MUTUAL_FUND_GOALS], {
-    message: `goal must be one of: ${MUTUAL_FUND_GOALS.join(', ')}`,
-  })
+  // @IsIn([...MUTUAL_FUND_GOALS], {
+  //   message: `goal must be one of: ${MUTUAL_FUND_GOALS.join(', ')}`,
+  // })
   goal: string;
 }
 
@@ -160,9 +160,9 @@ class TravelDetailsDto {
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'serviceType is required' })
-  @IsIn([...TRAVEL_SERVICE_TYPES], {
-    message: `serviceType must be one of: ${TRAVEL_SERVICE_TYPES.join(', ')}`,
-  })
+  // @IsIn([...TRAVEL_SERVICE_TYPES], {
+  //   message: `serviceType must be one of: ${TRAVEL_SERVICE_TYPES.join(', ')}`,
+  // })
   serviceType: string;
 
   @TrimString()
@@ -179,17 +179,17 @@ class TravelDetailsDto {
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'travellers is required' })
-  @IsIn([...TRAVELLER_COUNTS], {
-    message: `travellers must be one of: ${TRAVELLER_COUNTS.join(', ')}`,
-  })
+  // @IsIn([...TRAVELLER_COUNTS], {
+  //   message: `travellers must be one of: ${TRAVELLER_COUNTS.join(', ')}`,
+  // })
   travellers: string;
 
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'budget is required' })
-  @IsIn([...TRAVEL_BUDGETS], {
-    message: `budget must be one of: ${TRAVEL_BUDGETS.join(', ')}`,
-  })
+  // @IsIn([...TRAVEL_BUDGETS], {
+  //   message: `budget must be one of: ${TRAVEL_BUDGETS.join(', ')}`,
+  // })
   budget: string;
 }
 
@@ -197,44 +197,44 @@ class InsuranceDetailsDto {
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'insuranceType is required' })
-  @IsIn([...INSURANCE_TYPES], {
-    message: `insuranceType must be one of: ${INSURANCE_TYPES.join(', ')}`,
-  })
+  // @IsIn([...INSURANCE_TYPES], {
+  //   message: `insuranceType must be one of: ${INSURANCE_TYPES.join(', ')}`,
+  // })
   insuranceType: (typeof INSURANCE_TYPES)[number];
 
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'coverage is required' })
-  @IsIn([...INSURANCE_COVERAGE], {
-    message: `coverage must be one of: ${INSURANCE_COVERAGE.join(', ')}`,
-  })
+    // @IsIn([...INSURANCE_COVERAGE], {
+    //   message: `coverage must be one of: ${INSURANCE_COVERAGE.join(', ')}`,
+    // })
   coverage: string;
 
   @ValidateIf((o) => o.insuranceType === 'health')
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'members is required when insuranceType is health' })
-  @IsIn([...INSURANCE_MEMBER_COUNTS], {
-    message: `members must be one of: ${INSURANCE_MEMBER_COUNTS.join(', ')}`,
-  })
+  // @IsIn([...INSURANCE_MEMBER_COUNTS], {
+  //   message: `members must be one of: ${INSURANCE_MEMBER_COUNTS.join(', ')}`,
+  // })
   members?: string;
 
   @ValidateIf((o) => o.insuranceType === 'travel')
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'destination is required when insuranceType is travel' })
-  @IsIn([...INSURANCE_TRAVEL_DESTINATIONS], {
-    message: `destination must be one of: ${INSURANCE_TRAVEL_DESTINATIONS.join(', ')}`,
-  })
+  // @IsIn([...INSURANCE_TRAVEL_DESTINATIONS], {
+  //   message: `destination must be one of: ${INSURANCE_TRAVEL_DESTINATIONS.join(', ')}`,
+  // })
   destination?: string;
 
   @ValidateIf((o) => o.insuranceType === 'travel')
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'duration is required when insuranceType is travel' })
-  @IsIn([...INSURANCE_TRAVEL_DURATIONS], {
-    message: `duration must be one of: ${INSURANCE_TRAVEL_DURATIONS.join(', ')}`,
-  })
+  // @IsIn([...INSURANCE_TRAVEL_DURATIONS], {
+  //   message: `duration must be one of: ${INSURANCE_TRAVEL_DURATIONS.join(', ')}`,
+  // })
   duration?: string;
 }
 
@@ -242,9 +242,9 @@ class LoanDetailsDto {
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'loanType is required' })
-  @IsIn([...LOAN_TYPES], {
-    message: `loanType must be one of: ${LOAN_TYPES.join(', ')}`,
-  })
+  // @IsIn([...LOAN_TYPES], {
+  //   message: `loanType must be one of: ${LOAN_TYPES.join(', ')}`,
+  // })
   loanType: string;
 
   @Type(() => Number)
@@ -256,9 +256,9 @@ class LoanDetailsDto {
   @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'employment is required' })
-  @IsIn([...LOAN_EMPLOYMENT_TYPES], {
-    message: `employment must be one of: ${LOAN_EMPLOYMENT_TYPES.join(', ')}`,
-  })
+  // @IsIn([...LOAN_EMPLOYMENT_TYPES], {
+  //   message: `employment must be one of: ${LOAN_EMPLOYMENT_TYPES.join(', ')}`,
+  // })
   employment: string;
 }
 
