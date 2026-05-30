@@ -166,6 +166,34 @@ export class EnvironmentVariables {
   @IsString()
   ENQUIRY_ADVISOR_PHONES: string;
 
+  /** Hostinger / SMTP host (e.g. smtp.hostinger.com). */
+  @IsOptional()
+  @IsString()
+  SMTP_HOST: string;
+
+  /** SMTP port (465 for SSL, 587 for STARTTLS). */
+  @IsOptional()
+  @IsString()
+  SMTP_PORT: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_USER: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_PASS: string;
+
+  /** From address shown to recipients (e.g. FinPay &lt;noreply@yourdomain.com&gt;). */
+  @IsOptional()
+  @IsString()
+  SMTP_FROM: string;
+
+  /** Set to `"true"` to send emails; any other value skips the SMTP call (dry run). */
+  @IsOptional()
+  @IsString()
+  SMTP_ACTIVE_MODE: string;
+
   //   @IsString()
   //   CTRL_FRONTEND_URL: string;
 }

@@ -8,6 +8,7 @@ import {
   IsIn,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsPositive,
   IsString,
   Max,
@@ -97,10 +98,11 @@ class OutwardRemittanceDetailsDto {
 
   @TrimString()
   @IsString()
-  @IsNotEmpty({ message: 'remittanceType is required' })
-  @IsIn([...REMITTANCE_TYPES], {
-    message: `remittanceType must be one of: ${REMITTANCE_TYPES.join(', ')}`,
-  })
+  @IsOptional()
+  // @IsNotEmpty({ message: 'remittanceType is required' })
+  // @IsIn([...REMITTANCE_TYPES], {
+  //   message: `remittanceType must be one of: ${REMITTANCE_TYPES.join(', ')}`,
+  // })
   remittanceType: string;
 }
 
@@ -289,10 +291,10 @@ function assertMutualFundAmount(
 }
 
 export function validateServiceDetails(
-  serviceType: ServiceEnquiryType,
+  serviceType: string,
   serviceDetails: Record<string, unknown>,
 ): Record<string, unknown> {
-  switch (serviceType) {
+  switch (serviceType as ServiceEnquiryType) {
     case ServiceEnquiryType.OUTWARD_REMITTANCE:
       return assertValidDto(OutwardRemittanceDetailsDto, serviceDetails) as unknown as Record<
         string,

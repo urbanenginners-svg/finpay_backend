@@ -23,6 +23,7 @@ import { getPaginatedDataWithAggregation } from 'src/utils/services/get-paginate
 import { SmsService } from 'src/services/sms/sms.service';
 import { SMS_TEMPLATE_KEYS } from 'src/services/sms/mappings/sms-template.registry';
 import { AppConfigService } from 'src/services/env/env.service';
+import { EmailService } from 'src/services/email/email.service';
 
 @Injectable()
 export class EnquiryService {
@@ -32,6 +33,7 @@ export class EnquiryService {
     @InjectModel(ServiceEnquiry.name)
     private readonly enquiryModel: Model<ServiceEnquiryDocument>,
     private readonly smsService: SmsService,
+    private readonly emailService: EmailService,
     private readonly config: AppConfigService,
   ) {}
 
@@ -56,7 +58,7 @@ export class EnquiryService {
     };
 
     const enquiryData: Partial<ServiceEnquiry> = {
-      serviceType: dto.serviceType,
+      serviceType: dto.serviceType as ServiceEnquiryType,
       contact,
       serviceDetails: validatedDetails,
       status: ServiceEnquiryStatus.PENDING,
@@ -83,6 +85,12 @@ export class EnquiryService {
     this.notifyAdvisors(saved).catch((error) => {
       this.logger.error(
         `Failed to notify advisors for enquiry ${saved._id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+
+    this.sendCustomerConfirmation(saved).catch((error) => {
+      this.logger.error(
+        `Failed to send enquiry confirmation email for ${saved._id}: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
 
@@ -141,6 +149,17 @@ export class EnquiryService {
     );
 
     return { data, meta };
+  }
+
+  private async sendCustomerConfirmation(
+    enquiry: ServiceEnquiryDocument,
+  ): Promise<void> {
+    await this.emailService.sendEnquiryConfirmation({
+      to: enquiry.contact.email,
+      fullName: enquiry.contact.fullName,
+      serviceType: SERVICE_TYPE_LABELS[enquiry.serviceType],
+      referenceNumber: enquiry.referenceNumber ?? String(enquiry._id),
+    });
   }
 
   private async notifyAdvisors(enquiry: ServiceEnquiryDocument): Promise<void> {

@@ -1,22 +1,19 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsEnum,
   IsNotEmpty,
   IsObject,
+  IsString,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-import { ServiceEnquiryType } from 'src/utils/enums/service-enquiry-type.enum';
 import { ContactDto } from './contact.dto';
 
 export class CreateServiceEnquiryDto {
-  @ApiProperty({ enum: ServiceEnquiryType })
-  @IsEnum(ServiceEnquiryType, {
-    message:
-      'serviceType must be one of: outward-remittance, foreign-exchange, mutual-fund, travel, insurance, loan',
-  })
-  serviceType: ServiceEnquiryType;
+  @ApiProperty({ example: 'outward-remittance' })
+  @IsString({ message: 'serviceType must be a string' })
+  @IsNotEmpty({ message: 'serviceType is required' })
+  serviceType: string;
 
   @ApiProperty({ type: ContactDto })
   @ValidateNested()
