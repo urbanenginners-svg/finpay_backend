@@ -199,6 +199,34 @@ export class EnvironmentVariables {
   @IsString()
   SMTP_ACTIVE_MODE: string;
 
+  /** Prithvi Exchange API base URL (e.g. https://lead-stage-api…/api). */
+  @IsOptional()
+  @IsString()
+  PRITHVI_BASE_URL: string;
+
+  @IsOptional()
+  @IsString()
+  PRITHVI_CLIENT_ID: string;
+
+  @IsOptional()
+  @IsString()
+  PRITHVI_CLIENT_SECRET: string;
+
+  /** Agent UUID assigned by Prithvi for rate lookups. */
+  @IsOptional()
+  @IsString()
+  PRITHVI_AGENT_ID: string;
+
+  /** OAuth scope for client credentials grant. Defaults to "read write". */
+  @IsOptional()
+  @IsString()
+  PRITHVI_SCOPE: string;
+
+  /** Set to `"true"` to call Prithvi APIs; any other value returns dry-run data. */
+  @IsOptional()
+  @IsString()
+  PRITHVI_ACTIVE_MODE: string;
+
   //   @IsString()
   //   CTRL_FRONTEND_URL: string;
 }

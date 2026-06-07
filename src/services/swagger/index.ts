@@ -7,7 +7,16 @@ const options = new DocumentBuilder()
   .setDescription('API descriptions for the Sbzee.')
   .setVersion('1.0.0-alpha-3')
   .addBasicAuth()
-  .addBearerAuth()
+  .addBearerAuth(
+    {
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT',
+      description:
+        'JWT from POST /api/v1/auth/login — required for Remittance Admin endpoints',
+    },
+    'bearer',
+  )
   .addApiKey({ type: 'apiKey', name: 'x-api-key', in: 'header' }, 'master-key')
   .addApiKey(
     { type: 'apiKey', name: 'x-api-public-key', in: 'header' },

@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { MongooseModule } from "@nestjs/mongoose";
+import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
@@ -11,8 +12,11 @@ import { AdminModule } from "src/api/admin/admin.module";
 import { RoleModule } from "src/api/role/role.module";
 import { SeedModule } from "src/api/seed/seed.module";
 import { EnquiryModule } from "src/api/enquiry/enquiry.module";
+import { RemittanceModule } from "src/api/remittance/remittance.module";
 import { SmsModule } from "src/services/sms";
 import { EmailModule } from "src/services/email";
+import { RemittanceProviderTokenModule } from "src/services/remittance-provider-token";
+import { PrithviExchangeModule } from "src/services/prithvi-exchange";
 import { JwtAuthGuard } from "src/services/auth/jwt-auth.guard";
 import { ApiKeyAuthGuard } from "src/services/auth/api-key-auth.guard";
 import { User, UserSchema } from "src/services/mongoose/schemas/user.schema";
@@ -21,6 +25,7 @@ import { SystemApiKey, SystemApiKeySchema } from "src/services/mongoose/schemas/
 @Module({
     imports: [
         AppConfigModule,
+        ScheduleModule.forRoot(),
         ThrottlerModule.forRoot([
             {
                 name: 'default',
@@ -38,8 +43,11 @@ import { SystemApiKey, SystemApiKeySchema } from "src/services/mongoose/schemas/
         RoleModule,
         SeedModule,
         EnquiryModule,
+        RemittanceModule,
         SmsModule,
         EmailModule,
+        RemittanceProviderTokenModule,
+        PrithviExchangeModule,
     ],
     controllers: [AppController],
     providers: [
