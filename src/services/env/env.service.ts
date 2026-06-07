@@ -166,6 +166,11 @@ export class EnvironmentVariables {
   @IsString()
   ENQUIRY_ADVISOR_PHONES: string;
 
+  /** Admin email address for new service enquiry notifications. */
+  @IsOptional()
+  @IsString()
+  ENQUIRY_ADMIN_EMAIL: string;
+
   /** Hostinger / SMTP host (e.g. smtp.hostinger.com). */
   @IsOptional()
   @IsString()

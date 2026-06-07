@@ -1,10 +1,10 @@
 import { Global, Module } from '@nestjs/common';
 
-import { EmailService } from './email.service';
+import { HostingerService } from './hostinger.service';
 
 @Global()
 @Module({
-  providers: [EmailService],
-  exports: [EmailService],
+  providers: [HostingerService],
+  exports: [HostingerService],
 })
 export class EmailModule {}

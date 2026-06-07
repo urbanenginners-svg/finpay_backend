@@ -23,7 +23,7 @@ import { getPaginatedDataWithAggregation } from 'src/utils/services/get-paginate
 import { SmsService } from 'src/services/sms/sms.service';
 import { SMS_TEMPLATE_KEYS } from 'src/services/sms/mappings/sms-template.registry';
 import { AppConfigService } from 'src/services/env/env.service';
-import { EmailService } from 'src/services/email/email.service';
+import { HostingerService } from 'src/services/email/hostinger.service';
 
 @Injectable()
 export class EnquiryService {
@@ -33,7 +33,7 @@ export class EnquiryService {
     @InjectModel(ServiceEnquiry.name)
     private readonly enquiryModel: Model<ServiceEnquiryDocument>,
     private readonly smsService: SmsService,
-    private readonly emailService: EmailService,
+    private readonly hostingerService: HostingerService,
     private readonly config: AppConfigService,
   ) {}
 
@@ -91,6 +91,12 @@ export class EnquiryService {
     this.sendCustomerConfirmation(saved).catch((error) => {
       this.logger.error(
         `Failed to send enquiry confirmation email for ${saved._id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+
+    this.sendAdminNotification(saved).catch((error) => {
+      this.logger.error(
+        `Failed to send enquiry admin notification for ${saved._id}: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
 
@@ -154,11 +160,39 @@ export class EnquiryService {
   private async sendCustomerConfirmation(
     enquiry: ServiceEnquiryDocument,
   ): Promise<void> {
-    await this.emailService.sendEnquiryConfirmation({
+    await this.hostingerService.sendEnquiryConfirmation({
       to: enquiry.contact.email,
       fullName: enquiry.contact.fullName,
       serviceType: SERVICE_TYPE_LABELS[enquiry.serviceType],
       referenceNumber: enquiry.referenceNumber ?? String(enquiry._id),
+    });
+  }
+
+  private async sendAdminNotification(
+    enquiry: ServiceEnquiryDocument,
+  ): Promise<void> {
+    const adminEmail =
+      this.config.get('ENQUIRY_ADMIN_EMAIL')?.trim() || 'admin@yopmail.com';
+
+    await this.hostingerService.sendEnquiryAdminNotification({
+      to: adminEmail,
+      enquiryId: String(enquiry._id),
+      referenceNumber: enquiry.referenceNumber ?? String(enquiry._id),
+      serviceType: SERVICE_TYPE_LABELS[enquiry.serviceType],
+      status: enquiry.status,
+      source: enquiry.source,
+      isPriority: enquiry.isPriority,
+      submittedAt:
+        enquiry.createdAt?.toISOString() ?? new Date().toISOString(),
+      contact: {
+        fullName: enquiry.contact.fullName,
+        mobile: enquiry.contact.mobile,
+        email: enquiry.contact.email,
+        callbackRequested: enquiry.contact.callbackRequested,
+      },
+      serviceDetails: enquiry.serviceDetails,
+      estimatedInrValue: enquiry.estimatedInrValue,
+      fxRateUsed: enquiry.fxRateUsed,
     });
   }
 
