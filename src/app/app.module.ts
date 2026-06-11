@@ -13,6 +13,7 @@ import { RoleModule } from "src/api/role/role.module";
 import { SeedModule } from "src/api/seed/seed.module";
 import { EnquiryModule } from "src/api/enquiry/enquiry.module";
 import { RemittanceModule } from "src/api/remittance/remittance.module";
+import { SystemConfigModule } from "src/api/system-config/system-config.module";
 import { SmsModule } from "src/services/sms";
 import { EmailModule } from "src/services/email";
 import { RemittanceProviderTokenModule } from "src/services/remittance-provider-token";
@@ -44,6 +45,7 @@ import { SystemApiKey, SystemApiKeySchema } from "src/services/mongoose/schemas/
         SeedModule,
         EnquiryModule,
         RemittanceModule,
+        SystemConfigModule,
         SmsModule,
         EmailModule,
         RemittanceProviderTokenModule,

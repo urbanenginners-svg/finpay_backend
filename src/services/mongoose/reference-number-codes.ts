@@ -8,4 +8,5 @@ export const referenceNumberCodes: Record<string, string> = {
     Permission: 'PRM',
     File: 'FIL',
     ServiceEnquiry: 'ENQ',
+    CrossCountryPricing: 'XCP',
 };

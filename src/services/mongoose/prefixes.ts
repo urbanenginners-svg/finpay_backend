@@ -4,4 +4,5 @@ export const prefixes: Record<string, string> = {
     Permission: 'perm',
     File: 'file',
     ServiceEnquiry: 'enq',
+    CrossCountryPricing: 'xcp',
 };
