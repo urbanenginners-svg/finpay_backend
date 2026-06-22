@@ -8,9 +8,11 @@ import { Role, RoleSchema } from 'src/services/mongoose/schemas/role.schema';
 import { Permission, PermissionSchema } from 'src/services/mongoose/schemas/permission.schema';
 import { CaslAbilityFactory } from 'src/services/casl/casl-ability.factory';
 import { PoliciesGuard } from 'src/services/casl/casl-policies.guard';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
+    AuthModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Role.name, schema: RoleSchema },

@@ -55,4 +55,14 @@ export const roles = [
             `${resource.File}:${PermissionEnum.READ}`,
         ],
     },
+    {
+        name: 'Agent',
+        slug: RoleSlugEnum.AGENT,
+        description: 'FinPay partner agent requiring admin verification',
+        permissions: [
+            ...meReadUpdate,
+            `${resource.File}:${PermissionEnum.WRITE}`,
+            `${resource.File}:${PermissionEnum.READ}`,
+        ],
+    },
 ];

@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Version } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
 
 import { AuthService } from "./auth.service";
+import { RegistrationService } from "./registration.service";
 import { DataResponse } from "src/utils/response";
 import {
   LoginDto,
@@ -10,6 +11,15 @@ import {
   VerifyOtpDto,
   VerifyUnifiedOtpDto,
 } from "./dto";
+import {
+  CompleteAgentRegistrationDto,
+  CompleteUserRegistrationDto,
+  LoginSendOtpDto,
+  LoginVerifyOtpDto,
+  RegisterInitDto,
+  RegisterVerifyOtpDto,
+  VerifyAadhaarDto,
+} from "./dto/register.dto";
 import { SuperAdminLoginSwagger, LoginSwagger, GetMeSwagger } from "./auth.swagger";
 import { Public } from "src/utils/decorators/public-key.decorator";
 import { GetUser } from "src/utils/decorators/get-user.decorator";
@@ -17,7 +27,10 @@ import { GetUser } from "src/utils/decorators/get-user.decorator";
 @ApiTags("Authentication")
 @Controller("auth")
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private registrationService: RegistrationService,
+  ) {}
 
   @Public()
   @Version('1')
@@ -95,5 +108,72 @@ export class AuthController {
   async getMe(@GetUser('_id') userId: string) {
     const user = await this.authService.getPopulatedUser(userId);
     return new DataResponse(user);
+  }
+
+  @Public()
+  @Version('1')
+  @Post('register/init')
+  @ApiOperation({ summary: 'Start user or agent registration (step 1)' })
+  async registerInit(@Body() dto: RegisterInitDto) {
+    const result = await this.registrationService.initRegistration(dto);
+    return new DataResponse(result);
+  }
+
+  @Public()
+  @Version('1')
+  @Post('register/verify-otp')
+  @ApiOperation({ summary: 'Verify registration OTP (step 1 complete)' })
+  async registerVerifyOtp(@Body() dto: RegisterVerifyOtpDto) {
+    const result = await this.registrationService.verifyRegistrationOtp(dto);
+    return new DataResponse(result);
+  }
+
+  @Public()
+  @Version('1')
+  @Post('aadhaar/verify')
+  @ApiOperation({
+    summary: 'Mock Aadhaar verification',
+    description:
+      'Placeholder for third-party Aadhaar verification. Returns mock verification result. Fails if Aadhaar ends with 0000.',
+  })
+  async verifyAadhaar(@Body() dto: VerifyAadhaarDto) {
+    const result = await this.registrationService.verifyAadhaar(dto);
+    return new DataResponse(result);
+  }
+
+  @Public()
+  @Version('1')
+  @Post('register/user/complete')
+  @ApiOperation({ summary: 'Complete user registration KYC (step 2)' })
+  async completeUserRegistration(@Body() dto: CompleteUserRegistrationDto) {
+    const result = await this.registrationService.completeUserRegistration(dto);
+    return new DataResponse(result);
+  }
+
+  @Public()
+  @Version('1')
+  @Post('register/agent/complete')
+  @ApiOperation({ summary: 'Complete agent registration KYC (step 2)' })
+  async completeAgentRegistration(@Body() dto: CompleteAgentRegistrationDto) {
+    const result = await this.registrationService.completeAgentRegistration(dto);
+    return new DataResponse(result);
+  }
+
+  @Public()
+  @Version('1')
+  @Post('login/send-otp')
+  @ApiOperation({ summary: 'Send OTP for login (returns OTP in response)' })
+  async loginSendOtp(@Body() dto: LoginSendOtpDto) {
+    const result = await this.registrationService.loginSendOtp(dto);
+    return new DataResponse(result);
+  }
+
+  @Public()
+  @Version('1')
+  @Post('login/verify-otp')
+  @ApiOperation({ summary: 'Verify login OTP and receive JWT' })
+  async loginVerifyOtp(@Body() dto: LoginVerifyOtpDto) {
+    const result = await this.registrationService.loginVerifyOtp(dto);
+    return new DataResponse(result);
   }
 }

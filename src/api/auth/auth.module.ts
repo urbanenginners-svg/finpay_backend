@@ -4,6 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
 import { AuthService } from "./auth.service";
+import { RegistrationService } from "./registration.service";
+import { AadhaarVerificationService } from "./aadhaar-verification.service";
 import { AuthController } from "./auth.controller";
 import { User, UserSchema } from 'src/services/mongoose/schemas/user.schema';
 import { Role, RoleSchema } from 'src/services/mongoose/schemas/role.schema';
@@ -23,7 +25,7 @@ import { Role, RoleSchema } from 'src/services/mongoose/schemas/role.schema';
         }),
     ],
     controllers: [AuthController],
-    providers: [AuthService],
-    exports: [AuthService, JwtModule],
+    providers: [AuthService, RegistrationService, AadhaarVerificationService],
+    exports: [AuthService, RegistrationService, JwtModule],
 })
 export class AuthModule {}  

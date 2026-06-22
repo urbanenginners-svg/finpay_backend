@@ -3,8 +3,55 @@ import commonFieldsPlugin from "../plugins/common-fields";
 import { ApiProperty } from "@nestjs/swagger";
 import { HydratedDocument } from "mongoose";
 import { Role } from "./role.schema";
+import { RegistrationStatusEnum } from "src/utils/enums/registration-status.enum";
+import { AadhaarVerificationStatusEnum } from "src/utils/enums/aadhaar-verification-status.enum";
+import { UserTypeEnum } from "src/utils/enums/user-type.enum";
 
 export type UserDocument = HydratedDocument<User>;
+
+@Schema({ _id: false })
+export class PrivateLimitedDocuments {
+  @Prop({ type: String })
+  moaAoa?: string;
+
+  @Prop({ type: String })
+  certificateOfIncorporation?: string;
+
+  @Prop({ type: String })
+  gstCertificate?: string;
+
+  @Prop({ type: String })
+  addressProof?: string;
+
+  @Prop({ type: String })
+  companyPanCard?: string;
+
+  @Prop({ type: String })
+  bankCancelCheque?: string;
+}
+
+export const PrivateLimitedDocumentsSchema =
+  SchemaFactory.createForClass(PrivateLimitedDocuments);
+
+@Schema({ _id: false })
+export class AgentDocuments {
+  @Prop({ type: String })
+  udhyamAadhaarCertificate?: string;
+
+  @Prop({ type: String })
+  bankCancelCheque?: string;
+
+  @Prop({ type: String })
+  gstCertificate?: string;
+
+  @Prop({ type: Boolean, default: false })
+  isPrivateLimited?: boolean;
+
+  @Prop({ type: PrivateLimitedDocumentsSchema })
+  privateLimitedDocuments?: PrivateLimitedDocuments;
+}
+
+export const AgentDocumentsSchema = SchemaFactory.createForClass(AgentDocuments);
 
 @Schema({ collection: "users" })
 export class User {
@@ -87,6 +134,55 @@ export class User {
     default: true,
   })
   isActive: boolean;
+
+  @ApiProperty({ enum: UserTypeEnum, required: false })
+  @Prop({
+    required: false,
+    type: String,
+    enum: Object.values(UserTypeEnum),
+  })
+  userType?: UserTypeEnum;
+
+  @ApiProperty({ enum: RegistrationStatusEnum, required: false })
+  @Prop({
+    required: false,
+    type: String,
+    enum: Object.values(RegistrationStatusEnum),
+    default: RegistrationStatusEnum.VERIFIED,
+  })
+  registrationStatus?: RegistrationStatusEnum;
+
+  @ApiProperty({ required: false })
+  @Prop({ required: false, type: Date })
+  dateOfBirth?: Date;
+
+  @ApiProperty({ required: false })
+  @Prop({ required: false, type: String })
+  aadhaarNumber?: string;
+
+  @ApiProperty({ required: false })
+  @Prop({ required: false, type: String })
+  panCardNumber?: string;
+
+  @ApiProperty({ enum: AadhaarVerificationStatusEnum, required: false })
+  @Prop({
+    required: false,
+    type: String,
+    enum: Object.values(AadhaarVerificationStatusEnum),
+  })
+  aadhaarVerificationStatus?: AadhaarVerificationStatusEnum;
+
+  @ApiProperty({ required: false })
+  @Prop({ required: false, type: String })
+  aadhaarVerificationRef?: string;
+
+  @ApiProperty({ required: false })
+  @Prop({ required: false, type: AgentDocumentsSchema })
+  agentDocuments?: AgentDocuments;
+
+  @ApiProperty({ required: false })
+  @Prop({ required: false, type: String })
+  rejectionReason?: string;
 
   @ApiProperty()
   @Prop({

@@ -13,7 +13,9 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 
 import { AdminService } from './admin.service';
+import { RegistrationService } from '../auth/registration.service';
 import { CreateUserDto, GetUsersQueryDto, UpdateUserDto } from './dto';
+import { VerifyAgentDto } from '../auth/dto/register.dto';
 import {
   CreateUserSwagger,
   DeleteUserSwagger,
@@ -32,7 +34,10 @@ import { DataResponse, PaginatedDataResponse } from 'src/utils/response';
 @Controller('admin/users')
 @UseGuards(PoliciesGuard)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly registrationService: RegistrationService,
+  ) {}
 
   /**
    * POST /admin/users
@@ -73,6 +78,22 @@ export class AdminController {
   @CheckActionPolicy(PermissionEnum.READ, resource.User)
   async findOne(@Param('id') id: string) {
     const result = await this.adminService.findOne(id);
+    return new DataResponse(result);
+  }
+
+  /**
+   * PUT /admin/users/:id/verify-agent
+   * Approve or reject pending agent registration
+   */
+  @Version('1')
+  @Put(':id/verify-agent')
+  @CheckActionPolicy(PermissionEnum.UPDATE, resource.User)
+  async verifyAgent(
+    @Param('id') id: string,
+    @Body() dto: VerifyAgentDto,
+    @GetUser('sub') requestUserId: string,
+  ) {
+    const result = await this.registrationService.verifyAgent(id, dto, requestUserId);
     return new DataResponse(result);
   }
 
