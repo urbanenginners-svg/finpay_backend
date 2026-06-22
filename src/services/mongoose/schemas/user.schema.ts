@@ -11,22 +11,22 @@ export type UserDocument = HydratedDocument<User>;
 
 @Schema({ _id: false })
 export class PrivateLimitedDocuments {
-  @Prop({ type: String })
+  @Prop({ type: String, ref: 'File' })
   moaAoa?: string;
 
-  @Prop({ type: String })
+  @Prop({ type: String, ref: 'File' })
   certificateOfIncorporation?: string;
 
-  @Prop({ type: String })
+  @Prop({ type: String, ref: 'File' })
   gstCertificate?: string;
 
-  @Prop({ type: String })
+  @Prop({ type: String, ref: 'File' })
   addressProof?: string;
 
-  @Prop({ type: String })
+  @Prop({ type: String, ref: 'File' })
   companyPanCard?: string;
 
-  @Prop({ type: String })
+  @Prop({ type: String, ref: 'File' })
   bankCancelCheque?: string;
 }
 
@@ -35,13 +35,13 @@ export const PrivateLimitedDocumentsSchema =
 
 @Schema({ _id: false })
 export class AgentDocuments {
-  @Prop({ type: String })
+  @Prop({ type: String, ref: 'File' })
   udhyamAadhaarCertificate?: string;
 
-  @Prop({ type: String })
+  @Prop({ type: String, ref: 'File' })
   bankCancelCheque?: string;
 
-  @Prop({ type: String })
+  @Prop({ type: String, ref: 'File' })
   gstCertificate?: string;
 
   @Prop({ type: Boolean, default: false })

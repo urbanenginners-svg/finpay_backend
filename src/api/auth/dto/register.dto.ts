@@ -9,6 +9,7 @@ import {
   IsString,
   Length,
   Matches,
+  MinLength,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
@@ -42,6 +43,12 @@ export class RegisterInitDto {
   @ApiProperty({ example: '1990-01-15' })
   @IsDateString()
   dateOfBirth: string;
+
+  @ApiProperty({ example: 'StrongPassword@123', description: 'Account password (min 8 characters)' })
+  @IsString()
+  @IsNotEmpty({ message: 'Password is required' })
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  password: string;
 }
 
 export class RegisterVerifyOtpDto {
@@ -79,32 +86,50 @@ export class VerifyAadhaarDto {
 }
 
 export class PrivateLimitedDocumentsDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    example: 'file::123e4567-e89b-12d3-a456-426614174020',
+    description: 'File ID from POST /files/upload',
+  })
   @IsOptional()
   @IsString()
   moaAoa?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    example: 'file::123e4567-e89b-12d3-a456-426614174021',
+    description: 'File ID from POST /files/upload',
+  })
   @IsOptional()
   @IsString()
   certificateOfIncorporation?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    example: 'file::123e4567-e89b-12d3-a456-426614174022',
+    description: 'File ID from POST /files/upload',
+  })
   @IsOptional()
   @IsString()
   gstCertificate?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    example: 'file::123e4567-e89b-12d3-a456-426614174023',
+    description: 'File ID from POST /files/upload',
+  })
   @IsOptional()
   @IsString()
   addressProof?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    example: 'file::123e4567-e89b-12d3-a456-426614174024',
+    description: 'File ID from POST /files/upload',
+  })
   @IsOptional()
   @IsString()
   companyPanCard?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    example: 'file::123e4567-e89b-12d3-a456-426614174025',
+    description: 'File ID from POST /files/upload',
+  })
   @IsOptional()
   @IsString()
   bankCancelCheque?: string;
@@ -132,6 +157,7 @@ export class CompleteUserRegistrationDto {
   aadhaarVerificationRef?: string;
 }
 
+/** Text fields for multipart agent registration (document files are uploaded separately). */
 export class CompleteAgentRegistrationDto {
   @ApiProperty()
   @IsString()
@@ -153,17 +179,26 @@ export class CompleteAgentRegistrationDto {
   @IsString()
   aadhaarVerificationRef?: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    example: 'file::123e4567-e89b-12d3-a456-426614174010',
+    description: 'File ID from POST /files/upload',
+  })
   @IsString()
   @IsNotEmpty()
   udhyamAadhaarCertificate: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    example: 'file::123e4567-e89b-12d3-a456-426614174011',
+    description: 'File ID from POST /files/upload',
+  })
   @IsString()
   @IsNotEmpty()
   bankCancelCheque: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    example: 'file::123e4567-e89b-12d3-a456-426614174012',
+    description: 'File ID from POST /files/upload',
+  })
   @IsString()
   @IsNotEmpty()
   gstCertificate: string;

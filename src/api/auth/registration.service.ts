@@ -8,8 +8,9 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { Model } from 'mongoose';
+import * as bcrypt from 'bcrypt';
 
-import { User, UserDocument } from 'src/services/mongoose/schemas/user.schema';
+import { User, UserDocument, PrivateLimitedDocuments } from 'src/services/mongoose/schemas/user.schema';
 import { Role } from 'src/services/mongoose/schemas/role.schema';
 import { RoleSlugEnum } from 'src/utils/enums/role-slug.enum';
 import { RegistrationStatusEnum } from 'src/utils/enums/registration-status.enum';
@@ -26,6 +27,7 @@ import {
   VerifyAgentDto,
 } from './dto/register.dto';
 import { AadhaarVerificationService } from './aadhaar-verification.service';
+import { FilesService } from '../files/files.service';
 
 interface RegistrationTokenPayload {
   sub: string;
@@ -40,6 +42,7 @@ export class RegistrationService {
     @InjectModel(Role.name) private roleModel: Model<Role>,
     private jwtService: JwtService,
     private aadhaarVerificationService: AadhaarVerificationService,
+    private filesService: FilesService,
   ) {}
 
   private roleSlugForUserType(userType: UserTypeEnum): RoleSlugEnum {
@@ -121,8 +124,23 @@ export class RegistrationService {
     }
   }
 
+  private async linkAgentDocument(
+    fileId: string | undefined,
+    userId: string,
+    label: string,
+  ): Promise<string> {
+    if (!fileId) {
+      throw new BadRequestException(`${label} is required`);
+    }
+
+    await this.filesService.findOne(fileId);
+    await this.filesService.updateReferenceId(fileId, userId, userId);
+
+    return fileId;
+  }
+
   async initRegistration(dto: RegisterInitDto) {
-    const { userType, firstName, lastName, email, phoneNumber, dateOfBirth } = dto;
+    const { userType, firstName, lastName, email, phoneNumber, dateOfBirth, password } = dto;
 
     const existingEmail = await this.userModel.findOne({ email, deletedAt: null });
     if (existingEmail?.registrationStatus === RegistrationStatusEnum.VERIFIED) {
@@ -140,6 +158,7 @@ export class RegistrationService {
     const role = await this.getRoleForUserType(userType);
     const otp = this.generateOtp();
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     let user = existingPhone ?? existingEmail;
 
@@ -156,6 +175,7 @@ export class RegistrationService {
       user.userType = userType;
       user.role = role._id;
       user.registrationStatus = RegistrationStatusEnum.PENDING_OTP;
+      user.password = hashedPassword;
     } else {
       user = new this.userModel({
         firstName,
@@ -165,6 +185,7 @@ export class RegistrationService {
         dateOfBirth: new Date(dateOfBirth),
         userType,
         role: role._id,
+        password: hashedPassword,
         registrationStatus: RegistrationStatusEnum.PENDING_OTP,
         isActive: true,
       });
@@ -211,12 +232,22 @@ export class RegistrationService {
     user.registrationStatus = RegistrationStatusEnum.STEP1_COMPLETE;
     await user.save();
 
-    const newRegistrationToken = this.signRegistrationToken(user, payload.userType);
+    const populatedUser = await this.userModel
+      .findOne({ _id: user._id, deletedAt: null })
+      .populate('role');
+
+    if (!populatedUser) {
+      throw new UnauthorizedException('Registration session not found');
+    }
+
+    const newRegistrationToken = this.signRegistrationToken(populatedUser, payload.userType);
+    const auth = this.buildAuthResponse(populatedUser, populatedUser.role);
 
     return {
       message: 'OTP verified successfully',
       registrationToken: newRegistrationToken,
       userType: payload.userType,
+      ...auth,
     };
   }
 
@@ -296,18 +327,68 @@ export class RegistrationService {
       throw new BadRequestException(aadhaarResult.message);
     }
 
+    const userId = user._id;
+
+    const udhyamAadhaarCertificate = await this.linkAgentDocument(
+      dto.udhyamAadhaarCertificate,
+      userId,
+      'Udhyam Aadhaar certificate',
+    );
+    const bankCancelCheque = await this.linkAgentDocument(
+      dto.bankCancelCheque,
+      userId,
+      'Bank cancel cheque',
+    );
+    const gstCertificate = await this.linkAgentDocument(
+      dto.gstCertificate,
+      userId,
+      'GST certificate',
+    );
+
+    let privateLimitedDocuments: PrivateLimitedDocuments | undefined;
+
+    if (dto.isPrivateLimited && dto.privateLimitedDocuments) {
+      const docs = dto.privateLimitedDocuments;
+      privateLimitedDocuments = {
+        moaAoa: await this.linkAgentDocument(docs.moaAoa, userId, 'MOA & AOA'),
+        certificateOfIncorporation: await this.linkAgentDocument(
+          docs.certificateOfIncorporation,
+          userId,
+          'Certificate of incorporation',
+        ),
+        gstCertificate: await this.linkAgentDocument(
+          docs.gstCertificate,
+          userId,
+          'Private limited GST certificate',
+        ),
+        addressProof: await this.linkAgentDocument(
+          docs.addressProof,
+          userId,
+          'Company address proof',
+        ),
+        companyPanCard: await this.linkAgentDocument(
+          docs.companyPanCard,
+          userId,
+          'Company PAN card',
+        ),
+        bankCancelCheque: await this.linkAgentDocument(
+          docs.bankCancelCheque,
+          userId,
+          'Private limited bank cancel cheque',
+        ),
+      };
+    }
+
     user.aadhaarNumber = dto.aadhaarNumber;
     user.panCardNumber = dto.panCardNumber.toUpperCase();
     user.aadhaarVerificationStatus = AadhaarVerificationStatusEnum.VERIFIED;
     user.aadhaarVerificationRef = dto.aadhaarVerificationRef ?? aadhaarResult.verificationId;
     user.agentDocuments = {
-      udhyamAadhaarCertificate: dto.udhyamAadhaarCertificate,
-      bankCancelCheque: dto.bankCancelCheque,
-      gstCertificate: dto.gstCertificate,
+      udhyamAadhaarCertificate,
+      bankCancelCheque,
+      gstCertificate,
       isPrivateLimited: dto.isPrivateLimited,
-      ...(dto.isPrivateLimited && dto.privateLimitedDocuments
-        ? { privateLimitedDocuments: dto.privateLimitedDocuments }
-        : {}),
+      ...(privateLimitedDocuments ? { privateLimitedDocuments } : {}),
     };
     user.registrationStatus = RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION;
     await user.save();

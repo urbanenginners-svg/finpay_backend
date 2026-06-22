@@ -7,11 +7,13 @@ import { AuthService } from "./auth.service";
 import { RegistrationService } from "./registration.service";
 import { AadhaarVerificationService } from "./aadhaar-verification.service";
 import { AuthController } from "./auth.controller";
+import { FilesModule } from '../files/files.module';
 import { User, UserSchema } from 'src/services/mongoose/schemas/user.schema';
 import { Role, RoleSchema } from 'src/services/mongoose/schemas/role.schema';
 
 @Module({
     imports: [
+        FilesModule,
         MongooseModule.forFeature([
             { name: User.name, schema: UserSchema },
             { name: Role.name, schema: RoleSchema },
