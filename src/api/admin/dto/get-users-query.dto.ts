@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { CommonFieldsDto } from 'src/utils/dtos/common-fields.dto';
+import { RegistrationStatusEnum } from 'src/utils/enums/registration-status.enum';
 
 export class GetUsersQueryDto extends CommonFieldsDto {
   @ApiProperty({
@@ -13,11 +14,21 @@ export class GetUsersQueryDto extends CommonFieldsDto {
   roleId?: string;
 
   @ApiProperty({
-    example: 'admin',
+    example: 'agent',
     description: 'Filter users by role name or slug (case-insensitive)',
     required: false,
   })
   @IsString()
   @IsOptional()
   roleName?: string;
+
+  @ApiProperty({
+    enum: RegistrationStatusEnum,
+    example: RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION,
+    description: 'Filter users by registration status',
+    required: false,
+  })
+  @IsEnum(RegistrationStatusEnum)
+  @IsOptional()
+  registrationStatus?: RegistrationStatusEnum;
 }

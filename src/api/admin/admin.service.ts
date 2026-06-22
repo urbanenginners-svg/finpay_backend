@@ -86,12 +86,16 @@ export class AdminService {
   async findAll(
     query: GetUsersQueryDto,
   ): Promise<{ data: any[]; meta: any }> {
-    const { roleId, roleName, isActive } = query;
+    const { roleId, roleName, isActive, registrationStatus } = query;
 
     const matchStage: Record<string, any> = { deletedAt: null };
 
     if (roleId) {
       matchStage['role'] = roleId;
+    }
+
+    if (registrationStatus) {
+      matchStage['registrationStatus'] = registrationStatus;
     }
 
     if (isActive !== undefined) {
