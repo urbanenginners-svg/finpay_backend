@@ -1,5 +1,6 @@
 export * from './sms.module';
 export * from './sms.service';
+export * from './twilio.service';
 export * from './sms.constants';
 export * from './types/sms-template.types';
 export {

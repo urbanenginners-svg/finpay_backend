@@ -16,7 +16,6 @@ import {
 } from './dto';
 import { OtpPortalType } from 'src/utils/enums/otp-portal-type.enum';
 import { SmsService } from 'src/services/sms/sms.service';
-import { SMS_TEMPLATE_KEYS } from 'src/services/sms/mappings/sms-template.registry';
 
 @Injectable()
 export class AuthService {
@@ -56,20 +55,32 @@ export class AuthService {
   }
 
   /**
-   * Sends the DLT customer OTP template via Airtel (no-op / dry-run when AIRTEL_ACTIVE_MODE !== "true").
+   * Sends the customer OTP template via Twilio.
+   * Dry-run when TWILIO_ACTIVE_MODE is not active.
    */
   private async sendCustomerLoginOtpSms(
     user: UserDocument,
     otp: string,
   ): Promise<void> {
-    await this.smsService.sendTemplatedSms({
-      templateKey: SMS_TEMPLATE_KEYS.CUSTOMER_OTP,
-      destinations: user.phoneNumber,
-      variables: {
-        name: this.displayNameForSms(user),
-        otp,
-      },
+    await this.smsService.sendOtpSms({
+      phoneNumber: user.phoneNumber,
+      name: this.displayNameForSms(user),
+      otp,
     });
+  }
+
+  private buildOtpSendResponse(otp: string) {
+    const response: { message: string; otp?: string } = {
+      message: this.smsService.isSmsDeliveryActive()
+        ? 'OTP sent successfully'
+        : 'OTP generated successfully',
+    };
+
+    if (!this.smsService.isSmsDeliveryActive()) {
+      response.otp = otp;
+    }
+
+    return response;
   }
 
   /**
@@ -99,7 +110,7 @@ export class AuthService {
 
       const { otp } = await this.persistOtpForUser(user);
       await this.sendCustomerLoginOtpSms(user, otp);
-      return { message: 'OTP sent successfully', otp };
+      return this.buildOtpSendResponse(otp);
     }
 
     const portalRole = await this.roleModel.findOne({
@@ -129,7 +140,7 @@ export class AuthService {
 
     const { otp } = await this.persistOtpForUser(user);
     await this.sendCustomerLoginOtpSms(user, otp);
-    return { message: 'OTP sent successfully', otp };
+    return this.buildOtpSendResponse(otp);
   }
 
   async verifyUnifiedOtp(dto: VerifyUnifiedOtpDto) {
@@ -222,7 +233,7 @@ export class AuthService {
 
     const { otp } = await this.persistOtpForUser(user);
     await this.sendCustomerLoginOtpSms(user, otp);
-    return { message: 'OTP sent successfully', otp };
+    return this.buildOtpSendResponse(otp);
   }
 
   async verifyOtp(verifyOtpDto: VerifyOtpDto) {

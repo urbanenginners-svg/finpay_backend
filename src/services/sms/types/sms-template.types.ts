@@ -1,10 +1,5 @@
-/**
- * One DLT-registered SMS layout for Airtel (body uses `{var}` placeholders).
- */
+/** SMS layout with `{var}` placeholders rendered before sending via Twilio. */
 export type SmsTemplateDefinition = {
-  dltTemplateId: string;
-  sourceAddress: string;
-  messageType: string;
   bodyTemplate: string;
   variableKeys: readonly string[];
 };

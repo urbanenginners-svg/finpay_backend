@@ -109,27 +109,25 @@ export class EnvironmentVariables {
   @IsString()
   RAZORPAY_WEBHOOK_SECRET: string;
 
-  /** Base64 or raw token value used as `Authorization: Basic …` for Airtel SMS API. */
+  /** Twilio Account SID (from Twilio Console). */
   @IsOptional()
   @IsString()
-  AIRTEL_API_TOKEN: string;
+  TWILIO_ACCOUNT_SID: string;
 
+  /** Twilio Auth Token. */
   @IsOptional()
   @IsString()
-  AIRTEL_ENTITY_ID: string;
+  TWILIO_AUTH_TOKEN: string;
 
-  /** Set to `"true"` to send SMS; any other value skips the HTTP call (dry run). */
+  /** Twilio sender phone number in E.164 format (e.g. +14155552671). */
   @IsOptional()
   @IsString()
-  AIRTEL_ACTIVE_MODE: string;
+  TWILIO_PHONE_NUMBER: string;
 
+  /** Set to `"true"` to send SMS via Twilio; any other value skips the API call (dry run). */
   @IsOptional()
   @IsString()
-  AIRTEL_CUSTOMER_ID: string;
-
-  @IsOptional()
-  @IsString()
-  AIRTEL_URL: string;
+  TWILIO_ACTIVE_MODE: string;
 
   /**
    * Legacy fallback: used when partner / third-party bases are omitted

@@ -28,6 +28,7 @@ import {
 } from './dto/register.dto';
 import { AadhaarVerificationService } from './aadhaar-verification.service';
 import { FilesService } from '../files/files.service';
+import { SmsService } from 'src/services/sms/sms.service';
 
 interface RegistrationTokenPayload {
   sub: string;
@@ -43,6 +44,7 @@ export class RegistrationService {
     private jwtService: JwtService,
     private aadhaarVerificationService: AadhaarVerificationService,
     private filesService: FilesService,
+    private readonly smsService: SmsService,
   ) {}
 
   private roleSlugForUserType(userType: UserTypeEnum): RoleSlugEnum {
@@ -67,6 +69,31 @@ export class RegistrationService {
 
   private generateOtp(): string {
     return Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
+  private displayNameForSms(user: Pick<User, 'firstName' | 'lastName'>): string {
+    const parts = [user.firstName, user.lastName].filter(Boolean);
+    const joined = parts.join(' ').trim();
+    return joined || 'User';
+  }
+
+  private buildOtpSendResponse(phoneNumber: string, otp: string) {
+    const response: {
+      message: string;
+      phoneNumber: string;
+      otp?: string;
+    } = {
+      message: this.smsService.isSmsDeliveryActive()
+        ? 'OTP sent successfully'
+        : 'OTP generated successfully',
+      phoneNumber,
+    };
+
+    if (!this.smsService.isSmsDeliveryActive()) {
+      response.otp = otp;
+    }
+
+    return response;
   }
 
   private signRegistrationToken(user: UserDocument, userType: UserTypeEnum): string {
@@ -195,13 +222,17 @@ export class RegistrationService {
     user.otpExpiresAt = otpExpiresAt;
     await user.save();
 
+    await this.smsService.sendOtpSms({
+      phoneNumber,
+      name: this.displayNameForSms({ firstName, lastName }),
+      otp,
+    });
+
     const registrationToken = this.signRegistrationToken(user, userType);
 
     return {
-      message: 'OTP generated successfully',
-      otp,
+      ...this.buildOtpSendResponse(phoneNumber, otp),
       registrationToken,
-      phoneNumber,
     };
   }
 
@@ -429,11 +460,13 @@ export class RegistrationService {
     user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
-    return {
-      message: 'OTP generated successfully',
-      otp,
+    await this.smsService.sendOtpSms({
       phoneNumber: dto.phoneNumber,
-    };
+      name: this.displayNameForSms(user),
+      otp,
+    });
+
+    return this.buildOtpSendResponse(dto.phoneNumber, otp);
   }
 
   async loginVerifyOtp(dto: LoginVerifyOtpDto) {
