@@ -86,9 +86,23 @@ export class AdminService {
   async findAll(
     query: GetUsersQueryDto,
   ): Promise<{ data: any[]; meta: any }> {
-    const { roleId, roleName, isActive, registrationStatus } = query;
+    const { roleId, roleName, isActive, registrationStatus, dateFrom, dateTo } = query;
 
     const matchStage: Record<string, any> = { deletedAt: null };
+
+    if (dateFrom || dateTo) {
+      matchStage.createdAt = {};
+      if (dateFrom) {
+        const from = new Date(dateFrom);
+        from.setHours(0, 0, 0, 0);
+        matchStage.createdAt.$gte = from;
+      }
+      if (dateTo) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        matchStage.createdAt.$lte = to;
+      }
+    }
 
     if (roleId) {
       matchStage['role'] = roleId;
