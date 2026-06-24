@@ -214,6 +214,21 @@ export class CompleteAgentRegistrationDto {
   privateLimitedDocuments?: PrivateLimitedDocumentsDto;
 }
 
+export class PasswordLoginDto {
+  @ApiProperty({
+    example: '9876543210',
+    description: 'Email address or 10-digit Indian mobile number',
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'Email or mobile number is required' })
+  identifier: string;
+
+  @ApiProperty({ example: 'StrongPassword@123' })
+  @IsString()
+  @IsNotEmpty({ message: 'Password is required' })
+  password: string;
+}
+
 export class LoginSendOtpDto {
   @ApiProperty({ example: '9876543210' })
   @IsString()

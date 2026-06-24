@@ -16,6 +16,7 @@ import {
   CompleteUserRegistrationDto,
   LoginSendOtpDto,
   LoginVerifyOtpDto,
+  PasswordLoginDto,
   RegisterInitDto,
   RegisterVerifyOtpDto,
   VerifyAadhaarDto,
@@ -156,6 +157,17 @@ export class AuthController {
   @ApiOperation({ summary: 'Complete agent registration KYC (step 2)' })
   async completeAgentRegistration(@Body() dto: CompleteAgentRegistrationDto) {
     const result = await this.registrationService.completeAgentRegistration(dto);
+    return new DataResponse(result);
+  }
+
+  @Public()
+  @Version('1')
+  @Post('login/password')
+  @ApiOperation({ summary: 'Login with email or mobile number and password' })
+  @ApiResponse({ status: 200, description: 'Login successful' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  async loginWithPassword(@Body() dto: PasswordLoginDto) {
+    const result = await this.registrationService.loginWithPassword(dto);
     return new DataResponse(result);
   }
 

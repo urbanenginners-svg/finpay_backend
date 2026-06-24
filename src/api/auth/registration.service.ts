@@ -21,6 +21,7 @@ import {
   CompleteUserRegistrationDto,
   LoginSendOtpDto,
   LoginVerifyOtpDto,
+  PasswordLoginDto,
   RegisterInitDto,
   RegisterVerifyOtpDto,
   VerifyAadhaarDto,
@@ -431,6 +432,55 @@ export class RegistrationService {
       userId: user._id,
       userType: user.userType,
     };
+  }
+
+  async loginWithPassword(dto: PasswordLoginDto) {
+    const { identifier, password } = dto;
+    const isEmail = identifier.includes('@');
+
+    if (!isEmail && !/^[6-9]\d{9}$/.test(identifier)) {
+      throw new BadRequestException('Enter a valid email or 10-digit mobile number');
+    }
+
+    const filter = isEmail
+      ? { email: identifier.toLowerCase().trim(), deletedAt: null }
+      : { phoneNumber: identifier, deletedAt: null };
+
+    const user = await this.userModel.findOne(filter).populate('role');
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid email, mobile number, or password');
+    }
+
+    if (user.registrationStatus === RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION) {
+      throw new ForbiddenException(
+        'Your agent account is pending admin verification. Please wait for approval.',
+      );
+    }
+
+    if (user.registrationStatus !== RegistrationStatusEnum.VERIFIED) {
+      throw new BadRequestException('Please complete registration before logging in.');
+    }
+
+    if (!user.password) {
+      throw new UnauthorizedException('Invalid email, mobile number, or password');
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid email, mobile number, or password');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Your account is inactive. Please contact support.');
+    }
+
+    const role = user.role as any;
+    if (role && role.isActive === false) {
+      throw new UnauthorizedException('Your role is inactive. Please contact support.');
+    }
+
+    return this.buildAuthResponse(user, role);
   }
 
   async loginSendOtp(dto: LoginSendOtpDto) {
