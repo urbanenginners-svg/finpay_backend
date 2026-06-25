@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
 import { CommonFieldsDto } from 'src/utils/dtos/common-fields.dto';
 import { RegistrationStatusEnum } from 'src/utils/enums/registration-status.enum';
+import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
 
 export class GetUsersQueryDto extends CommonFieldsDto {
   @ApiProperty({
@@ -49,4 +50,23 @@ export class GetUsersQueryDto extends CommonFieldsDto {
   @IsDateString()
   @IsOptional()
   dateTo?: string;
+
+  @ApiProperty({
+    enum: UserTypeEnum,
+    example: UserTypeEnum.USER,
+    description: 'Filter users by user type',
+    required: false,
+  })
+  @IsEnum(UserTypeEnum)
+  @IsOptional()
+  userType?: UserTypeEnum;
+
+  @ApiProperty({
+    example: 'pending_otp,step1_complete',
+    description: 'Filter users by multiple registration statuses (comma-separated)',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  registrationStatusIn?: string;
 }

@@ -86,7 +86,16 @@ export class AdminService {
   async findAll(
     query: GetUsersQueryDto,
   ): Promise<{ data: any[]; meta: any }> {
-    const { roleId, roleName, isActive, registrationStatus, dateFrom, dateTo } = query;
+    const {
+      roleId,
+      roleName,
+      isActive,
+      registrationStatus,
+      registrationStatusIn,
+      userType,
+      dateFrom,
+      dateTo,
+    } = query;
 
     const matchStage: Record<string, any> = { deletedAt: null };
 
@@ -110,6 +119,19 @@ export class AdminService {
 
     if (registrationStatus) {
       matchStage['registrationStatus'] = registrationStatus;
+    } else if (registrationStatusIn) {
+      const statuses = registrationStatusIn
+        .split(',')
+        .map((status) => status.trim())
+        .filter(Boolean);
+
+      if (statuses.length) {
+        matchStage['registrationStatus'] = { $in: statuses };
+      }
+    }
+
+    if (userType) {
+      matchStage['userType'] = userType;
     }
 
     if (isActive !== undefined) {
