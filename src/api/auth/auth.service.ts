@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException } from "@nestjs/common";
+import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException, NotFoundException, ConflictException } from "@nestjs/common";
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
@@ -11,6 +11,7 @@ import {
   LoginDto,
   SendOtpDto,
   SendUnifiedOtpDto,
+  UpdateMeDto,
   VerifyOtpDto,
   VerifyUnifiedOtpDto,
 } from './dto';
@@ -400,6 +401,56 @@ export class AuthService {
         populate: { path: 'permissions' },
       })
       .exec();
+  }
+
+  async updateMe(
+    userId: string,
+    updateMeDto: UpdateMeDto,
+  ): Promise<UserDocument> {
+    const user = await this.userModel
+      .findOne({ _id: userId, deletedAt: null })
+      .exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const { password, ...rest } = updateMeDto;
+
+    if (rest.email && rest.email !== user.email) {
+      const existingEmail = await this.userModel
+        .findOne({ email: rest.email, deletedAt: null })
+        .exec();
+      if (existingEmail) {
+        throw new ConflictException(
+          `A user with email '${rest.email}' already exists`,
+        );
+      }
+    }
+
+    if (rest.phoneNumber && rest.phoneNumber !== user.phoneNumber) {
+      const existingPhone = await this.userModel
+        .findOne({ phoneNumber: rest.phoneNumber, deletedAt: null })
+        .exec();
+      if (existingPhone) {
+        throw new ConflictException(
+          `A user with phone number '${rest.phoneNumber}' already exists`,
+        );
+      }
+    }
+
+    Object.assign(user, {
+      ...rest,
+      lastUpdatedBy: userId,
+    });
+
+    if (password) {
+      user.password = await bcrypt.hash(password, 10);
+    }
+
+    await user.save();
+
+    return this.getPopulatedUser(userId) as Promise<UserDocument>;
   }
 
   /**

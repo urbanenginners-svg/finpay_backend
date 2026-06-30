@@ -10,6 +10,9 @@ import { AuthController } from "./auth.controller";
 import { FilesModule } from '../files/files.module';
 import { User, UserSchema } from 'src/services/mongoose/schemas/user.schema';
 import { Role, RoleSchema } from 'src/services/mongoose/schemas/role.schema';
+import { Permission, PermissionSchema } from 'src/services/mongoose/schemas/permission.schema';
+import { CaslAbilityFactory } from 'src/services/casl/casl-ability.factory';
+import { PoliciesGuard } from 'src/services/casl/casl-policies.guard';
 
 @Module({
     imports: [
@@ -17,6 +20,7 @@ import { Role, RoleSchema } from 'src/services/mongoose/schemas/role.schema';
         MongooseModule.forFeature([
             { name: User.name, schema: UserSchema },
             { name: Role.name, schema: RoleSchema },
+            { name: Permission.name, schema: PermissionSchema },
         ]),
         JwtModule.registerAsync({
             useFactory: (configService: ConfigService) => ({
@@ -27,7 +31,7 @@ import { Role, RoleSchema } from 'src/services/mongoose/schemas/role.schema';
         }),
     ],
     controllers: [AuthController],
-    providers: [AuthService, RegistrationService, AadhaarVerificationService],
+    providers: [AuthService, RegistrationService, AadhaarVerificationService, CaslAbilityFactory, PoliciesGuard],
     exports: [AuthService, RegistrationService, JwtModule],
 })
 export class AuthModule {}  

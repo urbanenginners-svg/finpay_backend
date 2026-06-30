@@ -51,3 +51,26 @@ export function GetMeSwagger() {
         }),
     );
 }
+
+export function UpdateMeSwagger() {
+    return applyDecorators(
+        ApiBearerAuth(),
+        ApiOperation({
+            summary: 'Update logged-in user profile',
+            description: 'Updates the current user profile. Requires me:update permission.',
+        }),
+        ApiResponse({
+            status: 200,
+            description: 'Profile updated successfully',
+            type: MeResponseDto,
+        }),
+        ApiResponse({
+            status: 401,
+            description: 'Unauthorized - Missing or invalid token',
+        }),
+        ApiResponse({
+            status: 403,
+            description: 'Forbidden - Missing me:update permission',
+        }),
+    );
+}

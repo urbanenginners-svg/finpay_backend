@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Version } from "@nestjs/common";
+import { Body, Controller, Get, Patch, Post, UseGuards, Version } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
 
 import { AuthService } from "./auth.service";
@@ -8,6 +8,7 @@ import {
   LoginDto,
   SendOtpDto,
   SendUnifiedOtpDto,
+  UpdateMeDto,
   VerifyOtpDto,
   VerifyUnifiedOtpDto,
 } from "./dto";
@@ -21,9 +22,13 @@ import {
   RegisterVerifyOtpDto,
   VerifyAadhaarDto,
 } from "./dto/register.dto";
-import { SuperAdminLoginSwagger, LoginSwagger, GetMeSwagger } from "./auth.swagger";
+import { SuperAdminLoginSwagger, LoginSwagger, GetMeSwagger, UpdateMeSwagger } from "./auth.swagger";
 import { Public } from "src/utils/decorators/public-key.decorator";
 import { GetUser } from "src/utils/decorators/get-user.decorator";
+import { PoliciesGuard } from "src/services/casl/casl-policies.guard";
+import { CheckActionPolicy } from "src/services/casl/casl-policies.decorator";
+import { PermissionEnum } from "src/utils/enums/permission.enum";
+import { resource } from "src/utils/constants/resource";
 
 @ApiTags("Authentication")
 @Controller("auth")
@@ -108,6 +113,19 @@ export class AuthController {
   @GetMeSwagger()
   async getMe(@GetUser('_id') userId: string) {
     const user = await this.authService.getPopulatedUser(userId);
+    return new DataResponse(user);
+  }
+
+  @Version('1')
+  @Patch('me')
+  @UseGuards(PoliciesGuard)
+  @UpdateMeSwagger()
+  @CheckActionPolicy(PermissionEnum.UPDATE, resource.Me)
+  async updateMe(
+    @GetUser('_id') userId: string,
+    @Body() updateMeDto: UpdateMeDto,
+  ) {
+    const user = await this.authService.updateMe(userId, updateMeDto);
     return new DataResponse(user);
   }
 

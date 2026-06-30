@@ -4,3 +4,4 @@ export * from './me-response.dto';
 export * from './otp-login.dto';
 export * from './unified-otp.dto';
 export * from './register.dto';
+export * from './update-me.dto';
