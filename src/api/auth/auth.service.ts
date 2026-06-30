@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException, NotFoundException, ConflictException } from "@nestjs/common";
+import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
@@ -416,28 +416,6 @@ export class AuthService {
     }
 
     const { password, ...rest } = updateMeDto;
-
-    if (rest.email && rest.email !== user.email) {
-      const existingEmail = await this.userModel
-        .findOne({ email: rest.email, deletedAt: null })
-        .exec();
-      if (existingEmail) {
-        throw new ConflictException(
-          `A user with email '${rest.email}' already exists`,
-        );
-      }
-    }
-
-    if (rest.phoneNumber && rest.phoneNumber !== user.phoneNumber) {
-      const existingPhone = await this.userModel
-        .findOne({ phoneNumber: rest.phoneNumber, deletedAt: null })
-        .exec();
-      if (existingPhone) {
-        throw new ConflictException(
-          `A user with phone number '${rest.phoneNumber}' already exists`,
-        );
-      }
-    }
 
     Object.assign(user, {
       ...rest,

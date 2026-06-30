@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsEmail,
   IsOptional,
   IsString,
   MinLength,
@@ -16,16 +15,6 @@ export class UpdateMeDto {
   @IsString()
   @IsOptional()
   lastName?: string;
-
-  @ApiProperty({ example: 'john.doe@example.com', required: false })
-  @IsEmail({}, { message: 'Please provide a valid email address' })
-  @IsOptional()
-  email?: string;
-
-  @ApiProperty({ example: '+919876543210', required: false })
-  @IsString()
-  @IsOptional()
-  phoneNumber?: string;
 
   @ApiProperty({
     example: 'file::123e4567-e89b-12d3-a456-426614174010',
