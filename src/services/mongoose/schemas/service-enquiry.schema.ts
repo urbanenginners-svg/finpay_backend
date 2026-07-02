@@ -7,8 +7,6 @@ import { ServiceEnquiryType } from 'src/utils/enums/service-enquiry-type.enum';
 import { ServiceEnquiryStatus } from 'src/utils/enums/service-enquiry-status.enum';
 import { ENQUIRY_SOURCE } from 'src/api/enquiry/constants/enquiry.constants';
 
-export type ServiceEnquiryDocument = ServiceEnquiry & Document;
-
 @Schema({ _id: false })
 export class ServiceEnquiryContact {
   @Prop({ required: true, type: String })
@@ -23,6 +21,25 @@ export class ServiceEnquiryContact {
   @Prop({ required: true, type: Boolean, default: false })
   callbackRequested: boolean;
 }
+
+@Schema({ _id: true, timestamps: { createdAt: true, updatedAt: false } })
+export class ServiceEnquiryAdminNote {
+  @Prop({ required: true, type: String })
+  content: string;
+
+  @Prop({ required: true, type: String })
+  createdByUserId: string;
+
+  @Prop({ required: true, type: String })
+  createdByName: string;
+
+  createdAt?: Date;
+}
+
+const ServiceEnquiryAdminNoteSchema =
+  SchemaFactory.createForClass(ServiceEnquiryAdminNote);
+
+export type ServiceEnquiryDocument = ServiceEnquiry & Document;
 
 @Schema({ collection: 'service_enquiries', timestamps: true })
 export class ServiceEnquiry {
@@ -73,6 +90,10 @@ export class ServiceEnquiry {
   @ApiProperty({ required: false })
   @Prop({ required: false, type: Number })
   fxRateUsed?: number;
+
+  @ApiProperty({ required: false, isArray: true })
+  @Prop({ required: false, type: [ServiceEnquiryAdminNoteSchema], default: [] })
+  adminNotes: ServiceEnquiryAdminNote[];
 
   @ApiProperty()
   createdAt?: Date;

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -15,6 +16,7 @@ import { EnquiryService } from './enquiry.service';
 import {
   CreateServiceEnquiryDto,
   GetEnquiriesQueryDto,
+  UpdateServiceEnquiryDto,
 } from './dto';
 import { DataResponse, PaginatedDataResponse } from 'src/utils/response';
 import { Public } from 'src/utils/decorators/public-key.decorator';
@@ -23,11 +25,14 @@ import { CheckActionPolicy } from 'src/services/casl/casl-policies.decorator';
 import { PermissionEnum } from 'src/utils/enums/permission.enum';
 import { resource } from 'src/utils/constants/resource';
 import { ThrottlerBehindProxyGuard } from 'src/services/throttler/throttler-proxy.guard';
+import { GetUser } from 'src/utils/decorators/get-user.decorator';
+import { User } from 'src/services/mongoose/schemas/user.schema';
 import {
   GetEnquiryByIdSwagger,
   GetEnquiriesSwagger,
   GetServicesSwagger,
   SubmitEnquirySwagger,
+  UpdateEnquirySwagger,
 } from './enquiry.swagger';
 
 const SUBMIT_SUCCESS_MESSAGE =
@@ -79,5 +84,19 @@ export class EnquiryController {
   async findOne(@Param('enquiryId') enquiryId: string) {
     const result = await this.enquiryService.findOne(enquiryId);
     return new DataResponse(result);
+  }
+
+  @Version('1')
+  @Patch(':enquiryId')
+  @UseGuards(PoliciesGuard)
+  @UpdateEnquirySwagger()
+  @CheckActionPolicy(PermissionEnum.UPDATE, resource.Enquiry)
+  async update(
+    @Param('enquiryId') enquiryId: string,
+    @Body() dto: UpdateServiceEnquiryDto,
+    @GetUser() user: User,
+  ) {
+    const result = await this.enquiryService.update(enquiryId, dto, user);
+    return new DataResponse(result, 'Enquiry updated successfully');
   }
 }

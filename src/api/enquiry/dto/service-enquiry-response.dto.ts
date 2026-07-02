@@ -60,6 +60,15 @@ export class ServiceEnquiryResponseDto {
   @ApiProperty({ required: false })
   fxRateUsed?: number;
 
+  @ApiProperty({ required: false, isArray: true })
+  adminNotes?: {
+    _id: string;
+    content: string;
+    createdByUserId: string;
+    createdByName: string;
+    createdAt: Date;
+  }[];
+
   @ApiProperty()
   createdAt: Date;
 

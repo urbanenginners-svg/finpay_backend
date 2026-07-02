@@ -89,3 +89,24 @@ export function GetEnquiryByIdSwagger() {
     ApiResponse({ status: 404, description: 'Enquiry not found' }),
   );
 }
+
+export function UpdateEnquirySwagger() {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Update enquiry status and add admin notes',
+      description:
+        'Allows admins to change enquiry status and append conversation notes. Requires UPDATE permission on Enquiry resource.',
+    }),
+    ApiParam({ name: 'enquiryId', description: 'Enquiry ID' }),
+    ApiResponse({
+      status: 200,
+      description: 'Enquiry updated successfully',
+      type: ServiceEnquiryResponseDto,
+    }),
+    ApiResponse({ status: 400, description: 'Validation failure' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+    ApiResponse({ status: 403, description: 'Forbidden' }),
+    ApiResponse({ status: 404, description: 'Enquiry not found' }),
+  );
+}

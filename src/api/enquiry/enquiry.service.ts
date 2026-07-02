@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
@@ -6,7 +6,7 @@ import {
   ServiceEnquiry,
   ServiceEnquiryDocument,
 } from 'src/services/mongoose/schemas/service-enquiry.schema';
-import { CreateServiceEnquiryDto, GetEnquiriesQueryDto } from './dto';
+import { CreateServiceEnquiryDto, GetEnquiriesQueryDto, UpdateServiceEnquiryDto } from './dto';
 import { ServiceEnquiryStatus } from 'src/utils/enums/service-enquiry-status.enum';
 import { ServiceEnquiryType } from 'src/utils/enums/service-enquiry-type.enum';
 import {
@@ -24,6 +24,13 @@ import { SmsService } from 'src/services/sms/sms.service';
 import { SMS_TEMPLATE_KEYS } from 'src/services/sms/mappings/sms-template.registry';
 import { AppConfigService } from 'src/services/env/env.service';
 import { HostingerService } from 'src/services/email/hostinger.service';
+import { User } from 'src/services/mongoose/schemas/user.schema';
+
+interface UpdateEnquiryActor {
+  _id: string;
+  firstName?: string;
+  lastName?: string;
+}
 
 @Injectable()
 export class EnquiryService {
@@ -155,6 +162,50 @@ export class EnquiryService {
     );
 
     return { data, meta };
+  }
+
+  async update(
+    id: string,
+    dto: UpdateServiceEnquiryDto,
+    actor: UpdateEnquiryActor,
+  ): Promise<ServiceEnquiryDocument> {
+    const hasStatus = dto.status !== undefined;
+    const noteContent = dto.note?.trim();
+
+    if (!hasStatus && !noteContent) {
+      throw new BadRequestException(
+        'Provide at least one of status or note to update the enquiry',
+      );
+    }
+
+    const enquiry = await this.findOne(id);
+    let hasChanges = false;
+
+    if (hasStatus && dto.status !== enquiry.status) {
+      enquiry.status = dto.status!;
+      hasChanges = true;
+    }
+
+    if (noteContent) {
+      enquiry.adminNotes = enquiry.adminNotes ?? [];
+      enquiry.adminNotes.push({
+        content: noteContent,
+        createdByUserId: String(actor._id),
+        createdByName: this.formatActorName(actor),
+      } as ServiceEnquiry['adminNotes'][number]);
+      hasChanges = true;
+    }
+
+    if (!hasChanges) {
+      return enquiry;
+    }
+
+    return enquiry.save();
+  }
+
+  private formatActorName(actor: UpdateEnquiryActor | User): string {
+    const parts = [actor.firstName, actor.lastName].filter(Boolean);
+    return parts.join(' ') || 'Admin';
   }
 
   private async sendCustomerConfirmation(
