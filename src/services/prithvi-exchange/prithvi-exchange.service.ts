@@ -1,4 +1,4 @@
-import axios, { isAxiosError } from 'axios';
+import axios from 'axios';
 import {
   Injectable,
   InternalServerErrorException,
@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { AppConfigService } from 'src/services/env/env.service';
+import { HttpFormService } from 'src/services/http';
 import { RemittanceProviderTokenService } from 'src/services/remittance-provider-token';
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import {
@@ -29,6 +30,7 @@ export class PrithviExchangeService {
   constructor(
     private readonly config: AppConfigService,
     private readonly tokenStore: RemittanceProviderTokenService,
+    private readonly httpForm: HttpFormService,
   ) {}
 
   get isActive(): boolean {
@@ -349,55 +351,18 @@ export class PrithviExchangeService {
     return `${baseUrl}${path}`;
   }
 
-  private async postForm<T>(
+  private postForm<T>(
     path: string,
     body: URLSearchParams,
     extraHeaders?: Record<string, string>,
   ): Promise<T> {
-    const url = this.buildUrl(path);
-
-    try {
-      const response = await axios.post<PrithviApiResponse<T>>(url, body.toString(), {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          accept: 'application/json',
-          ...extraHeaders,
-        },
-        validateStatus: () => true,
-      });
-
-      if (response.status < 200 || response.status >= 300) {
-        this.logger.error(
-          `Prithvi API HTTP ${response.status} [${path}]: ${JSON.stringify(response.data)}`,
-        );
-        throw new InternalServerErrorException(
-          'Prithvi Exchange request failed. Please try again later.',
-        );
-      }
-
-      if (!response.data?.success) {
-        this.logger.error(
-          `Prithvi API error [${path}]: ${JSON.stringify(response.data)}`,
-        );
-        throw new InternalServerErrorException(
-          'Prithvi Exchange request failed. Please try again later.',
-        );
-      }
-
-      return response.data.data;
-    } catch (error) {
-      if (error instanceof InternalServerErrorException) {
-        throw error;
-      }
-      const detail = isAxiosError(error)
-        ? JSON.stringify(error.response?.data ?? error.message)
-        : error instanceof Error
-          ? error.message
-          : String(error);
-      this.logger.error(`Prithvi API request failed [${path}]: ${detail}`);
-      throw new InternalServerErrorException(
+    return this.httpForm.postFormWithSuccessEnvelope<T>({
+      url: this.buildUrl(path),
+      body,
+      headers: extraHeaders,
+      context: path,
+      errorMessage:
         'Prithvi Exchange request failed. Please try again later.',
-      );
-    }
+    });
   }
 }
