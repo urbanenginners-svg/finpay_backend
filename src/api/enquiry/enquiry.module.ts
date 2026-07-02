@@ -12,9 +12,11 @@ import { Role, RoleSchema } from 'src/services/mongoose/schemas/role.schema';
 import { CaslAbilityFactory } from 'src/services/casl/casl-ability.factory';
 import { PoliciesGuard } from 'src/services/casl/casl-policies.guard';
 import { ThrottlerBehindProxyGuard } from 'src/services/throttler/throttler-proxy.guard';
+import { SystemConfigModule } from '../system-config/system-config.module';
 
 @Module({
   imports: [
+    SystemConfigModule,
     MongooseModule.forFeature([
       { name: ServiceEnquiry.name, schema: ServiceEnquirySchema },
       { name: Permission.name, schema: PermissionSchema },

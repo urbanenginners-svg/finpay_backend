@@ -12,12 +12,10 @@ import { ServiceEnquiryType } from 'src/utils/enums/service-enquiry-type.enum';
 import {
   ENQUIRY_SOURCE,
   SERVICE_TYPE_LABELS,
-  SupportedCurrency,
 } from './constants/enquiry.constants';
-import {
-  computeFxEstimate,
-  validateServiceDetails,
-} from './validators/service-details.validator';
+import { validateServiceDetails } from './validators/service-details.validator';
+import { computeFxEstimateFromRate } from 'src/utils/helpers/fx-rates.helper';
+import { SystemConfigService } from '../system-config/system-config.service';
 import { normalizePhoneNumber } from 'src/utils/helpers/phone.helper';
 import { getPaginatedDataWithAggregation } from 'src/utils/services/get-paginated-data-aggregation.service';
 import { SmsService } from 'src/services/sms/sms.service';
@@ -42,6 +40,7 @@ export class EnquiryService {
     private readonly smsService: SmsService,
     private readonly hostingerService: HostingerService,
     private readonly config: AppConfigService,
+    private readonly systemConfigService: SystemConfigService,
   ) {}
 
   getAvailableServices() {
@@ -77,13 +76,24 @@ export class EnquiryService {
       dto.serviceType === ServiceEnquiryType.OUTWARD_REMITTANCE ||
       dto.serviceType === ServiceEnquiryType.FOREIGN_EXCHANGE
     ) {
-      const currency = validatedDetails.currency as SupportedCurrency;
+      const currency = String(validatedDetails.currency).toUpperCase();
       const amount = validatedDetails.amount as number;
-      const fx = computeFxEstimate(currency, amount);
-      enquiryData.estimatedInrValue = fx.estimatedInrValue;
-      enquiryData.fxRateUsed = fx.fxRateUsed;
-      validatedDetails.estimatedInrValue = fx.estimatedInrValue;
-      validatedDetails.fxRateUsed = fx.fxRateUsed;
+      const fxRateUsed = await this.systemConfigService.getFxRate(
+        currency,
+        'INR',
+      );
+
+      if (fxRateUsed == null) {
+        this.logger.warn(
+          `No active pricing config found for ${currency}/INR; skipping FX estimate for enquiry`,
+        );
+      } else {
+        const fx = computeFxEstimateFromRate(amount, fxRateUsed);
+        enquiryData.estimatedInrValue = fx.estimatedInrValue;
+        enquiryData.fxRateUsed = fx.fxRateUsed;
+        validatedDetails.estimatedInrValue = fx.estimatedInrValue;
+        validatedDetails.fxRateUsed = fx.fxRateUsed;
+      }
     }
 
     const enquiry = new this.enquiryModel(enquiryData);

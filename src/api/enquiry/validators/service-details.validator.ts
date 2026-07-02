@@ -20,7 +20,6 @@ import { Type } from 'class-transformer';
 
 import {
   FOREX_SERVICE_TYPES,
-  INDICATIVE_FX_RATES_INR,
   INSURANCE_COVERAGE,
   INSURANCE_MEMBER_COUNTS,
   INSURANCE_TRAVEL_DESTINATIONS,
@@ -336,11 +335,3 @@ export function validateServiceDetails(
   }
 }
 
-export function computeFxEstimate(
-  currency: SupportedCurrency,
-  amount: number,
-): { estimatedInrValue: number; fxRateUsed: number } {
-  const fxRateUsed = INDICATIVE_FX_RATES_INR[currency];
-  const estimatedInrValue = Math.round(amount * fxRateUsed * 100) / 100;
-  return { estimatedInrValue, fxRateUsed };
-}

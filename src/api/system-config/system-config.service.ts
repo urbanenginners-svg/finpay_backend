@@ -15,6 +15,7 @@ import {
   GetPricingConfigQueryDto,
   PricingConfigItemDto,
 } from './dto';
+import { getFxRate, PricingPair } from 'src/utils/helpers/fx-rates.helper';
 
 @Injectable()
 export class SystemConfigService {
@@ -57,6 +58,25 @@ export class SystemConfigService {
         this.formatPricingResponse(record, { includeIsActive: true }),
       ),
     };
+  }
+
+  async getActivePricingPairs(): Promise<PricingPair[]> {
+    const records = await this.pricingModel
+      .find({ isActive: true })
+      .select('countryBCurrency countryAPricing countryBPricing')
+      .lean()
+      .exec();
+
+    return records.map((record) => ({
+      countryBCurrency: record.countryBCurrency,
+      countryAPricing: record.countryAPricing,
+      countryBPricing: record.countryBPricing,
+    }));
+  }
+
+  async getFxRate(from: string, to: string): Promise<number | null> {
+    const pricing = await this.getActivePricingPairs();
+    return getFxRate(from, to, pricing);
   }
 
   async getPricing(query: GetPricingConfigQueryDto) {
