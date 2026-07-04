@@ -24,6 +24,7 @@ import {
   PasswordLoginDto,
   RegisterInitDto,
   RegisterVerifyOtpDto,
+  UpdateRegistrationStep1Dto,
   VerifyAadhaarDto,
   VerifyAgentDto,
 } from './dto/register.dto';
@@ -234,6 +235,93 @@ export class RegistrationService {
     return {
       ...this.buildOtpSendResponse(phoneNumber, otp),
       registrationToken,
+    };
+  }
+
+  async updateRegistrationStep1(userId: string, dto: UpdateRegistrationStep1Dto) {
+    const user = await this.userModel.findOne({ _id: userId, deletedAt: null });
+
+    if (!user) {
+      throw new UnauthorizedException('Registration session not found');
+    }
+
+    this.assertRegistrationStep(user, RegistrationStatusEnum.STEP1_COMPLETE);
+
+    const { firstName, lastName, email, phoneNumber, dateOfBirth, password } = dto;
+
+    const existingEmail = await this.userModel.findOne({
+      email,
+      deletedAt: null,
+      _id: { $ne: userId },
+    });
+    if (existingEmail?.registrationStatus === RegistrationStatusEnum.VERIFIED) {
+      throw new ConflictException('An account with this email already exists');
+    }
+
+    const phoneChanged = user.phoneNumber !== phoneNumber;
+
+    if (phoneChanged) {
+      const existingPhone = await this.userModel.findOne({
+        phoneNumber,
+        deletedAt: null,
+        _id: { $ne: userId },
+      });
+      if (existingPhone?.registrationStatus === RegistrationStatusEnum.VERIFIED) {
+        throw new ConflictException('An account with this phone number already exists');
+      }
+    }
+
+    user.firstName = firstName;
+    user.lastName = lastName;
+    user.email = email;
+    user.dateOfBirth = new Date(dateOfBirth);
+
+    if (password) {
+      user.password = await bcrypt.hash(password, 10);
+    }
+
+    if (phoneChanged) {
+      user.phoneNumber = phoneNumber;
+      const otp = this.generateOtp();
+      user.otp = otp;
+      user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      user.registrationStatus = RegistrationStatusEnum.PENDING_OTP;
+      await user.save();
+
+      await this.smsService.sendOtpSms({
+        phoneNumber,
+        name: this.displayNameForSms({ firstName, lastName }),
+        otp,
+      });
+
+      const registrationToken = this.signRegistrationToken(user, user.userType);
+
+      return {
+        requiresOtp: true,
+        ...this.buildOtpSendResponse(phoneNumber, otp),
+        registrationToken,
+      };
+    }
+
+    user.phoneNumber = phoneNumber;
+    await user.save();
+
+    const populatedUser = await this.userModel
+      .findOne({ _id: user._id, deletedAt: null })
+      .populate('role');
+
+    if (!populatedUser) {
+      throw new UnauthorizedException('Registration session not found');
+    }
+
+    const registrationToken = this.signRegistrationToken(populatedUser, populatedUser.userType);
+    const auth = this.buildAuthResponse(populatedUser, populatedUser.role);
+
+    return {
+      requiresOtp: false,
+      message: 'Personal details updated successfully',
+      registrationToken,
+      ...auth,
     };
   }
 

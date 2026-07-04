@@ -51,6 +51,40 @@ export class RegisterInitDto {
   password: string;
 }
 
+export class UpdateRegistrationStep1Dto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  firstName: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  lastName: string;
+
+  @ApiProperty()
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ example: '9876543210' })
+  @IsString()
+  @Matches(/^[6-9]\d{9}$/, { message: 'Phone number must be a valid 10-digit Indian mobile number' })
+  phoneNumber: string;
+
+  @ApiProperty({ example: '1990-01-15' })
+  @IsDateString()
+  dateOfBirth: string;
+
+  @ApiPropertyOptional({
+    example: 'StrongPassword@123',
+    description: 'Leave empty to keep the current password',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  password?: string;
+}
+
 export class RegisterVerifyOtpDto {
   @ApiProperty()
   @IsString()

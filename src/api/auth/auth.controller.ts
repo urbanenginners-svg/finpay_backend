@@ -20,6 +20,7 @@ import {
   PasswordLoginDto,
   RegisterInitDto,
   RegisterVerifyOtpDto,
+  UpdateRegistrationStep1Dto,
   VerifyAadhaarDto,
 } from "./dto/register.dto";
 import { SuperAdminLoginSwagger, LoginSwagger, GetMeSwagger, UpdateMeSwagger } from "./auth.swagger";
@@ -144,6 +145,21 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify registration OTP (step 1 complete)' })
   async registerVerifyOtp(@Body() dto: RegisterVerifyOtpDto) {
     const result = await this.registrationService.verifyRegistrationOtp(dto);
+    return new DataResponse(result);
+  }
+
+  @Version('1')
+  @Patch('register/step1')
+  @ApiOperation({
+    summary: 'Update registration step 1 details',
+    description:
+      'Allows users at step1_complete to edit personal details before completing KYC. Re-verifies OTP if the phone number changes.',
+  })
+  async updateRegistrationStep1(
+    @GetUser('_id') userId: string,
+    @Body() dto: UpdateRegistrationStep1Dto,
+  ) {
+    const result = await this.registrationService.updateRegistrationStep1(userId, dto);
     return new DataResponse(result);
   }
 
