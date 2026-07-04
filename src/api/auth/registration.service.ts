@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -143,6 +142,13 @@ export class RegistrationService {
       registrationStatus: user.registrationStatus,
       role: role ?? null,
     };
+  }
+
+  private canLogin(registrationStatus?: RegistrationStatusEnum): boolean {
+    return (
+      registrationStatus === RegistrationStatusEnum.VERIFIED ||
+      registrationStatus === RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION
+    );
   }
 
   private assertRegistrationStep(user: UserDocument, expected: RegistrationStatusEnum) {
@@ -540,13 +546,7 @@ export class RegistrationService {
       throw new UnauthorizedException('Invalid email, mobile number, or password');
     }
 
-    if (user.registrationStatus === RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION) {
-      throw new ForbiddenException(
-        'Your agent account is pending admin verification. Please wait for approval.',
-      );
-    }
-
-    if (user.registrationStatus !== RegistrationStatusEnum.VERIFIED) {
+    if (!this.canLogin(user.registrationStatus)) {
       throw new BadRequestException('Please complete registration before logging in.');
     }
 
@@ -581,13 +581,7 @@ export class RegistrationService {
       throw new UnauthorizedException('No account found with this phone number');
     }
 
-    if (user.registrationStatus !== RegistrationStatusEnum.VERIFIED) {
-      if (user.registrationStatus === RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION) {
-        throw new ForbiddenException(
-          'Your agent account is pending admin verification. Please wait for approval.',
-        );
-      }
-
+    if (!this.canLogin(user.registrationStatus)) {
       throw new BadRequestException(
         'Registration is incomplete. Please complete signup first.',
       );
@@ -617,13 +611,7 @@ export class RegistrationService {
       throw new UnauthorizedException('No account found with this phone number');
     }
 
-    if (user.registrationStatus === RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION) {
-      throw new ForbiddenException(
-        'Your agent account is pending admin verification. Please wait for approval.',
-      );
-    }
-
-    if (user.registrationStatus !== RegistrationStatusEnum.VERIFIED) {
+    if (!this.canLogin(user.registrationStatus)) {
       throw new BadRequestException('Please complete registration before logging in.');
     }
 
