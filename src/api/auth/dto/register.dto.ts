@@ -119,6 +119,28 @@ export class VerifyAadhaarDto {
   dateOfBirth?: string;
 }
 
+export class VerifyPanDto {
+  @ApiProperty({ example: 'ABCDE1234F' })
+  @IsString()
+  @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, { message: 'PAN must be in valid format (e.g. ABCDE1234F)' })
+  panCardNumber: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  lastName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  dateOfBirth?: string;
+}
+
 export class PrivateLimitedDocumentsDto {
   @ApiPropertyOptional({
     example: 'file::123e4567-e89b-12d3-a456-426614174020',
@@ -189,6 +211,11 @@ export class CompleteUserRegistrationDto {
   @IsOptional()
   @IsString()
   aadhaarVerificationRef?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  panVerificationRef?: string;
 }
 
 /** Text fields for multipart agent registration (document files are uploaded separately). */
@@ -212,6 +239,11 @@ export class CompleteAgentRegistrationDto {
   @IsOptional()
   @IsString()
   aadhaarVerificationRef?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  panVerificationRef?: string;
 
   @ApiProperty({
     example: 'file::123e4567-e89b-12d3-a456-426614174010',

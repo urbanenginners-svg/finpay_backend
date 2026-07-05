@@ -5,6 +5,7 @@ import { HydratedDocument } from "mongoose";
 import { Role } from "./role.schema";
 import { RegistrationStatusEnum } from "src/utils/enums/registration-status.enum";
 import { AadhaarVerificationStatusEnum } from "src/utils/enums/aadhaar-verification-status.enum";
+import { PanVerificationStatusEnum } from "src/utils/enums/pan-verification-status.enum";
 import { UserTypeEnum } from "src/utils/enums/user-type.enum";
 
 export type UserDocument = HydratedDocument<User>;
@@ -175,6 +176,18 @@ export class User {
   @ApiProperty({ required: false })
   @Prop({ required: false, type: String })
   aadhaarVerificationRef?: string;
+
+  @ApiProperty({ enum: PanVerificationStatusEnum, required: false })
+  @Prop({
+    required: false,
+    type: String,
+    enum: Object.values(PanVerificationStatusEnum),
+  })
+  panVerificationStatus?: PanVerificationStatusEnum;
+
+  @ApiProperty({ required: false })
+  @Prop({ required: false, type: String })
+  panVerificationRef?: string;
 
   @ApiProperty({ required: false })
   @Prop({ required: false, type: AgentDocumentsSchema })

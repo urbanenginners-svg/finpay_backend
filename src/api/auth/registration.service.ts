@@ -14,6 +14,7 @@ import { Role } from 'src/services/mongoose/schemas/role.schema';
 import { RoleSlugEnum } from 'src/utils/enums/role-slug.enum';
 import { RegistrationStatusEnum } from 'src/utils/enums/registration-status.enum';
 import { AadhaarVerificationStatusEnum } from 'src/utils/enums/aadhaar-verification-status.enum';
+import { PanVerificationStatusEnum } from 'src/utils/enums/pan-verification-status.enum';
 import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
 import {
   CompleteAgentRegistrationDto,
@@ -25,9 +26,11 @@ import {
   RegisterVerifyOtpDto,
   UpdateRegistrationStep1Dto,
   VerifyAadhaarDto,
+  VerifyPanDto,
   VerifyAgentDto,
 } from './dto/register.dto';
 import { AadhaarVerificationService } from './aadhaar-verification.service';
+import { PanVerificationService } from './pan-verification.service';
 import { FilesService } from '../files/files.service';
 import { SmsService } from 'src/services/sms/sms.service';
 
@@ -44,6 +47,7 @@ export class RegistrationService {
     @InjectModel(Role.name) private roleModel: Model<Role>,
     private jwtService: JwtService,
     private aadhaarVerificationService: AadhaarVerificationService,
+    private panVerificationService: PanVerificationService,
     private filesService: FilesService,
     private readonly smsService: SmsService,
   ) {}
@@ -381,6 +385,10 @@ export class RegistrationService {
     return this.aadhaarVerificationService.verify(dto);
   }
 
+  async verifyPan(dto: VerifyPanDto) {
+    return this.panVerificationService.verify(dto);
+  }
+
   async completeUserRegistration(dto: CompleteUserRegistrationDto) {
     const payload = this.verifyRegistrationToken(dto.registrationToken);
 
@@ -409,10 +417,24 @@ export class RegistrationService {
       throw new BadRequestException(aadhaarResult.message);
     }
 
+    const panCardNumber = dto.panCardNumber.toUpperCase();
+    const panResult = await this.panVerificationService.verify({
+      panCardNumber,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      dateOfBirth: user.dateOfBirth?.toISOString().slice(0, 10),
+    });
+
+    if (!panResult.verified) {
+      throw new BadRequestException(panResult.message);
+    }
+
     user.aadhaarNumber = dto.aadhaarNumber;
-    user.panCardNumber = dto.panCardNumber.toUpperCase();
+    user.panCardNumber = panCardNumber;
     user.aadhaarVerificationStatus = AadhaarVerificationStatusEnum.VERIFIED;
     user.aadhaarVerificationRef = dto.aadhaarVerificationRef ?? aadhaarResult.verificationId;
+    user.panVerificationStatus = PanVerificationStatusEnum.VERIFIED;
+    user.panVerificationRef = dto.panVerificationRef ?? panResult.verificationId;
     user.registrationStatus = RegistrationStatusEnum.VERIFIED;
     await user.save();
 
@@ -451,6 +473,18 @@ export class RegistrationService {
 
     if (!aadhaarResult.verified) {
       throw new BadRequestException(aadhaarResult.message);
+    }
+
+    const panCardNumber = dto.panCardNumber.toUpperCase();
+    const panResult = await this.panVerificationService.verify({
+      panCardNumber,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      dateOfBirth: user.dateOfBirth?.toISOString().slice(0, 10),
+    });
+
+    if (!panResult.verified) {
+      throw new BadRequestException(panResult.message);
     }
 
     const userId = user._id;
@@ -506,9 +540,11 @@ export class RegistrationService {
     }
 
     user.aadhaarNumber = dto.aadhaarNumber;
-    user.panCardNumber = dto.panCardNumber.toUpperCase();
+    user.panCardNumber = panCardNumber;
     user.aadhaarVerificationStatus = AadhaarVerificationStatusEnum.VERIFIED;
     user.aadhaarVerificationRef = dto.aadhaarVerificationRef ?? aadhaarResult.verificationId;
+    user.panVerificationStatus = PanVerificationStatusEnum.VERIFIED;
+    user.panVerificationRef = dto.panVerificationRef ?? panResult.verificationId;
     user.agentDocuments = {
       udhyamAadhaarCertificate,
       bankCancelCheque,

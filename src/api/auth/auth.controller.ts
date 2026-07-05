@@ -22,6 +22,7 @@ import {
   RegisterVerifyOtpDto,
   UpdateRegistrationStep1Dto,
   VerifyAadhaarDto,
+  VerifyPanDto,
 } from "./dto/register.dto";
 import { SuperAdminLoginSwagger, LoginSwagger, GetMeSwagger, UpdateMeSwagger } from "./auth.swagger";
 import { Public } from "src/utils/decorators/public-key.decorator";
@@ -173,6 +174,19 @@ export class AuthController {
   })
   async verifyAadhaar(@Body() dto: VerifyAadhaarDto) {
     const result = await this.registrationService.verifyAadhaar(dto);
+    return new DataResponse(result);
+  }
+
+  @Public()
+  @Version('1')
+  @Post('pan/verify')
+  @ApiOperation({
+    summary: 'Mock PAN verification',
+    description:
+      'Placeholder for third-party PAN verification. Returns mock verification result. Fails if PAN numeric portion is 0000 (e.g. ABCDE0000F).',
+  })
+  async verifyPan(@Body() dto: VerifyPanDto) {
+    const result = await this.registrationService.verifyPan(dto);
     return new DataResponse(result);
   }
 
