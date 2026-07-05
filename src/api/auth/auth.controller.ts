@@ -190,21 +190,25 @@ export class AuthController {
     return new DataResponse(result);
   }
 
-  @Public()
   @Version('1')
   @Post('register/user/complete')
   @ApiOperation({ summary: 'Complete user registration KYC (step 2)' })
-  async completeUserRegistration(@Body() dto: CompleteUserRegistrationDto) {
-    const result = await this.registrationService.completeUserRegistration(dto);
+  async completeUserRegistration(
+    @GetUser('_id') userId: string,
+    @Body() dto: CompleteUserRegistrationDto,
+  ) {
+    const result = await this.registrationService.completeUserRegistration(userId, dto);
     return new DataResponse(result);
   }
 
-  @Public()
   @Version('1')
   @Post('register/agent/complete')
   @ApiOperation({ summary: 'Complete agent registration KYC (step 2)' })
-  async completeAgentRegistration(@Body() dto: CompleteAgentRegistrationDto) {
-    const result = await this.registrationService.completeAgentRegistration(dto);
+  async completeAgentRegistration(
+    @GetUser('_id') userId: string,
+    @Body() dto: CompleteAgentRegistrationDto,
+  ) {
+    const result = await this.registrationService.completeAgentRegistration(userId, dto);
     return new DataResponse(result);
   }
 

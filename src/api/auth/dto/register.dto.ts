@@ -13,7 +13,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
 
 export class RegisterInitDto {
@@ -114,6 +114,7 @@ export class VerifyAadhaarDto {
   lastName?: string;
 
   @ApiPropertyOptional()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsOptional()
   @IsDateString()
   dateOfBirth?: string;
@@ -136,6 +137,7 @@ export class VerifyPanDto {
   lastName?: string;
 
   @ApiPropertyOptional()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsOptional()
   @IsDateString()
   dateOfBirth?: string;
@@ -192,11 +194,6 @@ export class PrivateLimitedDocumentsDto {
 }
 
 export class CompleteUserRegistrationDto {
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  registrationToken: string;
-
   @ApiProperty({ example: '123456789012' })
   @IsString()
   @Matches(/^\d{12}$/, { message: 'Aadhaar number must be 12 digits' })
@@ -220,11 +217,6 @@ export class CompleteUserRegistrationDto {
 
 /** Text fields for multipart agent registration (document files are uploaded separately). */
 export class CompleteAgentRegistrationDto {
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  registrationToken: string;
-
   @ApiProperty({ example: '123456789012' })
   @IsString()
   @Matches(/^\d{12}$/, { message: 'Aadhaar number must be 12 digits' })

@@ -389,19 +389,21 @@ export class RegistrationService {
     return this.panVerificationService.verify(dto);
   }
 
-  async completeUserRegistration(dto: CompleteUserRegistrationDto) {
-    const payload = this.verifyRegistrationToken(dto.registrationToken);
-
-    if (payload.userType !== UserTypeEnum.USER) {
-      throw new BadRequestException('Invalid registration type for user KYC');
-    }
-
+  async completeUserRegistration(userId: string, dto: CompleteUserRegistrationDto) {
     const user = await this.userModel
-      .findOne({ _id: payload.sub, deletedAt: null })
+      .findOne({ _id: userId, deletedAt: null })
       .populate('role');
 
     if (!user) {
       throw new UnauthorizedException('Registration session not found');
+    }
+
+    if (user.userType !== UserTypeEnum.USER) {
+      throw new BadRequestException('Invalid registration type for user KYC');
+    }
+
+    if (user.registrationStatus === RegistrationStatusEnum.VERIFIED) {
+      return this.buildAuthResponse(user, user.role);
     }
 
     this.assertRegistrationStep(user, RegistrationStatusEnum.STEP1_COMPLETE);
@@ -441,13 +443,7 @@ export class RegistrationService {
     return this.buildAuthResponse(user, user.role);
   }
 
-  async completeAgentRegistration(dto: CompleteAgentRegistrationDto) {
-    const payload = this.verifyRegistrationToken(dto.registrationToken);
-
-    if (payload.userType !== UserTypeEnum.AGENT) {
-      throw new BadRequestException('Invalid registration type for agent KYC');
-    }
-
+  async completeAgentRegistration(userId: string, dto: CompleteAgentRegistrationDto) {
     if (dto.isPrivateLimited && !dto.privateLimitedDocuments) {
       throw new BadRequestException(
         'Private limited company documents are required when isPrivateLimited is true',
@@ -455,11 +451,25 @@ export class RegistrationService {
     }
 
     const user = await this.userModel
-      .findOne({ _id: payload.sub, deletedAt: null })
+      .findOne({ _id: userId, deletedAt: null })
       .populate('role');
 
     if (!user) {
       throw new UnauthorizedException('Registration session not found');
+    }
+
+    if (user.userType !== UserTypeEnum.AGENT) {
+      throw new BadRequestException('Invalid registration type for agent KYC');
+    }
+
+    if (user.registrationStatus === RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION) {
+      return {
+        message:
+          'Agent registration already submitted and is pending admin verification.',
+        registrationStatus: user.registrationStatus,
+        userId: user._id,
+        userType: user.userType,
+      };
     }
 
     this.assertRegistrationStep(user, RegistrationStatusEnum.STEP1_COMPLETE);
@@ -486,8 +496,6 @@ export class RegistrationService {
     if (!panResult.verified) {
       throw new BadRequestException(panResult.message);
     }
-
-    const userId = user._id;
 
     const udhyamAadhaarCertificate = await this.linkAgentDocument(
       dto.udhyamAadhaarCertificate,
