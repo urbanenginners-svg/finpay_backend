@@ -1,3 +1,11 @@
+export enum PrithviApiCallType {
+  OAUTH_TOKEN = 'oauth_token',
+  OAUTH_REFRESH = 'oauth_refresh',
+  OAUTH_INTROSPECT = 'oauth_introspect',
+  OAUTH_REVOKE = 'oauth_revoke',
+  AGENT_RATES = 'agent_rates',
+}
+
 export enum PrithviOrderType {
   BUY = 'BUY',
   SELL = 'SELL',
