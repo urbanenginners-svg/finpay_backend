@@ -13,7 +13,6 @@ import { User, UserDocument, PrivateLimitedDocuments } from 'src/services/mongoo
 import { Role } from 'src/services/mongoose/schemas/role.schema';
 import { RoleSlugEnum } from 'src/utils/enums/role-slug.enum';
 import { RegistrationStatusEnum } from 'src/utils/enums/registration-status.enum';
-import { AadhaarVerificationStatusEnum } from 'src/utils/enums/aadhaar-verification-status.enum';
 import { PanVerificationStatusEnum } from 'src/utils/enums/pan-verification-status.enum';
 import { PassportVerificationStatusEnum } from 'src/utils/enums/passport-verification-status.enum';
 import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
@@ -456,17 +455,6 @@ export class RegistrationService {
 
     this.assertRegistrationStep(user, RegistrationStatusEnum.STEP1_COMPLETE);
 
-    const aadhaarResult = await this.aadhaarVerificationService.verify({
-      aadhaarNumber: dto.aadhaarNumber,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      dateOfBirth: user.dateOfBirth?.toISOString().slice(0, 10),
-    });
-
-    if (!aadhaarResult.verified) {
-      throw new BadRequestException(aadhaarResult.message);
-    }
-
     const panCardNumber = dto.panCardNumber.toUpperCase();
     const panResult = await this.verifyPanForUser(user, panCardNumber);
 
@@ -480,12 +468,9 @@ export class RegistrationService {
       throw new BadRequestException(passportResult.message);
     }
 
-    user.aadhaarNumber = dto.aadhaarNumber;
     user.panCardNumber = panCardNumber;
     user.passportFileNumber = dto.passportFileNumber;
     user.passportNumber = passportResult.passportNumber;
-    user.aadhaarVerificationStatus = AadhaarVerificationStatusEnum.VERIFIED;
-    user.aadhaarVerificationRef = dto.aadhaarVerificationRef ?? aadhaarResult.verificationId;
     user.panVerificationStatus = PanVerificationStatusEnum.VERIFIED;
     user.panVerificationRef = dto.panVerificationRef ?? panResult.verificationId;
     user.passportVerificationStatus = PassportVerificationStatusEnum.VERIFIED;
@@ -527,17 +512,6 @@ export class RegistrationService {
     }
 
     this.assertRegistrationStep(user, RegistrationStatusEnum.STEP1_COMPLETE);
-
-    const aadhaarResult = await this.aadhaarVerificationService.verify({
-      aadhaarNumber: dto.aadhaarNumber,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      dateOfBirth: user.dateOfBirth?.toISOString().slice(0, 10),
-    });
-
-    if (!aadhaarResult.verified) {
-      throw new BadRequestException(aadhaarResult.message);
-    }
 
     const panCardNumber = dto.panCardNumber.toUpperCase();
     const panResult = await this.verifyPanForUser(user, panCardNumber);
@@ -602,12 +576,9 @@ export class RegistrationService {
       };
     }
 
-    user.aadhaarNumber = dto.aadhaarNumber;
     user.panCardNumber = panCardNumber;
     user.passportFileNumber = dto.passportFileNumber;
     user.passportNumber = passportResult.passportNumber;
-    user.aadhaarVerificationStatus = AadhaarVerificationStatusEnum.VERIFIED;
-    user.aadhaarVerificationRef = dto.aadhaarVerificationRef ?? aadhaarResult.verificationId;
     user.panVerificationStatus = PanVerificationStatusEnum.VERIFIED;
     user.panVerificationRef = dto.panVerificationRef ?? panResult.verificationId;
     user.passportVerificationStatus = PassportVerificationStatusEnum.VERIFIED;
