@@ -6,6 +6,7 @@ import { Role } from "./role.schema";
 import { RegistrationStatusEnum } from "src/utils/enums/registration-status.enum";
 import { AadhaarVerificationStatusEnum } from "src/utils/enums/aadhaar-verification-status.enum";
 import { PanVerificationStatusEnum } from "src/utils/enums/pan-verification-status.enum";
+import { PassportVerificationStatusEnum } from "src/utils/enums/passport-verification-status.enum";
 import { UserTypeEnum } from "src/utils/enums/user-type.enum";
 
 export type UserDocument = HydratedDocument<User>;
@@ -188,6 +189,26 @@ export class User {
   @ApiProperty({ required: false })
   @Prop({ required: false, type: String })
   panVerificationRef?: string;
+
+  @ApiProperty({ required: false })
+  @Prop({ required: false, type: String })
+  passportFileNumber?: string;
+
+  @ApiProperty({ required: false })
+  @Prop({ required: false, type: String })
+  passportNumber?: string;
+
+  @ApiProperty({ enum: PassportVerificationStatusEnum, required: false })
+  @Prop({
+    required: false,
+    type: String,
+    enum: Object.values(PassportVerificationStatusEnum),
+  })
+  passportVerificationStatus?: PassportVerificationStatusEnum;
+
+  @ApiProperty({ required: false })
+  @Prop({ required: false, type: String })
+  passportVerificationRef?: string;
 
   @ApiProperty({ required: false })
   @Prop({ required: false, type: AgentDocumentsSchema })

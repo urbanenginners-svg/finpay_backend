@@ -4,6 +4,7 @@ export const PRITHVI_API_PATHS = {
   OAUTH_INTROSPECT: '/auth/oauth/introspect',
   OAUTH_REVOKE: '/auth/oauth/revoke',
   AGENT_RATES: '/rates/agents',
+  PASSPORT_VERIFY: '/verification/passport',
 } as const;
 
 export const PRITHVI_DEFAULT_SCOPE = 'read write';

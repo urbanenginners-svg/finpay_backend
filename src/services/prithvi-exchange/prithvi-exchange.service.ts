@@ -19,7 +19,9 @@ import type {
   PrithviAgentRateData,
   PrithviApiResponse,
   PrithviOAuthTokenData,
+  PrithviPassportVerificationData,
   PrithviTokenIntrospectionData,
+  VerifyPassportParams,
 } from './prithvi-exchange.types';
 import { PrithviApiCallType } from './prithvi-exchange.types';
 
@@ -29,6 +31,12 @@ const SENSITIVE_KEYS = new Set([
   'access_token',
   'refresh_token',
   'token',
+]);
+
+const SENSITIVE_HEADERS = new Set([
+  'authorization',
+  'x-api-key',
+  'api-key',
 ]);
 
 const REDACTED = '[REDACTED]';
@@ -182,6 +190,10 @@ export class PrithviExchangeService {
             productType: params.productType,
             ...(params.agentId ? { agentId: params.agentId } : {}),
           },
+          requestHeaders: this.sanitizeHeaders({
+            Authorization: 'Bearer [REDACTED]',
+            accept: 'application/json',
+          }),
           httpStatus: null,
           responseBody: dryRunResult as unknown as Record<string, unknown>,
           success: true,
@@ -198,7 +210,6 @@ export class PrithviExchangeService {
     }
 
     const agentId = params.agentId ?? this.requireConfig('PRITHVI_AGENT_ID');
-    const accessToken = await this.getValidAccessToken();
     const url = this.buildUrl(PRITHVI_API_PATHS.AGENT_RATES);
     const requestParams = {
       agentId,
@@ -208,22 +219,39 @@ export class PrithviExchangeService {
     const startedAt = Date.now();
     let httpStatus: number | null = null;
     let responseBody: Record<string, unknown> | null = null;
+    let requestHeaders: Record<string, unknown> | null = null;
     let success = false;
     let errorMessage: string | null = null;
 
     try {
-      const response = await axios.get<PrithviApiResponse<PrithviAgentRateData>>(url, {
-        params: {
-          agentId,
-          order_type: params.orderType,
-          product_type: params.productType,
-        },
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          accept: 'application/json',
-        },
-        validateStatus: () => true,
+      const buildRatesHeaders = (accessToken: string) => ({
+        Authorization: `Bearer ${accessToken}`,
+        accept: 'application/json',
       });
+
+      const fetchRates = (accessToken: string) =>
+        axios.get<PrithviApiResponse<PrithviAgentRateData>>(url, {
+          params: {
+            agentId,
+            order_type: params.orderType,
+            product_type: params.productType,
+          },
+          headers: buildRatesHeaders(accessToken),
+          validateStatus: () => true,
+        });
+
+      let accessToken = await this.getValidAccessToken();
+      requestHeaders = this.sanitizeHeaders(buildRatesHeaders(accessToken));
+      let response = await fetchRates(accessToken);
+
+      if (this.isAuthTokenRejected(response.status, response.data)) {
+        this.logger.warn(
+          'Prithvi rates received 401; refreshing OAuth token and retrying once.',
+        );
+        accessToken = await this.getValidAccessToken({ forceRefresh: true });
+        requestHeaders = this.sanitizeHeaders(buildRatesHeaders(accessToken));
+        response = await fetchRates(accessToken);
+      }
 
       httpStatus = response.status;
       responseBody = this.sanitizeObject(response.data as Record<string, unknown>);
@@ -268,6 +296,159 @@ export class PrithviExchangeService {
           url,
           requestBody: null,
           requestParams,
+          requestHeaders,
+          httpStatus,
+          responseBody,
+          success,
+          errorMessage,
+          durationMs: Date.now() - startedAt,
+          isDryRun: false,
+        })
+        .catch((e: unknown) =>
+          this.logger.error(
+            `Prithvi API log save failed: ${e instanceof Error ? e.message : String(e)}`,
+          ),
+        );
+    }
+  }
+
+  /**
+   * Validate passport details against the Prithvi verification API.
+   */
+  async verifyPassport(
+    params: VerifyPassportParams,
+  ): Promise<PrithviPassportVerificationData> {
+    const requestBody = {
+      file_number: params.fileNumber,
+      name: params.name,
+      dob: params.dob,
+    };
+
+    if (!this.isActive) {
+      this.logger.warn(
+        `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run passport verification. fileNumber=${params.fileNumber}`,
+      );
+      const dryRunResult: PrithviPassportVerificationData = {
+        passport_number: 'P1234567',
+        name: params.name,
+        status: 'VERIFIED',
+      };
+      void this.apiLog
+        .create({
+          callType: PrithviApiCallType.PASSPORT_VERIFY,
+          method: 'POST',
+          url: this.buildUrl(PRITHVI_API_PATHS.PASSPORT_VERIFY),
+          requestBody: this.sanitizeObject(requestBody),
+          requestParams: null,
+          requestHeaders: this.sanitizeHeaders({
+            Authorization: 'Bearer [REDACTED]',
+            'Content-Type': 'application/json',
+            accept: 'application/json',
+          }),
+          httpStatus: null,
+          responseBody: dryRunResult as unknown as Record<string, unknown>,
+          success: true,
+          errorMessage: null,
+          durationMs: 0,
+          isDryRun: true,
+        })
+        .catch((e: unknown) =>
+          this.logger.error(
+            `Prithvi API log save failed: ${e instanceof Error ? e.message : String(e)}`,
+          ),
+        );
+      return dryRunResult;
+    }
+
+    const accessToken = await this.getValidAccessToken();
+    const url = this.buildUrl(PRITHVI_API_PATHS.PASSPORT_VERIFY);
+    const startedAt = Date.now();
+    let httpStatus: number | null = null;
+    let responseBody: Record<string, unknown> | null = null;
+    let requestHeaders: Record<string, unknown> | null = null;
+    let success = false;
+    let errorMessage: string | null = null;
+
+    try {
+      const buildPassportHeaders = (token: string) => ({
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      });
+
+      const verifyRequest = (token: string) =>
+        axios.post<PrithviApiResponse<PrithviPassportVerificationData>>(
+          url,
+          requestBody,
+          {
+            headers: buildPassportHeaders(token),
+            validateStatus: () => true,
+          },
+        );
+
+      let token = accessToken;
+      requestHeaders = this.sanitizeHeaders(buildPassportHeaders(token));
+      let response = await verifyRequest(token);
+
+      if (this.isAuthTokenRejected(response.status, response.data)) {
+        this.logger.warn(
+          'Prithvi passport verify received 401; refreshing OAuth token and retrying once.',
+        );
+        token = await this.getValidAccessToken({ forceRefresh: true });
+        requestHeaders = this.sanitizeHeaders(buildPassportHeaders(token));
+        response = await verifyRequest(token);
+      }
+
+      httpStatus = response.status;
+      responseBody = this.sanitizeObject(response.data as Record<string, unknown>);
+
+      if (response.status < 200 || response.status >= 300) {
+        errorMessage = `HTTP ${response.status}: ${JSON.stringify(response.data)}`;
+        this.logger.error(
+          `Prithvi passport verify HTTP ${response.status}: ${JSON.stringify(response.data)}`,
+        );
+        throw new InternalServerErrorException(
+          'Unable to verify passport right now. Please try again later.',
+        );
+      }
+
+      if (!response.data?.success) {
+        errorMessage = `API error: ${JSON.stringify(response.data)}`;
+        this.logger.warn(
+          `Prithvi passport verify API error: ${JSON.stringify(response.data)}`,
+        );
+        return {
+          passport_number: '',
+          name: params.name,
+          status: 'FAILED',
+        };
+      }
+
+      success = true;
+      this.logger.log(
+        `Prithvi passport verified: fileNumber=${params.fileNumber} status=${response.data.data.status}`,
+      );
+      return response.data.data;
+    } catch (err) {
+      if (err instanceof InternalServerErrorException) throw err;
+      errorMessage = isAxiosError(err)
+        ? `Network error: ${err.message}`
+        : err instanceof Error
+          ? err.message
+          : String(err);
+      this.logger.error(`Prithvi passport verify failed: ${errorMessage}`);
+      throw new InternalServerErrorException(
+        'Unable to verify passport right now. Please try again later.',
+      );
+    } finally {
+      void this.apiLog
+        .create({
+          callType: PrithviApiCallType.PASSPORT_VERIFY,
+          method: 'POST',
+          url,
+          requestBody: this.sanitizeObject(requestBody),
+          requestParams: null,
+          requestHeaders,
           httpStatus,
           responseBody,
           success,
@@ -306,12 +487,19 @@ export class PrithviExchangeService {
 
   /**
    * Returns a valid access token, obtaining or refreshing as needed.
+   * Pass `forceRefresh: true` to bypass the cache (e.g. after a 401).
    */
-  async getValidAccessToken(): Promise<string> {
+  async getValidAccessToken(options?: {
+    forceRefresh?: boolean;
+  }): Promise<string> {
     if (!this.isActive) {
       throw new InternalServerErrorException(
         'Prithvi Exchange is not active. Set PRITHVI_ACTIVE_MODE=true to enable.',
       );
+    }
+
+    if (options?.forceRefresh) {
+      return this.refreshAccessToken();
     }
 
     const stored = await this.tokenStore.findByProvider(this.provider);
@@ -323,13 +511,53 @@ export class PrithviExchangeService {
       return stored.accessToken;
     }
 
+    return this.refreshAccessToken();
+  }
+
+  /**
+   * Refresh via refresh_token grant, falling back to client_credentials.
+   */
+  private async refreshAccessToken(): Promise<string> {
+    const stored = await this.tokenStore.findByProvider(this.provider);
+
     if (stored?.refreshToken) {
-      const data = await this.refreshOAuthToken();
-      return data.access_token;
+      try {
+        const data = await this.refreshOAuthToken();
+        return data.access_token;
+      } catch {
+        this.logger.warn(
+          'Prithvi refresh token grant failed; falling back to client credentials.',
+        );
+      }
     }
 
     const data = await this.obtainToken();
     return data.access_token;
+  }
+
+  /**
+   * Detect 401 / INVALID_TOKEN responses that warrant a token refresh + retry.
+   */
+  private isAuthTokenRejected(status: number, data: unknown): boolean {
+    if (status !== 401) {
+      return false;
+    }
+
+    if (data && typeof data === 'object') {
+      const error = (data as { error?: { code?: string; message?: string } }).error;
+      if (error?.code === 'INVALID_TOKEN') {
+        return true;
+      }
+      const message = error?.message?.toLowerCase() ?? '';
+      if (
+        message.includes('invalid') &&
+        (message.includes('token') || message.includes('expired'))
+      ) {
+        return true;
+      }
+    }
+
+    return true;
   }
 
   private async cacheTokens(data: PrithviOAuthTokenData): Promise<void> {
@@ -456,6 +684,11 @@ export class PrithviExchangeService {
     extraHeaders?: Record<string, string>,
   ): Promise<T> {
     const url = this.buildUrl(path);
+    const requestHeaders = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      accept: 'application/json',
+      ...(extraHeaders ?? {}),
+    };
     const startedAt = Date.now();
     let httpStatus: number | null = null;
     let responseBody: Record<string, unknown> | null = null;
@@ -467,11 +700,7 @@ export class PrithviExchangeService {
         url,
         body.toString(),
         {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            accept: 'application/json',
-            ...(extraHeaders ?? {}),
-          },
+          headers: requestHeaders,
           validateStatus: () => true,
         },
       );
@@ -517,6 +746,7 @@ export class PrithviExchangeService {
           url,
           requestBody: this.sanitizeUrlParams(body),
           requestParams: null,
+          requestHeaders: this.sanitizeHeaders(requestHeaders),
           httpStatus,
           responseBody,
           success,
@@ -541,6 +771,33 @@ export class PrithviExchangeService {
     params.forEach((value, key) => {
       result[key] = SENSITIVE_KEYS.has(key) ? REDACTED : value;
     });
+    return result;
+  }
+
+  /**
+   * Clone request headers for storage, redacting Authorization and other
+   * sensitive header values while preserving header names for debugging.
+   */
+  private sanitizeHeaders(
+    headers: Record<string, string> | null | undefined,
+  ): Record<string, unknown> | null {
+    if (!headers) {
+      return null;
+    }
+
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(headers)) {
+      const lowerKey = key.toLowerCase();
+      if (SENSITIVE_HEADERS.has(lowerKey)) {
+        if (lowerKey === 'authorization' && value.toLowerCase().startsWith('bearer ')) {
+          result[key] = 'Bearer [REDACTED]';
+        } else {
+          result[key] = REDACTED;
+        }
+      } else {
+        result[key] = value;
+      }
+    }
     return result;
   }
 

@@ -15,6 +15,7 @@ import { RoleSlugEnum } from 'src/utils/enums/role-slug.enum';
 import { RegistrationStatusEnum } from 'src/utils/enums/registration-status.enum';
 import { AadhaarVerificationStatusEnum } from 'src/utils/enums/aadhaar-verification-status.enum';
 import { PanVerificationStatusEnum } from 'src/utils/enums/pan-verification-status.enum';
+import { PassportVerificationStatusEnum } from 'src/utils/enums/passport-verification-status.enum';
 import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
 import {
   CompleteAgentRegistrationDto,
@@ -27,10 +28,12 @@ import {
   UpdateRegistrationStep1Dto,
   VerifyAadhaarDto,
   VerifyPanDto,
+  VerifyPassportDto,
   VerifyAgentDto,
 } from './dto/register.dto';
 import { AadhaarVerificationService } from './aadhaar-verification.service';
 import { PanVerificationService } from './pan-verification.service';
+import { PassportVerificationService } from './passport-verification.service';
 import { FilesService } from '../files/files.service';
 import { SmsService } from 'src/services/sms/sms.service';
 
@@ -48,6 +51,7 @@ export class RegistrationService {
     private jwtService: JwtService,
     private aadhaarVerificationService: AadhaarVerificationService,
     private panVerificationService: PanVerificationService,
+    private passportVerificationService: PassportVerificationService,
     private filesService: FilesService,
     private readonly smsService: SmsService,
   ) {}
@@ -389,6 +393,35 @@ export class RegistrationService {
     return this.panVerificationService.verify(dto);
   }
 
+  async verifyPassport(dto: VerifyPassportDto) {
+    return this.passportVerificationService.verify(dto);
+  }
+
+  private buildApplicantName(user: Pick<User, 'firstName' | 'lastName'>): string {
+    return [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+  }
+
+  private async verifyPassportForUser(
+    user: Pick<User, 'firstName' | 'lastName' | 'dateOfBirth'>,
+    passportFileNumber: string,
+  ) {
+    const dob = user.dateOfBirth?.toISOString().slice(0, 10);
+    if (!dob) {
+      throw new BadRequestException('Date of birth is required for passport verification');
+    }
+
+    const name = this.buildApplicantName(user);
+    if (!name) {
+      throw new BadRequestException('Applicant name is required for passport verification');
+    }
+
+    return this.passportVerificationService.verify({
+      fileNumber: passportFileNumber,
+      name,
+      dob,
+    });
+  }
+
   async completeUserRegistration(userId: string, dto: CompleteUserRegistrationDto) {
     const user = await this.userModel
       .findOne({ _id: userId, deletedAt: null })
@@ -431,12 +464,23 @@ export class RegistrationService {
       throw new BadRequestException(panResult.message);
     }
 
+    const passportResult = await this.verifyPassportForUser(user, dto.passportFileNumber);
+
+    if (!passportResult.verified) {
+      throw new BadRequestException(passportResult.message);
+    }
+
     user.aadhaarNumber = dto.aadhaarNumber;
     user.panCardNumber = panCardNumber;
+    user.passportFileNumber = dto.passportFileNumber;
+    user.passportNumber = passportResult.passportNumber;
     user.aadhaarVerificationStatus = AadhaarVerificationStatusEnum.VERIFIED;
     user.aadhaarVerificationRef = dto.aadhaarVerificationRef ?? aadhaarResult.verificationId;
     user.panVerificationStatus = PanVerificationStatusEnum.VERIFIED;
     user.panVerificationRef = dto.panVerificationRef ?? panResult.verificationId;
+    user.passportVerificationStatus = PassportVerificationStatusEnum.VERIFIED;
+    user.passportVerificationRef =
+      dto.passportVerificationRef ?? passportResult.verificationId;
     user.registrationStatus = RegistrationStatusEnum.VERIFIED;
     await user.save();
 
@@ -497,6 +541,12 @@ export class RegistrationService {
       throw new BadRequestException(panResult.message);
     }
 
+    const passportResult = await this.verifyPassportForUser(user, dto.passportFileNumber);
+
+    if (!passportResult.verified) {
+      throw new BadRequestException(passportResult.message);
+    }
+
     const udhyamAadhaarCertificate = await this.linkAgentDocument(
       dto.udhyamAadhaarCertificate,
       userId,
@@ -549,10 +599,15 @@ export class RegistrationService {
 
     user.aadhaarNumber = dto.aadhaarNumber;
     user.panCardNumber = panCardNumber;
+    user.passportFileNumber = dto.passportFileNumber;
+    user.passportNumber = passportResult.passportNumber;
     user.aadhaarVerificationStatus = AadhaarVerificationStatusEnum.VERIFIED;
     user.aadhaarVerificationRef = dto.aadhaarVerificationRef ?? aadhaarResult.verificationId;
     user.panVerificationStatus = PanVerificationStatusEnum.VERIFIED;
     user.panVerificationRef = dto.panVerificationRef ?? panResult.verificationId;
+    user.passportVerificationStatus = PassportVerificationStatusEnum.VERIFIED;
+    user.passportVerificationRef =
+      dto.passportVerificationRef ?? passportResult.verificationId;
     user.agentDocuments = {
       udhyamAadhaarCertificate,
       bankCancelCheque,

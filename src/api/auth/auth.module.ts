@@ -7,6 +7,7 @@ import { AuthService } from "./auth.service";
 import { RegistrationService } from "./registration.service";
 import { AadhaarVerificationService } from "./aadhaar-verification.service";
 import { PanVerificationService } from "./pan-verification.service";
+import { PassportVerificationService } from "./passport-verification.service";
 import { AuthController } from "./auth.controller";
 import { FilesModule } from '../files/files.module';
 import { User, UserSchema } from 'src/services/mongoose/schemas/user.schema';
@@ -32,7 +33,7 @@ import { PoliciesGuard } from 'src/services/casl/casl-policies.guard';
         }),
     ],
     controllers: [AuthController],
-    providers: [AuthService, RegistrationService, AadhaarVerificationService, PanVerificationService, CaslAbilityFactory, PoliciesGuard],
+    providers: [AuthService, RegistrationService, AadhaarVerificationService, PanVerificationService, PassportVerificationService, CaslAbilityFactory, PoliciesGuard],
     exports: [AuthService, RegistrationService, JwtModule],
 })
 export class AuthModule {}  

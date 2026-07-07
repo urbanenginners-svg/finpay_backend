@@ -61,6 +61,14 @@ export class PrithviApiLog {
   @Prop({ required: false, type: mongoose.Schema.Types.Mixed, default: null })
   requestParams: Record<string, unknown> | null;
 
+  @ApiPropertyOptional({
+    type: Object,
+    description:
+      'Sanitised request headers. Authorization and other sensitive values are replaced with "[REDACTED]".',
+  })
+  @Prop({ required: false, type: mongoose.Schema.Types.Mixed, default: null })
+  requestHeaders: Record<string, unknown> | null;
+
   // ── Response details ───────────────────────────────────────────────────────
 
   @ApiPropertyOptional({

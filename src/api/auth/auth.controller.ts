@@ -23,6 +23,7 @@ import {
   UpdateRegistrationStep1Dto,
   VerifyAadhaarDto,
   VerifyPanDto,
+  VerifyPassportDto,
 } from "./dto/register.dto";
 import { SuperAdminLoginSwagger, LoginSwagger, GetMeSwagger, UpdateMeSwagger } from "./auth.swagger";
 import { Public } from "src/utils/decorators/public-key.decorator";
@@ -187,6 +188,19 @@ export class AuthController {
   })
   async verifyPan(@Body() dto: VerifyPanDto) {
     const result = await this.registrationService.verifyPan(dto);
+    return new DataResponse(result);
+  }
+
+  @Public()
+  @Version('1')
+  @Post('passport/verify')
+  @ApiOperation({
+    summary: 'Verify passport via Prithvi Exchange',
+    description:
+      'Validates passport file number, applicant name, and date of birth using the Prithvi Exchange verification API.',
+  })
+  async verifyPassport(@Body() dto: VerifyPassportDto) {
+    const result = await this.registrationService.verifyPassport(dto);
     return new DataResponse(result);
   }
 

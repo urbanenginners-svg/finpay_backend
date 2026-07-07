@@ -4,6 +4,7 @@ export enum PrithviApiCallType {
   OAUTH_INTROSPECT = 'oauth_introspect',
   OAUTH_REVOKE = 'oauth_revoke',
   AGENT_RATES = 'agent_rates',
+  PASSPORT_VERIFY = 'passport_verify',
 }
 
 export enum PrithviOrderType {
@@ -49,4 +50,16 @@ export type GetAgentRatesParams = {
   orderType: PrithviOrderType;
   productType: PrithviProductType;
   agentId?: string;
+};
+
+export type VerifyPassportParams = {
+  fileNumber: string;
+  name: string;
+  dob: string;
+};
+
+export type PrithviPassportVerificationData = {
+  passport_number: string;
+  name: string;
+  status: string;
 };
