@@ -136,6 +136,13 @@ export class VerifyPanDto {
   @IsString()
   lastName?: string;
 
+  @ApiPropertyOptional({
+    description: 'Full name as on PAN card. If omitted, firstName + lastName are used.',
+  })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
   @ApiPropertyOptional()
   @Transform(({ value }) => (value === '' ? undefined : value))
   @IsOptional()

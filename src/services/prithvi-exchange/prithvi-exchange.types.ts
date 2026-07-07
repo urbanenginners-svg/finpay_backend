@@ -5,6 +5,7 @@ export enum PrithviApiCallType {
   OAUTH_REVOKE = 'oauth_revoke',
   AGENT_RATES = 'agent_rates',
   PASSPORT_VERIFY = 'passport_verify',
+  PAN_VERIFY = 'pan_verify',
 }
 
 export enum PrithviOrderType {
@@ -62,4 +63,16 @@ export type PrithviPassportVerificationData = {
   passport_number: string;
   name: string;
   status: string;
+};
+
+export type VerifyPanNumberParams = {
+  panNumber: string;
+  name: string;
+};
+
+export type PrithviPanVerificationData = {
+  panNumber: string;
+  name: string;
+  status: string;
+  registered_name?: string;
 };

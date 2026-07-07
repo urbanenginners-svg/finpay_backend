@@ -422,6 +422,21 @@ export class RegistrationService {
     });
   }
 
+  private async verifyPanForUser(
+    user: Pick<User, 'firstName' | 'lastName'>,
+    panCardNumber: string,
+  ) {
+    const name = this.buildApplicantName(user);
+    if (!name) {
+      throw new BadRequestException('Applicant name is required for PAN verification');
+    }
+
+    return this.panVerificationService.verify({
+      panCardNumber,
+      name,
+    });
+  }
+
   async completeUserRegistration(userId: string, dto: CompleteUserRegistrationDto) {
     const user = await this.userModel
       .findOne({ _id: userId, deletedAt: null })
@@ -453,12 +468,7 @@ export class RegistrationService {
     }
 
     const panCardNumber = dto.panCardNumber.toUpperCase();
-    const panResult = await this.panVerificationService.verify({
-      panCardNumber,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      dateOfBirth: user.dateOfBirth?.toISOString().slice(0, 10),
-    });
+    const panResult = await this.verifyPanForUser(user, panCardNumber);
 
     if (!panResult.verified) {
       throw new BadRequestException(panResult.message);
@@ -530,12 +540,7 @@ export class RegistrationService {
     }
 
     const panCardNumber = dto.panCardNumber.toUpperCase();
-    const panResult = await this.panVerificationService.verify({
-      panCardNumber,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      dateOfBirth: user.dateOfBirth?.toISOString().slice(0, 10),
-    });
+    const panResult = await this.verifyPanForUser(user, panCardNumber);
 
     if (!panResult.verified) {
       throw new BadRequestException(panResult.message);

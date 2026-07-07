@@ -182,9 +182,9 @@ export class AuthController {
   @Version('1')
   @Post('pan/verify')
   @ApiOperation({
-    summary: 'Mock PAN verification',
+    summary: 'Verify PAN via Prithvi Exchange',
     description:
-      'Placeholder for third-party PAN verification. Returns mock verification result. Fails if PAN numeric portion is 0000 (e.g. ABCDE0000F).',
+      'Validates PAN number and applicant name using the Prithvi Exchange verification API.',
   })
   async verifyPan(@Body() dto: VerifyPanDto) {
     const result = await this.registrationService.verifyPan(dto);

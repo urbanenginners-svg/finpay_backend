@@ -19,8 +19,10 @@ import type {
   PrithviAgentRateData,
   PrithviApiResponse,
   PrithviOAuthTokenData,
+  PrithviPanVerificationData,
   PrithviPassportVerificationData,
   PrithviTokenIntrospectionData,
+  VerifyPanNumberParams,
   VerifyPassportParams,
 } from './prithvi-exchange.types';
 import { PrithviApiCallType } from './prithvi-exchange.types';
@@ -444,6 +446,158 @@ export class PrithviExchangeService {
       void this.apiLog
         .create({
           callType: PrithviApiCallType.PASSPORT_VERIFY,
+          method: 'POST',
+          url,
+          requestBody: this.sanitizeObject(requestBody),
+          requestParams: null,
+          requestHeaders,
+          httpStatus,
+          responseBody,
+          success,
+          errorMessage,
+          durationMs: Date.now() - startedAt,
+          isDryRun: false,
+        })
+        .catch((e: unknown) =>
+          this.logger.error(
+            `Prithvi API log save failed: ${e instanceof Error ? e.message : String(e)}`,
+          ),
+        );
+    }
+  }
+
+  /**
+   * Validate PAN details against the Prithvi verification API.
+   */
+  async verifyPanNumber(
+    params: VerifyPanNumberParams,
+  ): Promise<PrithviPanVerificationData> {
+    const requestBody = {
+      panNumber: params.panNumber,
+      name: params.name,
+    };
+
+    if (!this.isActive) {
+      this.logger.warn(
+        `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run PAN verification. panNumber=${params.panNumber}`,
+      );
+      const dryRunResult: PrithviPanVerificationData = {
+        panNumber: params.panNumber,
+        name: params.name,
+        status: 'VERIFIED',
+        registered_name: params.name.toUpperCase(),
+      };
+      void this.apiLog
+        .create({
+          callType: PrithviApiCallType.PAN_VERIFY,
+          method: 'POST',
+          url: this.buildUrl(PRITHVI_API_PATHS.PAN_VERIFY),
+          requestBody: this.sanitizeObject(requestBody),
+          requestParams: null,
+          requestHeaders: this.sanitizeHeaders({
+            Authorization: 'Bearer [REDACTED]',
+            'Content-Type': 'application/json',
+            accept: 'application/json',
+          }),
+          httpStatus: null,
+          responseBody: dryRunResult as unknown as Record<string, unknown>,
+          success: true,
+          errorMessage: null,
+          durationMs: 0,
+          isDryRun: true,
+        })
+        .catch((e: unknown) =>
+          this.logger.error(
+            `Prithvi API log save failed: ${e instanceof Error ? e.message : String(e)}`,
+          ),
+        );
+      return dryRunResult;
+    }
+
+    const accessToken = await this.getValidAccessToken();
+    const url = this.buildUrl(PRITHVI_API_PATHS.PAN_VERIFY);
+    const startedAt = Date.now();
+    let httpStatus: number | null = null;
+    let responseBody: Record<string, unknown> | null = null;
+    let requestHeaders: Record<string, unknown> | null = null;
+    let success = false;
+    let errorMessage: string | null = null;
+
+    try {
+      const buildPanHeaders = (token: string) => ({
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      });
+
+      const verifyRequest = (token: string) =>
+        axios.post<PrithviApiResponse<PrithviPanVerificationData>>(
+          url,
+          requestBody,
+          {
+            headers: buildPanHeaders(token),
+            validateStatus: () => true,
+          },
+        );
+
+      let token = accessToken;
+      requestHeaders = this.sanitizeHeaders(buildPanHeaders(token));
+      let response = await verifyRequest(token);
+
+      if (this.isAuthTokenRejected(response.status, response.data)) {
+        this.logger.warn(
+          'Prithvi PAN verify received 401; refreshing OAuth token and retrying once.',
+        );
+        token = await this.getValidAccessToken({ forceRefresh: true });
+        requestHeaders = this.sanitizeHeaders(buildPanHeaders(token));
+        response = await verifyRequest(token);
+      }
+
+      httpStatus = response.status;
+      responseBody = this.sanitizeObject(response.data as Record<string, unknown>);
+
+      if (response.status < 200 || response.status >= 300) {
+        errorMessage = `HTTP ${response.status}: ${JSON.stringify(response.data)}`;
+        this.logger.error(
+          `Prithvi PAN verify HTTP ${response.status}: ${JSON.stringify(response.data)}`,
+        );
+        throw new InternalServerErrorException(
+          'Unable to verify PAN right now. Please try again later.',
+        );
+      }
+
+      if (!response.data?.success) {
+        errorMessage = `API error: ${JSON.stringify(response.data)}`;
+        this.logger.warn(
+          `Prithvi PAN verify API error: ${JSON.stringify(response.data)}`,
+        );
+        return {
+          panNumber: params.panNumber,
+          name: params.name,
+          status: 'FAILED',
+        };
+      }
+
+      success = true;
+      this.logger.log(
+        `Prithvi PAN verified: panNumber=${params.panNumber} status=${response.data.data.status}`,
+      );
+      return response.data.data;
+    } catch (err) {
+      if (err instanceof InternalServerErrorException) throw err;
+      errorMessage = isAxiosError(err)
+        ? `Network error: ${err.message}`
+        : err instanceof Error
+          ? err.message
+          : String(err);
+      this.logger.error(`Prithvi PAN verify failed: ${errorMessage}`);
+      throw new InternalServerErrorException(
+        'Unable to verify PAN right now. Please try again later.',
+      );
+    } finally {
+      void this.apiLog
+        .create({
+          callType: PrithviApiCallType.PAN_VERIFY,
           method: 'POST',
           url,
           requestBody: this.sanitizeObject(requestBody),
