@@ -11,6 +11,7 @@ import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import {
   PRITHVI_LEAD_SYSTEM_API_PATHS,
   PRITHVI_LEAD_SYSTEM_DEFAULT_SCOPE,
+  PRITHVI_LEAD_SYSTEM_PASSPORT_VALID_STATUS,
   PRITHVI_LEAD_SYSTEM_TOKEN_REFRESH_BUFFER_MS,
 } from './prithvi-lead-system.constants';
 import { PrithviLeadSystemApiLogService } from './prithvi-lead-system-api-log.service';
@@ -176,10 +177,11 @@ export class PrithviLeadSystemService {
         `PRITHVI_LEAD_SYSTEM_ACTIVE_MODE is not "true"; returning dry-run passport verification. fileNumber=${params.fileNumber}`,
       );
       const dryRunResult: PrithviLeadSystemPassportVerificationData = {
-        success: true,
+        status: PRITHVI_LEAD_SYSTEM_PASSPORT_VALID_STATUS,
         verificationId: 'dry-run',
-        name_provided: params.name,
-        passport_number: 'P1234567',
+        name: params.name,
+        file_number: params.fileNumber,
+        dob: params.dob,
       };
       void this.apiLog
         .create({
@@ -275,7 +277,7 @@ export class PrithviLeadSystemService {
 
       success = true;
       this.logger.log(
-        `Prithvi Lead System passport verified: fileNumber=${params.fileNumber} success=${parsed.success} verificationId=${parsed.verificationId}`,
+        `Prithvi Lead System passport verified: fileNumber=${params.fileNumber} status=${parsed.status} verificationId=${parsed.verificationId}`,
       );
       return parsed;
     } catch (err) {
@@ -522,10 +524,11 @@ export class PrithviLeadSystemService {
     params: VerifyPassportParams,
   ): PrithviLeadSystemPassportVerificationData {
     return {
-      success: false,
+      status: '',
       verificationId: '',
-      name_provided: params.name,
-      passport_number: '',
+      name: params.name,
+      file_number: '',
+      dob: params.dob,
     };
   }
 
@@ -541,7 +544,7 @@ export class PrithviLeadSystemService {
     return {
       success: inner?.success ?? false,
       verificationId: wrapper?.verificationId ?? '',
-      name_provided: inner?.name_provided ?? params.name,
+      name_provided: inner?.name_provided ?? '',
       registered_name: inner?.registered_name ?? '',
       source: wrapper?.source,
     };
@@ -557,11 +560,11 @@ export class PrithviLeadSystemService {
     const inner = wrapper?.data;
 
     return {
-      success: inner?.success ?? false,
+      status: inner?.status ?? '',
       verificationId: wrapper?.verificationId ?? '',
-      name_provided: inner?.name_provided ?? params.name,
-      passport_number: inner?.passport_number ?? '',
-      registered_name: inner?.registered_name,
+      name: inner?.name ?? params.name,
+      file_number: inner?.file_number ?? params.fileNumber,
+      dob: inner?.dob ?? params.dob,
       source: wrapper?.source,
     };
   }

@@ -183,6 +183,7 @@ export class RegistrationService {
 
   async initRegistration(dto: RegisterInitDto) {
     const { userType, firstName, lastName, email, phoneNumber, dateOfBirth, password } = dto;
+    const normalizedLastName = lastName?.trim() || undefined;
 
     const existingEmail = await this.userModel.findOne({ email, deletedAt: null });
     if (existingEmail?.registrationStatus === RegistrationStatusEnum.VERIFIED) {
@@ -210,7 +211,7 @@ export class RegistrationService {
       }
 
       user.firstName = firstName;
-      user.lastName = lastName;
+      user.lastName = normalizedLastName;
       user.email = email;
       user.phoneNumber = phoneNumber;
       user.dateOfBirth = new Date(dateOfBirth);
@@ -221,7 +222,7 @@ export class RegistrationService {
     } else {
       user = new this.userModel({
         firstName,
-        lastName,
+        lastName: normalizedLastName,
         email,
         phoneNumber,
         dateOfBirth: new Date(dateOfBirth),
@@ -239,7 +240,7 @@ export class RegistrationService {
 
     await this.smsService.sendOtpSms({
       phoneNumber,
-      name: this.displayNameForSms({ firstName, lastName }),
+      name: this.displayNameForSms({ firstName, lastName: normalizedLastName }),
       otp,
     });
 
@@ -261,6 +262,7 @@ export class RegistrationService {
     this.assertRegistrationStep(user, RegistrationStatusEnum.STEP1_COMPLETE);
 
     const { firstName, lastName, email, phoneNumber, dateOfBirth, password } = dto;
+    const normalizedLastName = lastName?.trim() || undefined;
 
     const existingEmail = await this.userModel.findOne({
       email,
@@ -285,7 +287,7 @@ export class RegistrationService {
     }
 
     user.firstName = firstName;
-    user.lastName = lastName;
+    user.lastName = normalizedLastName;
     user.email = email;
     user.dateOfBirth = new Date(dateOfBirth);
 
@@ -303,7 +305,7 @@ export class RegistrationService {
 
       await this.smsService.sendOtpSms({
         phoneNumber,
-        name: this.displayNameForSms({ firstName, lastName }),
+        name: this.displayNameForSms({ firstName, lastName: normalizedLastName }),
         otp,
       });
 
@@ -432,6 +434,8 @@ export class RegistrationService {
 
     return this.panVerificationService.verify({
       panCardNumber,
+      firstName: user.firstName,
+      lastName: user.lastName,
       name,
     });
   }

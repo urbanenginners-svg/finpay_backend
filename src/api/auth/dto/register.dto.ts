@@ -26,10 +26,10 @@ export class RegisterInitDto {
   @IsNotEmpty()
   firstName: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  lastName: string;
+  lastName?: string;
 
   @ApiProperty()
   @IsEmail()
@@ -57,10 +57,10 @@ export class UpdateRegistrationStep1Dto {
   @IsNotEmpty()
   firstName: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  lastName: string;
+  lastName?: string;
 
   @ApiProperty()
   @IsEmail()
@@ -137,7 +137,7 @@ export class VerifyPanDto {
   lastName?: string;
 
   @ApiPropertyOptional({
-    description: 'Full name as on PAN card. If omitted, firstName + lastName are used.',
+    description: 'Full name as on PAN card. If omitted, firstName is used; when lastName is provided, firstName + lastName are used.',
   })
   @IsOptional()
   @IsString()

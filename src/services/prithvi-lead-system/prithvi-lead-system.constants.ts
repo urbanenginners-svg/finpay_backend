@@ -11,3 +11,5 @@ export const PRITHVI_LEAD_SYSTEM_DEFAULT_SCOPE = 'read write';
 
 /** Refresh access token when less than this many ms remain before expiry. */
 export const PRITHVI_LEAD_SYSTEM_TOKEN_REFRESH_BUFFER_MS = 60 * 60 * 1000;
+
+export const PRITHVI_LEAD_SYSTEM_PASSPORT_VALID_STATUS = 'VALID';

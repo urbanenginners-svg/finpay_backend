@@ -19,7 +19,7 @@ export type PrithviLeadSystemApiResponse<T> = {
 export type PrithviLeadSystemVerificationEnvelope<T> = {
   success: boolean;
   data: T;
-  verificationId: number;
+  verificationId: number | string;
   source: string;
   timestamp?: string;
 };
@@ -31,10 +31,10 @@ export type PrithviLeadSystemPanInnerResult = {
 };
 
 export type PrithviLeadSystemPassportInnerResult = {
-  success: boolean;
-  name_provided?: string;
-  passport_number?: string;
-  registered_name?: string;
+  dob: string;
+  name: string;
+  status: string;
+  file_number: string;
 };
 
 export type PrithviLeadSystemPanVerificationData = {
@@ -46,11 +46,11 @@ export type PrithviLeadSystemPanVerificationData = {
 };
 
 export type PrithviLeadSystemPassportVerificationData = {
-  success: boolean;
+  status: string;
   verificationId: number | string;
-  name_provided: string;
-  passport_number: string;
-  registered_name?: string;
+  name: string;
+  file_number: string;
+  dob: string;
   source?: string;
 };
 

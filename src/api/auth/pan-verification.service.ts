@@ -54,11 +54,11 @@ export class PanVerificationService {
 
     if (verified) {
       this.logger.log(
-        `PAN verification succeeded: verificationId=${result.verificationId} registeredName=${result.registered_name}`,
+        `PAN verification succeeded: verificationId=${result.verificationId} nameProvided=${result.name_provided}`,
       );
     } else {
       this.logger.warn(
-        `PAN verification failed: panNumber=${panCardNumber} verificationId=${result.verificationId}`,
+        `PAN verification failed: panNumber=${panCardNumber} verificationId=${result.verificationId} nameProvided=${result.name_provided}`,
       );
     }
 
@@ -72,7 +72,8 @@ export class PanVerificationService {
         ? 'PAN verified successfully'
         : 'PAN verification failed. Please check your PAN number and name. If your name is incorrect, go back and edit your personal details.',
       maskedPan,
-      registeredName: result.registered_name || undefined,
+      registeredName:
+        result.registered_name || result.name_provided || undefined,
     };
   }
 }

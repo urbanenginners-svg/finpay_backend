@@ -69,9 +69,9 @@ export class User {
   @Prop()
   firstName: string;
 
-  @ApiProperty()
-  @Prop()
-  lastName: string;
+  @ApiProperty({ required: false })
+  @Prop({ required: false })
+  lastName?: string;
 
   @ApiProperty({
     required: false,
