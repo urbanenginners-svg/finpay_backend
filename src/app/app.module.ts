@@ -19,6 +19,7 @@ import { EmailModule } from "src/services/email";
 import { RemittanceProviderTokenModule } from "src/services/remittance-provider-token";
 import { HttpFormModule } from "src/services/http";
 import { PrithviExchangeModule } from "src/services/prithvi-exchange";
+import { PrithviLeadSystemModule } from "src/services/prithvi-lead-system";
 import { JwtAuthGuard } from "src/services/auth/jwt-auth.guard";
 import { ApiKeyAuthGuard } from "src/services/auth/api-key-auth.guard";
 import { User, UserSchema } from "src/services/mongoose/schemas/user.schema";
@@ -52,6 +53,7 @@ import { SystemApiKey, SystemApiKeySchema } from "src/services/mongoose/schemas/
         RemittanceProviderTokenModule,
         HttpFormModule,
         PrithviExchangeModule,
+        PrithviLeadSystemModule,
     ],
     controllers: [AppController],
     providers: [

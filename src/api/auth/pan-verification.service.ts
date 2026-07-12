@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { PrithviExchangeService } from 'src/services/prithvi-exchange';
+import { PrithviLeadSystemService } from 'src/services/prithvi-lead-system';
 
 export interface PanVerificationResult {
   verified: boolean;
@@ -15,7 +15,7 @@ export interface PanVerificationResult {
 export class PanVerificationService {
   private readonly logger = new Logger(PanVerificationService.name);
 
-  constructor(private readonly prithviExchange: PrithviExchangeService) {}
+  constructor(private readonly prithviLeadSystem: PrithviLeadSystemService) {}
 
   async verify(params: {
     panCardNumber: string;
@@ -34,7 +34,7 @@ export class PanVerificationService {
       return {
         verified: false,
         verificationId: '',
-        provider: 'prithvi-exchange',
+        provider: 'prithvi-lead-system',
         message:
           'Applicant name is required for PAN verification. Please complete your personal details first.',
         maskedPan,
@@ -45,34 +45,34 @@ export class PanVerificationService {
       `PAN verification requested for panNumber=${panCardNumber} name="${name}"`,
     );
 
-    const result = await this.prithviExchange.verifyPanNumber({
+    const result = await this.prithviLeadSystem.verifyPanNumber({
       panNumber: panCardNumber,
       name,
     });
 
-    const verified = result.status === 'VERIFIED';
+    const verified = result.success;
 
     if (verified) {
       this.logger.log(
-        `PAN verification succeeded: panNumber=${result.panNumber} registeredName=${result.registered_name ?? result.name}`,
+        `PAN verification succeeded: verificationId=${result.verificationId} registeredName=${result.registered_name}`,
       );
     } else {
       this.logger.warn(
-        `PAN verification failed: panNumber=${panCardNumber} status=${result.status}`,
+        `PAN verification failed: panNumber=${panCardNumber} verificationId=${result.verificationId}`,
       );
     }
 
     return {
       verified,
-      verificationId: result.panNumber || panCardNumber,
-      provider: this.prithviExchange.isActive
-        ? 'prithvi-exchange'
-        : 'prithvi-exchange-dry-run',
+      verificationId: String(result.verificationId || panCardNumber),
+      provider: this.prithviLeadSystem.isActive
+        ? 'prithvi-lead-system'
+        : 'prithvi-lead-system-dry-run',
       message: verified
         ? 'PAN verified successfully'
         : 'PAN verification failed. Please check your PAN number and name. If your name is incorrect, go back and edit your personal details.',
       maskedPan,
-      registeredName: result.registered_name,
+      registeredName: result.registered_name || undefined,
     };
   }
 }

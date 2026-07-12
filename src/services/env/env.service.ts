@@ -225,6 +225,29 @@ export class EnvironmentVariables {
   @IsString()
   PRITHVI_ACTIVE_MODE: string;
 
+  /** Prithvi Lead System API base URL for PAN / passport verification. */
+  @IsOptional()
+  @IsString()
+  PRITHVI_LEAD_SYSTEM_BASE_URL: string;
+
+  @IsOptional()
+  @IsString()
+  PRITHVI_LEAD_SYSTEM_CLIENT_ID: string;
+
+  @IsOptional()
+  @IsString()
+  PRITHVI_LEAD_SYSTEM_CLIENT_SECRET: string;
+
+  /** OAuth scope for client credentials grant. Defaults to "read write". */
+  @IsOptional()
+  @IsString()
+  PRITHVI_LEAD_SYSTEM_SCOPE: string;
+
+  /** Set to `"true"` to call Prithvi Lead System verification APIs; any other value returns dry-run data. */
+  @IsOptional()
+  @IsString()
+  PRITHVI_LEAD_SYSTEM_ACTIVE_MODE: string;
+
   //   @IsString()
   //   CTRL_FRONTEND_URL: string;
 }
