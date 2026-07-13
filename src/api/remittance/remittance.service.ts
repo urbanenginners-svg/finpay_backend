@@ -4,7 +4,10 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 
-import { PrithviExchangeService } from 'src/services/prithvi-exchange';
+import {
+  PrithviExchangeService,
+  extractPrithviRate,
+} from 'src/services/prithvi-exchange';
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import {
   GetRemittanceRatesQueryDto,
@@ -26,19 +29,29 @@ export class RemittanceService {
   }
 
   async getRates(query: GetRemittanceRatesQueryDto) {
-    const rate = await this.prithviService.getAgentRates({
+    const rates = await this.prithviService.getAgentRates({
       orderType: query.orderType,
       productType: query.productType,
       agentId: query.agentId,
     });
 
+    const currencies = rates.currencies.map((entry) => ({
+      currencyCode: entry.currencyCode,
+      currencyName: entry.currencyName,
+      rate: extractPrithviRate(entry, query.orderType, query.productType),
+      gstPercentage: entry.gstPercentage,
+      timestamp: entry.timestamp,
+      rates: entry.rates,
+    }));
+
     return {
       provider: RemittanceProvider.PRITHVI,
-      currency: rate.currency,
-      rate: rate.rate,
-      timestamp: rate.timestamp,
       orderType: query.orderType,
       productType: query.productType,
+      message: rates.message,
+      source: rates.source,
+      timestamp: rates.timestamp,
+      currencies,
     };
   }
 

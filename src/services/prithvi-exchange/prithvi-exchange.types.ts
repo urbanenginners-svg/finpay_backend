@@ -24,6 +24,10 @@ export type PrithviApiResponse<T> = {
   code: number;
   message?: string;
   data: T;
+  timestamp?: string;
+  metadata?: {
+    source?: string;
+  };
 };
 
 export type PrithviOAuthTokenData = {
@@ -41,6 +45,46 @@ export type PrithviTokenIntrospectionData = {
   exp?: number;
 };
 
+export type PrithviBuyRateKeys = 'bpc' | 'btt' | 'bdd' | 'bcn' | 'ncn_combo';
+export type PrithviSellRateKeys = 'scn' | 'spc';
+
+export type PrithviBuyRates = Record<PrithviBuyRateKeys, number>;
+export type PrithviSellRates = Record<PrithviSellRateKeys, number>;
+
+/** Single currency entry in the Prithvi agent rates API response. */
+export type PrithviAgentRateRawEntry = {
+  currency_code: string;
+  currency_name: string;
+  rates: {
+    buy: PrithviBuyRates;
+    sell: PrithviSellRates;
+  };
+  gst_percentage: string;
+  timestamp: string;
+};
+
+/** Raw `data` object keyed by currency code (USD, CHF, …). */
+export type PrithviAgentRatesRawData = Record<string, PrithviAgentRateRawEntry>;
+
+export type PrithviAgentCurrencyRate = {
+  currencyCode: string;
+  currencyName: string;
+  gstPercentage: string;
+  timestamp: string;
+  rates: {
+    buy: PrithviBuyRates;
+    sell: PrithviSellRates;
+  };
+};
+
+export type PrithviAgentRatesResult = {
+  message?: string;
+  source?: string;
+  timestamp: string;
+  currencies: PrithviAgentCurrencyRate[];
+};
+
+/** @deprecated Use PrithviAgentRatesResult — kept for backward-compatible single-rate consumers. */
 export type PrithviAgentRateData = {
   currency: string;
   rate: number;

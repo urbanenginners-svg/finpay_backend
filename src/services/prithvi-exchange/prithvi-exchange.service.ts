@@ -13,10 +13,15 @@ import {
   PRITHVI_DEFAULT_SCOPE,
   PRITHVI_TOKEN_REFRESH_BUFFER_MS,
 } from './prithvi-exchange.constants';
+import {
+  buildDryRunAgentRates,
+  parsePrithviAgentRatesResponse,
+} from './prithvi-exchange-rates.helper';
 import { PrithviApiLogService } from './prithvi-api-log.service';
 import type {
   GetAgentRatesParams,
-  PrithviAgentRateData,
+  PrithviAgentRatesRawData,
+  PrithviAgentRatesResult,
   PrithviApiResponse,
   PrithviOAuthTokenData,
   PrithviPanVerificationData,
@@ -171,16 +176,12 @@ export class PrithviExchangeService {
   /**
    * Fetch live FX rates for the configured agent account.
    */
-  async getAgentRates(params: GetAgentRatesParams): Promise<PrithviAgentRateData> {
+  async getAgentRates(params: GetAgentRatesParams): Promise<PrithviAgentRatesResult> {
     if (!this.isActive) {
       this.logger.warn(
         `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run rate. orderType=${params.orderType} productType=${params.productType}`,
       );
-      const dryRunResult: PrithviAgentRateData = {
-        currency: 'USD',
-        rate: 83.5,
-        timestamp: new Date().toISOString(),
-      };
+      const dryRunResult = buildDryRunAgentRates();
       void this.apiLog
         .create({
           callType: PrithviApiCallType.AGENT_RATES,
@@ -232,7 +233,7 @@ export class PrithviExchangeService {
       });
 
       const fetchRates = (accessToken: string) =>
-        axios.get<PrithviApiResponse<PrithviAgentRateData>>(url, {
+        axios.get<PrithviApiResponse<PrithviAgentRatesRawData>>(url, {
           params: {
             agentId,
             order_type: params.orderType,
@@ -279,7 +280,11 @@ export class PrithviExchangeService {
       }
 
       success = true;
-      return response.data.data;
+      return parsePrithviAgentRatesResponse(response.data.data, {
+        message: response.data.message,
+        source: response.data.metadata?.source,
+        timestamp: response.data.timestamp,
+      });
     } catch (err) {
       if (err instanceof InternalServerErrorException) throw err;
       errorMessage = isAxiosError(err)

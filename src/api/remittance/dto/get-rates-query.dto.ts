@@ -37,20 +37,51 @@ export class RemittanceRateResponseDto {
   @ApiProperty({ example: 'prithvi' })
   provider: string;
 
-  @ApiProperty({ example: 'USD' })
-  currency: string;
-
-  @ApiProperty({ example: 83.5 })
-  rate: number;
-
-  @ApiProperty({ example: '2026-05-18T17:40:00Z' })
-  timestamp: string;
-
   @ApiProperty({ enum: PrithviOrderType, example: PrithviOrderType.BUY })
   orderType: PrithviOrderType;
 
   @ApiProperty({ enum: PrithviProductType, example: PrithviProductType.TT })
   productType: PrithviProductType;
+
+  @ApiPropertyOptional({ example: 'Agent rates fetched from cache' })
+  message?: string;
+
+  @ApiPropertyOptional({ example: 'redis' })
+  source?: string;
+
+  @ApiProperty({ example: '2026-07-13T04:29:04.577Z' })
+  timestamp: string;
+
+  @ApiProperty({
+    type: 'array',
+    example: [
+      {
+        currencyCode: 'USD',
+        currencyName: 'US Dollar',
+        rate: 115.768686,
+        gstPercentage: '18.00',
+        timestamp: '2026-07-13T04:29:04.577Z',
+      },
+    ],
+  })
+  currencies: RemittanceCurrencyRateDto[];
+}
+
+export class RemittanceCurrencyRateDto {
+  @ApiProperty({ example: 'USD' })
+  currencyCode: string;
+
+  @ApiProperty({ example: 'US Dollar' })
+  currencyName: string;
+
+  @ApiProperty({ example: 115.768686, nullable: true })
+  rate: number | null;
+
+  @ApiProperty({ example: '18.00' })
+  gstPercentage: string;
+
+  @ApiProperty({ example: '2026-07-13T04:29:04.577Z' })
+  timestamp: string;
 }
 
 export class RemittanceProviderDto {
