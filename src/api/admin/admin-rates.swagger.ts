@@ -12,7 +12,7 @@ export function GetAdminRatesSwagger() {
     ApiOperation({
       summary: 'Get live agent FX rates (admin)',
       description:
-        'Fetches live foreign exchange rates from Prithvi Exchange using PRITHVI_BASE_URL. Supports BUY/SELL direction and CASH, CARD, or TT product types.',
+        'Returns cached agent FX rates from MongoDB. Rates are synced from Prithvi at 9:00 AM and 6:00 PM IST — not fetched on every request.',
     }),
     ApiQuery({ name: 'orderType', enum: PrithviOrderType, required: true }),
     ApiQuery({ name: 'productType', enum: PrithviProductType, required: true }),

@@ -36,9 +36,9 @@ export function GetRemittanceProvidersSwagger() {
 export function GetRemittanceRatesSwagger() {
   return applyDecorators(
     ApiOperation({
-      summary: 'Get live remittance FX rates (public)',
+      summary: 'Get cached remittance FX rates (public)',
       description:
-        'Fetches live agent rates from the configured remittance provider (Prithvi Exchange). Rate limited.',
+        'Returns agent FX rates from the MongoDB cache. Rates are synced from Prithvi at 9:00 AM and 6:00 PM IST.',
     }),
     ApiQuery({ name: 'orderType', enum: PrithviOrderType, required: true }),
     ApiQuery({ name: 'productType', enum: PrithviProductType, required: true }),

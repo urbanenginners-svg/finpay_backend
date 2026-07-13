@@ -53,6 +53,18 @@ export class RemittanceRateResponseDto {
   timestamp: string;
 
   @ApiProperty({
+    example: '2026-07-13T04:29:04.577Z',
+    description: 'When rates were last fetched from Prithvi and saved to DB.',
+  })
+  fetchedAt: string;
+
+  @ApiProperty({
+    example: true,
+    description: 'True when served from the MongoDB cache (not a live Prithvi call).',
+  })
+  fromCache: boolean;
+
+  @ApiProperty({
     type: 'array',
     example: [
       {

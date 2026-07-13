@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 
 import { AppConfigService } from 'src/services/env/env.service';
@@ -13,13 +14,17 @@ import {
   PRITHVI_DEFAULT_SCOPE,
   PRITHVI_TOKEN_REFRESH_BUFFER_MS,
 } from './prithvi-exchange.constants';
+import { PrithviAgentRatesCacheService } from './prithvi-agent-rates-cache.service';
 import {
   buildDryRunAgentRates,
   parsePrithviAgentRatesResponse,
 } from './prithvi-exchange-rates.helper';
 import { PrithviApiLogService } from './prithvi-api-log.service';
-import type {
-  GetAgentRatesParams,
+import {
+  PrithviOrderType,
+  PrithviProductType,
+  type CachedPrithviAgentRatesResult,
+  type GetAgentRatesParams,
   PrithviAgentRatesRawData,
   PrithviAgentRatesResult,
   PrithviApiResponse,
@@ -57,6 +62,7 @@ export class PrithviExchangeService {
     private readonly config: AppConfigService,
     private readonly tokenStore: RemittanceProviderTokenService,
     private readonly apiLog: PrithviApiLogService,
+    private readonly ratesCache: PrithviAgentRatesCacheService,
   ) {}
 
   get isActive(): boolean {
@@ -174,44 +180,80 @@ export class PrithviExchangeService {
   }
 
   /**
-   * Fetch live FX rates for the configured agent account.
+   * Return cached agent FX rates (no outbound Prithvi call).
+   * Populated by the 9 AM / 6 PM IST cron via {@link syncAgentRatesFromProvider}.
    */
-  async getAgentRates(params: GetAgentRatesParams): Promise<PrithviAgentRatesResult> {
-    if (!this.isActive) {
-      this.logger.warn(
-        `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run rate. orderType=${params.orderType} productType=${params.productType}`,
-      );
-      const dryRunResult = buildDryRunAgentRates();
-      void this.apiLog
-        .create({
-          callType: PrithviApiCallType.AGENT_RATES,
-          method: 'GET',
-          url: this.buildUrl(PRITHVI_API_PATHS.AGENT_RATES),
-          requestBody: null,
-          requestParams: {
-            orderType: params.orderType,
-            productType: params.productType,
-            ...(params.agentId ? { agentId: params.agentId } : {}),
-          },
-          requestHeaders: this.sanitizeHeaders({
-            Authorization: 'Bearer [REDACTED]',
-            accept: 'application/json',
-          }),
-          httpStatus: null,
-          responseBody: dryRunResult as unknown as Record<string, unknown>,
-          success: true,
-          errorMessage: null,
-          durationMs: 0,
-          isDryRun: true,
-        })
-        .catch((e: unknown) =>
-          this.logger.error(
-            `Prithvi API log save failed: ${e instanceof Error ? e.message : String(e)}`,
-          ),
-        );
-      return dryRunResult;
+  async getAgentRates(params: GetAgentRatesParams): Promise<CachedPrithviAgentRatesResult> {
+    const agentId = this.resolveAgentId(params.agentId);
+    const cached = await this.ratesCache.findByAgentId(agentId);
+
+    if (cached) {
+      return {
+        message: cached.message ?? undefined,
+        source: cached.source ?? undefined,
+        timestamp: cached.providerTimestamp,
+        currencies: cached.currencies,
+        fetchedAt: cached.fetchedAt.toISOString(),
+        fromCache: true,
+      };
     }
 
+    if (!this.isActive) {
+      const dryRunResult = buildDryRunAgentRates();
+      return {
+        ...dryRunResult,
+        fetchedAt: new Date().toISOString(),
+        fromCache: true,
+      };
+    }
+
+    throw new ServiceUnavailableException(
+      'FX rates are not available yet. Rates sync automatically at 9:00 AM and 6:00 PM IST.',
+    );
+  }
+
+  /**
+   * Fetch live rates from Prithvi and persist to MongoDB.
+   * Called by scheduled cron — not on user-facing requests.
+   */
+  async syncAgentRatesFromProvider(agentId?: string): Promise<PrithviAgentRatesResult> {
+    const resolvedAgentId = this.resolveAgentId(agentId);
+    const fetchParams: GetAgentRatesParams = {
+      agentId: resolvedAgentId,
+      orderType: PrithviOrderType.BUY,
+      productType: PrithviProductType.CASH,
+    };
+
+    const rates = this.isActive
+      ? await this.fetchLiveAgentRates(fetchParams)
+      : buildDryRunAgentRates();
+
+    await this.ratesCache.upsert({
+      agentId: resolvedAgentId,
+      rates,
+      isDryRun: !this.isActive,
+    });
+
+    this.logger.log(
+      `Prithvi agent rates synced for agentId=${resolvedAgentId} (${rates.currencies.length} currencies, dryRun=${!this.isActive}).`,
+    );
+    return rates;
+  }
+
+  private resolveAgentId(agentId?: string): string {
+    return agentId ?? this.requireConfig('PRITHVI_AGENT_ID');
+  }
+
+  /** Returns configured agent ID when set, without throwing. */
+  getConfiguredAgentId(): string | null {
+    const agentId = this.config.get('PRITHVI_AGENT_ID');
+    return agentId?.trim() ? agentId.trim() : null;
+  }
+
+  /** Outbound HTTP call to Prithvi — use only from cron / sync. */
+  private async fetchLiveAgentRates(
+    params: GetAgentRatesParams,
+  ): Promise<PrithviAgentRatesResult> {
     const agentId = params.agentId ?? this.requireConfig('PRITHVI_AGENT_ID');
     const url = this.buildUrl(PRITHVI_API_PATHS.AGENT_RATES);
     const requestParams = {

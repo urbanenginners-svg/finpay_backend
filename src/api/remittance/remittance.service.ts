@@ -51,6 +51,8 @@ export class RemittanceService {
       message: rates.message,
       source: rates.source,
       timestamp: rates.timestamp,
+      fetchedAt: rates.fetchedAt,
+      fromCache: rates.fromCache,
       currencies,
     };
   }

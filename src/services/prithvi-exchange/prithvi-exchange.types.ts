@@ -84,6 +84,12 @@ export type PrithviAgentRatesResult = {
   currencies: PrithviAgentCurrencyRate[];
 };
 
+/** Rates served from the MongoDB cache (not a live Prithvi call). */
+export type CachedPrithviAgentRatesResult = PrithviAgentRatesResult & {
+  fetchedAt: string;
+  fromCache: true;
+};
+
 /** @deprecated Use PrithviAgentRatesResult — kept for backward-compatible single-rate consumers. */
 export type PrithviAgentRateData = {
   currency: string;

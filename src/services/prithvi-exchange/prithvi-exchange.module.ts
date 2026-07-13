@@ -5,6 +5,11 @@ import {
   PrithviApiLog,
   PrithviApiLogSchema,
 } from 'src/services/mongoose/schemas/prithvi-api-log.schema';
+import {
+  PrithviAgentRatesCache,
+  PrithviAgentRatesCacheSchema,
+} from 'src/services/mongoose/schemas/prithvi-agent-rates-cache.schema';
+import { PrithviAgentRatesCacheService } from './prithvi-agent-rates-cache.service';
 import { PrithviApiLogService } from './prithvi-api-log.service';
 import { PrithviExchangeService } from './prithvi-exchange.service';
 import { PrithviExchangeTasks } from './prithvi-exchange.tasks';
@@ -14,9 +19,19 @@ import { PrithviExchangeTasks } from './prithvi-exchange.tasks';
   imports: [
     MongooseModule.forFeature([
       { name: PrithviApiLog.name, schema: PrithviApiLogSchema },
+      { name: PrithviAgentRatesCache.name, schema: PrithviAgentRatesCacheSchema },
     ]),
   ],
-  providers: [PrithviExchangeService, PrithviExchangeTasks, PrithviApiLogService],
-  exports: [PrithviExchangeService, PrithviApiLogService],
+  providers: [
+    PrithviExchangeService,
+    PrithviExchangeTasks,
+    PrithviApiLogService,
+    PrithviAgentRatesCacheService,
+  ],
+  exports: [
+    PrithviExchangeService,
+    PrithviApiLogService,
+    PrithviAgentRatesCacheService,
+  ],
 })
 export class PrithviExchangeModule {}
