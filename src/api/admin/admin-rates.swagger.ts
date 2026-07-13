@@ -12,7 +12,7 @@ export function GetAdminRatesSwagger() {
     ApiOperation({
       summary: 'Get live agent FX rates (admin)',
       description:
-        'Returns cached agent FX rates from MongoDB. Rates are synced from Prithvi at 9:00 AM and 6:00 PM IST — not fetched on every request.',
+        'Returns cached agent FX rates from MongoDB. On cache miss, fetches once from Prithvi and stores the result. Scheduled refresh at 9:00 AM and 6:00 PM IST.',
     }),
     ApiQuery({ name: 'orderType', enum: PrithviOrderType, required: true }),
     ApiQuery({ name: 'productType', enum: PrithviProductType, required: true }),

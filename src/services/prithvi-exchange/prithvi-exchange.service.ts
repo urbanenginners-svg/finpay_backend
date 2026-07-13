@@ -3,7 +3,6 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 
 import { AppConfigService } from 'src/services/env/env.service';
@@ -180,8 +179,8 @@ export class PrithviExchangeService {
   }
 
   /**
-   * Return cached agent FX rates (no outbound Prithvi call).
-   * Populated by the 9 AM / 6 PM IST cron via {@link syncAgentRatesFromProvider}.
+   * Return cached agent FX rates. On cache miss, fetches from Prithvi once,
+   * persists to MongoDB, then returns the result (cron still refreshes at 9 AM / 6 PM IST).
    */
   async getAgentRates(params: GetAgentRatesParams): Promise<CachedPrithviAgentRatesResult> {
     const agentId = this.resolveAgentId(params.agentId);
@@ -198,23 +197,26 @@ export class PrithviExchangeService {
       };
     }
 
-    if (!this.isActive) {
-      const dryRunResult = buildDryRunAgentRates();
-      return {
-        ...dryRunResult,
-        fetchedAt: new Date().toISOString(),
-        fromCache: true,
-      };
-    }
-
-    throw new ServiceUnavailableException(
-      'FX rates are not available yet. Rates sync automatically at 9:00 AM and 6:00 PM IST.',
+    this.logger.warn(
+      `No cached Prithvi agent rates for agentId=${agentId}; fetching from provider.`,
     );
+
+    const rates = await this.syncAgentRatesFromProvider(agentId);
+    const fetchedAt = new Date().toISOString();
+
+    return {
+      message: rates.message,
+      source: rates.source,
+      timestamp: rates.timestamp,
+      currencies: rates.currencies,
+      fetchedAt,
+      fromCache: false,
+    };
   }
 
   /**
    * Fetch live rates from Prithvi and persist to MongoDB.
-   * Called by scheduled cron — not on user-facing requests.
+   * Used by cron and on first request when the cache is empty.
    */
   async syncAgentRatesFromProvider(agentId?: string): Promise<PrithviAgentRatesResult> {
     const resolvedAgentId = this.resolveAgentId(agentId);
@@ -250,7 +252,7 @@ export class PrithviExchangeService {
     return agentId?.trim() ? agentId.trim() : null;
   }
 
-  /** Outbound HTTP call to Prithvi — use only from cron / sync. */
+  /** Outbound HTTP call to Prithvi (cron + cache-miss fallback). */
   private async fetchLiveAgentRates(
     params: GetAgentRatesParams,
   ): Promise<PrithviAgentRatesResult> {
