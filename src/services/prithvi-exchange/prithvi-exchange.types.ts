@@ -6,6 +6,18 @@ export enum PrithviApiCallType {
   AGENT_RATES = 'agent_rates',
   PASSPORT_VERIFY = 'passport_verify',
   PAN_VERIFY = 'pan_verify',
+  FOREX_INITIATE = 'forex_initiate',
+  FOREX_COMPLETE = 'forex_complete',
+  FOREX_ORDERS_DASHBOARD = 'forex_orders_dashboard',
+  PURPOSE_LIST = 'purpose_list',
+  PURPOSE_CONFIG = 'purpose_config',
+}
+
+export enum PrithviForexRequestStatus {
+  DRAFT = 'DRAFT',
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  CANCELLED = 'CANCELLED',
 }
 
 export enum PrithviOrderType {
@@ -125,4 +137,106 @@ export type PrithviPanVerificationData = {
   name: string;
   status: string;
   registered_name?: string;
+};
+
+export type PrithviForexOrderDetail = {
+  currency: string;
+  product: PrithviProductType;
+  currencyAmount: number;
+  amountInINR: number;
+  sellingRate: number;
+  agentSellingRate: number;
+  gst: number;
+  serviceCharge: number;
+};
+
+export type InitiateForexRequestParams = {
+  orderType: PrithviOrderType;
+  orderDetails: PrithviForexOrderDetail[];
+};
+
+export type PrithviForexDraftOrder = {
+  id: string;
+  currency?: string;
+  product?: PrithviProductType;
+  currencyAmount?: number;
+  amountInINR?: number;
+};
+
+export type PrithviForexRequestSummary = {
+  id: string;
+  sessionId?: string;
+  status: PrithviForexRequestStatus | string;
+  sessionExpiresAt?: string;
+  orderType?: PrithviOrderType | string;
+  createdAt?: string;
+};
+
+export type InitiateForexRequestResult = {
+  forexRequest: PrithviForexRequestSummary;
+  orders?: PrithviForexDraftOrder[];
+};
+
+export type CompleteForexOrderPayload = {
+  orderId: string;
+  travelerName: string;
+  phoneNumber: string;
+  email: string;
+  panNumber: string;
+  purpose: string;
+  travelingCountries: string[];
+  deliveryAddress: string;
+  pincode: string;
+  sourceOfFunds: string;
+  preferredDeliveryMode: string;
+  preferredPaymentMode: string;
+};
+
+export type CompleteForexRequestParams = {
+  forexRequestId: string;
+  orders: CompleteForexOrderPayload[];
+};
+
+export type CompleteForexRequestResult = {
+  forexRequest: {
+    id: string;
+    status: PrithviForexRequestStatus | string;
+  };
+};
+
+export type GetForexOrdersDashboardParams = {
+  pageNumber?: number;
+  pageSize?: number;
+  status?: PrithviForexRequestStatus | string;
+  product?: PrithviProductType | string;
+  fromDate?: string;
+  toDate?: string;
+};
+
+export type PrithviForexOrdersDashboardResult = {
+  data: PrithviForexRequestSummary[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+  };
+};
+
+export type GetPurposesParams = {
+  orderType?: PrithviOrderType | string;
+  productType?: PrithviProductType | string;
+};
+
+export type PrithviPurpose = {
+  code: string;
+  name: string;
+  description?: string;
+  isActive?: boolean;
+};
+
+export type PrithviPurposeConfig = {
+  code: string;
+  name: string;
+  documentsRequired: string[];
+  allowedProducts: Array<PrithviProductType | string>;
 };

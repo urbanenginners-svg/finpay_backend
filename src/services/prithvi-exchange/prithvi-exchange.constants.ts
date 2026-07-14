@@ -6,7 +6,15 @@ export const PRITHVI_API_PATHS = {
   AGENT_RATES: '/rates/agents',
   PASSPORT_VERIFY: '/verification/passport',
   PAN_VERIFY: '/verification/pan-number',
+  FOREX_INITIATE: '/forex/initiate',
+  FOREX_COMPLETE: '/forex/:id/complete',
+  FOREX_ORDERS_DASHBOARD: '/forex/orders/dashboard',
+  PURPOSE_LIST: '/purpose',
+  PURPOSE_CONFIG: '/purpose/:code/config',
 } as const;
+
+/** Draft forex rate lock window from Prithvi (Step 1 → Step 2). */
+export const PRITHVI_FOREX_DRAFT_TTL_MS = 20 * 60 * 1000;
 
 export const PRITHVI_DEFAULT_SCOPE = 'read write';
 

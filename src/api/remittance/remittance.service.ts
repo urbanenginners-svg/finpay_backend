@@ -6,17 +6,25 @@ import {
 
 import {
   PrithviExchangeService,
+  PrithviForexApiService,
   extractPrithviRate,
 } from 'src/services/prithvi-exchange';
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import {
+  CompleteForexRequestDto,
+  GetForexOrdersDashboardQueryDto,
+  GetPurposesQueryDto,
   GetRemittanceRatesQueryDto,
+  InitiateForexRequestDto,
   ProviderTokenStatusQueryDto,
 } from './dto';
 
 @Injectable()
 export class RemittanceService {
-  constructor(private readonly prithviService: PrithviExchangeService) {}
+  constructor(
+    private readonly prithviService: PrithviExchangeService,
+    private readonly prithviForex: PrithviForexApiService,
+  ) {}
 
   getProviders() {
     return [
@@ -55,6 +63,49 @@ export class RemittanceService {
       fromCache: rates.fromCache,
       currencies,
     };
+  }
+
+  async initiateForex(dto: InitiateForexRequestDto) {
+    return this.prithviForex.initiateForexRequest({
+      orderType: dto.orderType,
+      orderDetails: dto.orderDetails,
+    });
+  }
+
+  async completeForex(id: string, dto: CompleteForexRequestDto) {
+    if (!id?.trim()) {
+      throw new BadRequestException('Forex request id is required');
+    }
+
+    return this.prithviForex.completeForexRequest({
+      forexRequestId: id.trim(),
+      orders: dto.orders,
+    });
+  }
+
+  async getForexOrdersDashboard(query: GetForexOrdersDashboardQueryDto) {
+    return this.prithviForex.getOrdersDashboard({
+      pageNumber: query.pageNumber,
+      pageSize: query.pageSize,
+      status: query.status,
+      product: query.product,
+      fromDate: query.fromDate,
+      toDate: query.toDate,
+    });
+  }
+
+  async listPurposes(query: GetPurposesQueryDto) {
+    return this.prithviForex.listPurposes({
+      orderType: query.orderType,
+      productType: query.productType,
+    });
+  }
+
+  async getPurposeConfig(code: string) {
+    if (!code?.trim()) {
+      throw new BadRequestException('Purpose code is required');
+    }
+    return this.prithviForex.getPurposeConfig(code.trim());
   }
 
   async obtainToken(provider: RemittanceProvider) {

@@ -13,6 +13,7 @@ import { PrithviAgentRatesCacheService } from './prithvi-agent-rates-cache.servi
 import { PrithviApiLogService } from './prithvi-api-log.service';
 import { PrithviExchangeService } from './prithvi-exchange.service';
 import { PrithviExchangeTasks } from './prithvi-exchange.tasks';
+import { PrithviForexApiService } from './prithvi-forex-api.service';
 
 @Global()
 @Module({
@@ -24,12 +25,14 @@ import { PrithviExchangeTasks } from './prithvi-exchange.tasks';
   ],
   providers: [
     PrithviExchangeService,
+    PrithviForexApiService,
     PrithviExchangeTasks,
     PrithviApiLogService,
     PrithviAgentRatesCacheService,
   ],
   exports: [
     PrithviExchangeService,
+    PrithviForexApiService,
     PrithviApiLogService,
     PrithviAgentRatesCacheService,
   ],

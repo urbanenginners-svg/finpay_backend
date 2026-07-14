@@ -1,5 +1,7 @@
 import { applyDecorators } from '@nestjs/common';
 import {
+  ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -7,11 +9,17 @@ import {
 } from '@nestjs/swagger';
 
 import {
+  PrithviForexRequestStatus,
   PrithviOrderType,
   PrithviProductType,
 } from 'src/services/prithvi-exchange';
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
-import { RemittanceProviderDto, RemittanceRateResponseDto } from './dto';
+import {
+  CompleteForexRequestDto,
+  InitiateForexRequestDto,
+  RemittanceProviderDto,
+  RemittanceRateResponseDto,
+} from './dto';
 import {
   ProviderTokenActionResponseDto,
   ProviderTokenStatusResponseDto,
@@ -50,6 +58,89 @@ export function GetRemittanceRatesSwagger() {
     }),
     ApiResponse({ status: 400, description: 'Validation failure' }),
     ApiResponse({ status: 429, description: 'Too many requests' }),
+  );
+}
+
+export function InitiateForexRequestSwagger() {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Initiate forex request (Step 1)',
+      description:
+        'Reserves inventory and creates a DRAFT booking with locked rates for 20 minutes. Proxies to Prithvi POST /forex/initiate.',
+    }),
+    ApiBody({ type: InitiateForexRequestDto }),
+    ApiResponse({ status: 201, description: 'Forex draft created' }),
+    ApiResponse({ status: 400, description: 'Validation or provider client error' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+  );
+}
+
+export function CompleteForexRequestSwagger() {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Complete forex request (Step 2)',
+      description:
+        'Finalizes a DRAFT booking with traveler, PAN, travel, and delivery details. Must occur within the 20-minute rate lock. Proxies to Prithvi POST /forex/:id/complete.',
+    }),
+    ApiParam({
+      name: 'id',
+      description: 'Forex draft request UUID from Step 1',
+      example: '550e8400-e29b-41d4-a716-446655440001',
+    }),
+    ApiBody({ type: CompleteForexRequestDto }),
+    ApiResponse({ status: 200, description: 'Forex request submitted for approval' }),
+    ApiResponse({ status: 400, description: 'Validation or expired session' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+  );
+}
+
+export function GetForexOrdersDashboardSwagger() {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Forex orders dashboard',
+      description:
+        'Paginated booking history from Prithvi. Filter by status, product, or date range.',
+    }),
+    ApiQuery({ name: 'pageNumber', required: false, type: Number }),
+    ApiQuery({ name: 'pageSize', required: false, type: Number }),
+    ApiQuery({
+      name: 'status',
+      required: false,
+      enum: PrithviForexRequestStatus,
+    }),
+    ApiQuery({ name: 'product', required: false, enum: PrithviProductType }),
+    ApiQuery({ name: 'fromDate', required: false, example: '2026-05-01' }),
+    ApiQuery({ name: 'toDate', required: false, example: '2026-05-31' }),
+    ApiResponse({ status: 200, description: 'Orders retrieved' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+  );
+}
+
+export function GetPurposesSwagger() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'List LRS purpose categories (public)',
+      description:
+        'Returns Liberalised Remittance Scheme purpose codes from Prithvi for the selected order/product context.',
+    }),
+    ApiQuery({ name: 'orderType', required: false, enum: PrithviOrderType }),
+    ApiQuery({ name: 'productType', required: false, enum: PrithviProductType }),
+    ApiResponse({ status: 200, description: 'Purposes retrieved' }),
+  );
+}
+
+export function GetPurposeConfigSwagger() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Get purpose KYC / product config (public)',
+      description:
+        'Returns required documents and allowed products for a purpose code.',
+    }),
+    ApiParam({ name: 'code', example: 'S0001' }),
+    ApiResponse({ status: 200, description: 'Purpose config retrieved' }),
   );
 }
 
