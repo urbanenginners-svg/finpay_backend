@@ -14,6 +14,7 @@ import {
 } from './prithvi-exchange.constants';
 import { PrithviApiLogService } from './prithvi-api-log.service';
 import { PrithviExchangeService } from './prithvi-exchange.service';
+import { PrithviPurposeCacheService } from './prithvi-purpose-cache.service';
 import {
   CompleteForexRequestParams,
   CompleteForexRequestResult,
@@ -70,6 +71,7 @@ export class PrithviForexApiService {
     private readonly config: AppConfigService,
     private readonly prithvi: PrithviExchangeService,
     private readonly apiLog: PrithviApiLogService,
+    private readonly purposeCache: PrithviPurposeCacheService,
   ) {}
 
   get isActive(): boolean {
@@ -168,28 +170,102 @@ export class PrithviForexApiService {
 
   /**
    * LRS purpose categories for the selected order/product context.
+   * Served from MongoDB cache (refreshed monthly); never hits Prithvi on each request.
    */
   async listPurposes(params: GetPurposesParams = {}): Promise<PrithviPurpose[]> {
-    const requestParams = this.omitUndefined({
-      orderType: params.orderType
-        ? toPrithviApiOrderType(params.orderType)
-        : undefined,
-      productType: params.productType,
+    const cached = await this.purposeCache.findLatest();
+    const purposes =
+      cached?.purposes?.length
+        ? cached.purposes
+        : await this.syncPurposesFromProvider();
+
+    return this.filterPurposes(purposes, params);
+  }
+
+  /**
+   * Fetch the full purpose catalogue from Prithvi and persist it.
+   * Used by monthly cron and on first request when the cache is empty.
+   */
+  async syncPurposesFromProvider(): Promise<PrithviPurpose[]> {
+    const purposes = this.isActive
+      ? await this.fetchLivePurposes()
+      : this.dryRunPurposes();
+
+    await this.purposeCache.upsert({
+      purposes,
+      isDryRun: !this.isActive,
     });
 
-    if (!this.isActive) {
-      return this.dryRunPurposes();
-    }
+    this.logger.log(
+      `Prithvi purpose list synced (${purposes.length} purposes, dryRun=${!this.isActive}).`,
+    );
+    return purposes;
+  }
 
-    return this.requestJson<PrithviPurpose[]>({
+  private async fetchLivePurposes(): Promise<PrithviPurpose[]> {
+    const raw = await this.requestJson<PrithviPurpose[]>({
       method: 'GET',
       callType: PrithviApiCallType.PURPOSE_LIST,
       path: PRITHVI_API_PATHS.PURPOSE_LIST,
       body: null,
-      params: requestParams,
+      params: null,
       clientErrorMessage: 'Unable to load purposes. Please try again.',
       serverErrorMessage:
         'Unable to load purposes right now. Please try again later.',
+    });
+
+    return this.normalizePurposes(raw);
+  }
+
+  private normalizePurposes(raw: PrithviPurpose[]): PrithviPurpose[] {
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+
+    return raw
+      .filter((item) => item && typeof item.code === 'string' && item.code)
+      .map((item) => ({
+        id: item.id,
+        code: item.code,
+        name: item.name,
+        description: item.description,
+        category: item.category,
+        orderType: item.orderType,
+        productType: item.productType,
+        isActive: item.isActive !== false,
+      }));
+  }
+
+  private filterPurposes(
+    purposes: PrithviPurpose[],
+    params: GetPurposesParams,
+  ): PrithviPurpose[] {
+    const orderType = params.orderType
+      ? String(params.orderType).toUpperCase()
+      : undefined;
+    const productType = params.productType
+      ? String(params.productType).toUpperCase()
+      : undefined;
+
+    return purposes.filter((purpose) => {
+      if (purpose.isActive === false) {
+        return false;
+      }
+      if (
+        orderType &&
+        purpose.orderType &&
+        String(purpose.orderType).toUpperCase() !== orderType
+      ) {
+        return false;
+      }
+      if (
+        productType &&
+        purpose.productType &&
+        String(purpose.productType).toUpperCase() !== productType
+      ) {
+        return false;
+      }
+      return true;
     });
   }
 
@@ -386,24 +462,45 @@ export class PrithviForexApiService {
         code: 'S0001',
         name: 'Leisure/Holiday/Personal Visit',
         description: 'Personal tourism or travel overseas',
+        category: 'travel',
+        orderType: PrithviOrderType.BUY,
+        productType: PrithviProductType.CASH,
         isActive: true,
       },
       {
         code: 'S0002',
         name: 'Business Travel',
         description: 'Overseas travel for business meetings',
+        category: 'business',
+        orderType: PrithviOrderType.BUY,
+        productType: PrithviProductType.CASH,
         isActive: true,
       },
       {
         code: 'S0003',
         name: 'Medical Treatment Abroad',
         description: 'Medical treatment and related expenses overseas',
+        category: 'medical',
+        orderType: PrithviOrderType.BUY,
+        productType: PrithviProductType.TT,
         isActive: true,
       },
       {
         code: 'S0004',
         name: 'Education / Studies Abroad',
         description: 'Tuition and living expenses for overseas education',
+        category: 'education',
+        orderType: PrithviOrderType.BUY,
+        productType: PrithviProductType.CARD,
+        isActive: true,
+      },
+      {
+        code: 'S0501',
+        name: 'Sell Cash',
+        description: 'Sell leftover foreign currency cash',
+        category: 'sell',
+        orderType: PrithviOrderType.SELL,
+        productType: PrithviProductType.CASH,
         isActive: true,
       },
     ];

@@ -26,3 +26,7 @@ export const PRITHVI_PROVIDER_NAME = 'prithvi';
 /** Agent rates sync schedule: 9 AM and 6 PM IST. */
 export const PRITHVI_AGENT_RATES_CRON = '0 9,18 * * *';
 export const PRITHVI_AGENT_RATES_CRON_TIMEZONE = 'Asia/Kolkata';
+
+/** Purpose list sync: 1st of each month at 2:00 AM IST. */
+export const PRITHVI_PURPOSE_LIST_CRON = '0 2 1 * *';
+export const PRITHVI_PURPOSE_LIST_CRON_TIMEZONE = 'Asia/Kolkata';

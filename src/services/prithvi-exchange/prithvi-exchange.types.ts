@@ -231,9 +231,13 @@ export type GetPurposesParams = {
 };
 
 export type PrithviPurpose = {
+  id?: string;
   code: string;
   name: string;
   description?: string;
+  category?: string;
+  orderType?: PrithviOrderType | string;
+  productType?: PrithviProductType | string;
   isActive?: boolean;
 };
 

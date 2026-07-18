@@ -124,11 +124,11 @@ export function GetPurposesSwagger() {
     ApiOperation({
       summary: 'List LRS purpose categories (public)',
       description:
-        'Returns Liberalised Remittance Scheme purpose codes from Prithvi for the selected order/product context.',
+        'Returns Liberalised Remittance Scheme purpose codes from the local monthly cache (synced from Prithvi), filtered by order/product context.',
     }),
     ApiQuery({ name: 'orderType', required: false, enum: PrithviOrderType }),
     ApiQuery({ name: 'productType', required: false, enum: PrithviProductType }),
-    ApiResponse({ status: 200, description: 'Purposes retrieved' }),
+    ApiResponse({ status: 200, description: 'Purposes retrieved from cache' }),
   );
 }
 
