@@ -190,6 +190,9 @@ export type CompleteForexOrderPayload = {
   sourceOfFunds: string;
   preferredDeliveryMode: string;
   preferredPaymentMode: string;
+  sellingRate: number;
+  serviceCharge: number;
+  gst: number;
 };
 
 export type CompleteForexRequestParams = {

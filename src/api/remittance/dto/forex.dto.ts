@@ -152,6 +152,24 @@ export class CompleteForexOrderDto {
   @IsString()
   @MinLength(2)
   preferredPaymentMode: string;
+
+  @ApiProperty({ example: 83.5, description: 'Selling rate locked at initiate' })
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  sellingRate: number;
+
+  @ApiProperty({ example: 100 })
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  serviceCharge: number;
+
+  @ApiProperty({ example: 150.3 })
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  gst: number;
 }
 
 export class CompleteForexRequestDto {
