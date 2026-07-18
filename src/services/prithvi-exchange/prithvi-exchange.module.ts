@@ -13,8 +13,13 @@ import {
   PrithviPurposeCache,
   PrithviPurposeCacheSchema,
 } from 'src/services/mongoose/schemas/prithvi-purpose-cache.schema';
+import {
+  PrithviForexOrder,
+  PrithviForexOrderSchema,
+} from 'src/services/mongoose/schemas/prithvi-forex-order.schema';
 import { PrithviAgentRatesCacheService } from './prithvi-agent-rates-cache.service';
 import { PrithviPurposeCacheService } from './prithvi-purpose-cache.service';
+import { PrithviForexOrderService } from './prithvi-forex-order.service';
 import { PrithviApiLogService } from './prithvi-api-log.service';
 import { PrithviExchangeService } from './prithvi-exchange.service';
 import { PrithviExchangeTasks } from './prithvi-exchange.tasks';
@@ -27,6 +32,7 @@ import { PrithviForexApiService } from './prithvi-forex-api.service';
       { name: PrithviApiLog.name, schema: PrithviApiLogSchema },
       { name: PrithviAgentRatesCache.name, schema: PrithviAgentRatesCacheSchema },
       { name: PrithviPurposeCache.name, schema: PrithviPurposeCacheSchema },
+      { name: PrithviForexOrder.name, schema: PrithviForexOrderSchema },
     ]),
   ],
   providers: [
@@ -36,6 +42,7 @@ import { PrithviForexApiService } from './prithvi-forex-api.service';
     PrithviApiLogService,
     PrithviAgentRatesCacheService,
     PrithviPurposeCacheService,
+    PrithviForexOrderService,
   ],
   exports: [
     PrithviExchangeService,
@@ -43,6 +50,7 @@ import { PrithviForexApiService } from './prithvi-forex-api.service';
     PrithviApiLogService,
     PrithviAgentRatesCacheService,
     PrithviPurposeCacheService,
+    PrithviForexOrderService,
   ],
 })
 export class PrithviExchangeModule {}

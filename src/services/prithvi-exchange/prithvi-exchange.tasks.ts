@@ -91,6 +91,28 @@ export class PrithviExchangeTasks implements OnModuleInit {
     }
   }
 
+  /**
+   * Sync local forex orders from Prithvi dashboard every hour.
+   * Matches by Prithvi order id; only updates rows booked via Finpay.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async syncForexOrders(): Promise<void> {
+    if (!this.prithviService.isActive) {
+      return;
+    }
+
+    try {
+      const result = await this.prithviForex.syncOrdersFromProvider();
+      this.logger.log(
+        `Prithvi forex orders cron sync completed: matched=${result.rowsMatched}/${result.rowsSeen}`,
+      );
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Prithvi forex orders cron sync failed: ${detail}`);
+    }
+  }
+
   /** Refresh OAuth token before the 24h access token expires. */
   @Cron(CronExpression.EVERY_HOUR)
   async refreshTokenIfNeeded(): Promise<void> {

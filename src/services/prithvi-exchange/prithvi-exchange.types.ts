@@ -157,10 +157,23 @@ export type InitiateForexRequestParams = {
 
 export type PrithviForexDraftOrder = {
   id: string;
+  forexRequestId?: string;
+  orderCode?: string;
   currency?: string;
-  product?: PrithviProductType;
-  currencyAmount?: number;
-  amountInINR?: number;
+  product?: PrithviProductType | string;
+  currencyAmount?: string | number;
+  amountInINR?: string | number;
+  sellingRate?: string | number | null;
+  agentSellingRate?: string | number | null;
+  gst?: string | number;
+  serviceCharge?: string | number;
+  totalAmount?: string | number;
+  paymentStatus?: string;
+  status?: string;
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
 };
 
 export type PrithviForexRequestSummary = {
@@ -200,11 +213,49 @@ export type CompleteForexRequestParams = {
   orders: CompleteForexOrderPayload[];
 };
 
+export type CompleteForexOrderSnapshot = {
+  id: string;
+  forexRequestId?: string;
+  orderCode?: string;
+  orderType?: string;
+  currency?: string;
+  product?: PrithviProductType | string;
+  status?: string;
+  paymentStatus?: string;
+  currencyAmount?: string | number;
+  amountInINR?: string | number;
+  sellingRate?: string | number;
+  agentSellingRate?: string | number;
+  gst?: string | number;
+  serviceCharge?: string | number;
+  totalAmount?: string | number;
+  paidAmount?: string | number;
+  pendingAmount?: string | number;
+  travelerName?: string;
+  phoneNumber?: string;
+  email?: string;
+  panNumber?: string;
+  purpose?: string;
+  travelingCountries?: string[];
+  deliveryAddress?: string;
+  pincode?: string;
+  sourceOfFunds?: string;
+  preferredDeliveryMode?: string;
+  preferredPaymentMode?: string;
+  created_at?: string;
+  updated_at?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type CompleteForexRequestResult = {
   forexRequest: {
     id: string;
     status: PrithviForexRequestStatus | string;
+    updated_at?: string;
+    updatedAt?: string;
   };
+  orders?: CompleteForexOrderSnapshot[];
 };
 
 export type GetForexOrdersDashboardParams = {
@@ -219,6 +270,7 @@ export type GetForexOrdersDashboardParams = {
 /** Normalized row for the agent forex orders dashboard. */
 export type PrithviForexDashboardOrder = {
   id: string;
+  forexRequestId?: string;
   orderCode?: string;
   orderType?: PrithviOrderType | string;
   currency?: string;
@@ -232,6 +284,13 @@ export type PrithviForexDashboardOrder = {
   totalAmount?: string | number;
   travelerName?: string;
   createdAt?: string;
+  updatedAt?: string;
+};
+
+export type SyncForexOrdersFromProviderResult = {
+  pagesFetched: number;
+  rowsSeen: number;
+  rowsMatched: number;
 };
 
 export type PrithviForexOrdersDashboardResult = {

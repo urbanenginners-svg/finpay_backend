@@ -14,8 +14,10 @@ import {
 } from './prithvi-exchange.constants';
 import { PrithviApiLogService } from './prithvi-api-log.service';
 import { PrithviExchangeService } from './prithvi-exchange.service';
+import { PrithviForexOrderService } from './prithvi-forex-order.service';
 import { PrithviPurposeCacheService } from './prithvi-purpose-cache.service';
 import {
+  CompleteForexOrderSnapshot,
   CompleteForexRequestParams,
   CompleteForexRequestResult,
   GetForexOrdersDashboardParams,
@@ -30,6 +32,7 @@ import {
   PrithviProductType,
   PrithviPurpose,
   PrithviPurposeConfig,
+  SyncForexOrdersFromProviderResult,
 } from './prithvi-exchange.types';
 
 const SENSITIVE_KEYS = new Set([
@@ -72,6 +75,7 @@ export class PrithviForexApiService {
     private readonly prithvi: PrithviExchangeService,
     private readonly apiLog: PrithviApiLogService,
     private readonly purposeCache: PrithviPurposeCacheService,
+    private readonly forexOrders: PrithviForexOrderService,
   ) {}
 
   get isActive(): boolean {
@@ -132,7 +136,68 @@ export class PrithviForexApiService {
         'Unable to complete forex request. Session may have expired — please start a new booking.',
       serverErrorMessage:
         'Unable to complete forex request right now. Please try again later.',
-    });
+    }).then((result) => this.normalizeCompleteResult(result));
+  }
+
+  /**
+   * Paginate Prithvi dashboard and sync matching local orders by `prithviOrderId`.
+   */
+  async syncOrdersFromProvider(): Promise<SyncForexOrdersFromProviderResult> {
+    const pageSize = 50;
+    let page = 1;
+    let pagesFetched = 0;
+    let rowsSeen = 0;
+    let rowsMatched = 0;
+    let totalPages = 1;
+
+    while (page <= totalPages) {
+      const result = await this.getOrdersDashboard({
+        pageNumber: page,
+        pageSize,
+      });
+      pagesFetched += 1;
+      rowsSeen += result.data.length;
+      totalPages = Math.max(
+        1,
+        Math.ceil((result.meta.total || 0) / (result.meta.limit || pageSize)),
+      );
+
+      for (const row of result.data) {
+        const matched = await this.forexOrders.syncFromDashboard({
+          prithviOrderId: row.id,
+          forexRequestId: row.forexRequestId ?? null,
+          orderCode: row.orderCode ?? null,
+          orderType: row.orderType ? String(row.orderType) : null,
+          currency: row.currency ?? null,
+          product: row.product ? String(row.product) : null,
+          status: row.status,
+          statusLabel: row.statusLabel ?? null,
+          paymentStatus: row.paymentStatus ?? null,
+          currencyAmount: row.currencyAmount ?? null,
+          amountInINR: row.amountInINR ?? null,
+          totalAmount: row.totalAmount ?? null,
+          travelerName: row.travelerName ?? null,
+          providerCreatedAt: row.createdAt ?? null,
+          providerUpdatedAt: row.updatedAt ?? null,
+        });
+        if (matched) rowsMatched += 1;
+      }
+
+      if (result.data.length === 0) break;
+      page += 1;
+      if (pagesFetched > 100) {
+        this.logger.warn(
+          'Prithvi forex orders sync stopped after 100 pages as a safety cap.',
+        );
+        break;
+      }
+    }
+
+    this.logger.log(
+      `Prithvi forex orders sync finished: pages=${pagesFetched} seen=${rowsSeen} matched=${rowsMatched}`,
+    );
+
+    return { pagesFetched, rowsSeen, rowsMatched };
   }
 
   /**
@@ -297,27 +362,74 @@ export class PrithviForexApiService {
   private normalizeInitiateResult(
     result: InitiateForexRequestResult,
   ): InitiateForexRequestResult {
-    const forexRequest = result?.forexRequest;
-    const nestedOrders =
-      result?.orders ??
-      (
-        result as unknown as {
-          forexRequest?: { orders?: InitiateForexRequestResult['orders'] };
-        }
-      )?.forexRequest?.orders;
+    const forexRequest = result?.forexRequest as
+      | (InitiateForexRequestResult['forexRequest'] & {
+          orders?: InitiateForexRequestResult['orders'];
+          created_at?: string;
+        })
+      | undefined;
+    const nestedOrders = result?.orders ?? forexRequest?.orders ?? [];
 
     if (!forexRequest) {
       return result;
     }
 
     return {
-      forexRequest,
-      orders: (nestedOrders ?? []).map((order) => ({
+      forexRequest: {
+        id: forexRequest.id,
+        sessionId: forexRequest.sessionId,
+        status: forexRequest.status,
+        sessionExpiresAt: forexRequest.sessionExpiresAt,
+        orderType: forexRequest.orderType,
+        createdAt: forexRequest.createdAt ?? forexRequest.created_at,
+      },
+      orders: nestedOrders.map((order) => ({
         id: order.id,
+        forexRequestId: order.forexRequestId ?? forexRequest.id,
+        orderCode: order.orderCode,
         currency: order.currency,
         product: order.product,
         currencyAmount: order.currencyAmount,
         amountInINR: order.amountInINR,
+        sellingRate: order.sellingRate,
+        agentSellingRate: order.agentSellingRate,
+        gst: order.gst,
+        serviceCharge: order.serviceCharge,
+        totalAmount: order.totalAmount,
+        paymentStatus: order.paymentStatus,
+        status: order.status,
+        created_at: order.created_at,
+        createdAt: order.createdAt ?? order.created_at,
+      })),
+    };
+  }
+
+  private normalizeCompleteResult(
+    result: CompleteForexRequestResult,
+  ): CompleteForexRequestResult {
+    const forexRequest = result?.forexRequest as
+      | (CompleteForexRequestResult['forexRequest'] & {
+          orders?: CompleteForexOrderSnapshot[];
+        })
+      | undefined;
+
+    if (!forexRequest) {
+      return result;
+    }
+
+    const nestedOrders = result?.orders ?? forexRequest.orders ?? [];
+
+    return {
+      forexRequest: {
+        id: forexRequest.id,
+        status: forexRequest.status,
+        updated_at: forexRequest.updated_at,
+        updatedAt: forexRequest.updatedAt ?? forexRequest.updated_at,
+      },
+      orders: nestedOrders.map((order) => ({
+        ...order,
+        id: order.id,
+        forexRequestId: order.forexRequestId ?? forexRequest.id,
       })),
     };
   }
@@ -644,6 +756,8 @@ export class PrithviForexApiService {
 
     return {
       id: typeof o.id === 'string' ? o.id : String(o.id ?? ''),
+      forexRequestId:
+        typeof o.forexRequestId === 'string' ? o.forexRequestId : undefined,
       orderCode: typeof o.orderCode === 'string' ? o.orderCode : undefined,
       orderType: typeof o.orderType === 'string' ? o.orderType : undefined,
       currency: typeof o.currency === 'string' ? o.currency : undefined,
@@ -665,6 +779,10 @@ export class PrithviForexApiService {
       createdAt:
         (typeof o.createdAt === 'string' && o.createdAt) ||
         (typeof o.created_at === 'string' && o.created_at) ||
+        undefined,
+      updatedAt:
+        (typeof o.updatedAt === 'string' && o.updatedAt) ||
+        (typeof o.updated_at === 'string' && o.updated_at) ||
         undefined,
     };
   }

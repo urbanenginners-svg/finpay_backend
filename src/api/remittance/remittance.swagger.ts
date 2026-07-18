@@ -102,7 +102,7 @@ export function GetForexOrdersDashboardSwagger() {
     ApiOperation({
       summary: 'Forex orders dashboard',
       description:
-        'Paginated booking history from Prithvi. Filter by status, product, or date range.',
+        'Paginated booking history from local MongoDB (orders booked via Finpay, refreshed hourly from Prithvi). Filtered to the authenticated user.',
     }),
     ApiQuery({ name: 'pageNumber', required: false, type: Number }),
     ApiQuery({ name: 'pageSize', required: false, type: Number }),

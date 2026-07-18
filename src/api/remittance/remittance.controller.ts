@@ -23,6 +23,7 @@ import {
 } from './dto';
 import { DataResponse } from 'src/utils/response';
 import { Public } from 'src/utils/decorators/public-key.decorator';
+import { GetUser } from 'src/utils/decorators/get-user.decorator';
 import { ThrottlerBehindProxyGuard } from 'src/services/throttler/throttler-proxy.guard';
 import {
   CompleteForexRequestSwagger,
@@ -66,8 +67,11 @@ export class RemittanceController {
   @UseGuards(ThrottlerBehindProxyGuard)
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @InitiateForexRequestSwagger()
-  async initiateForex(@Body() dto: InitiateForexRequestDto) {
-    const data = await this.remittanceService.initiateForex(dto);
+  async initiateForex(
+    @GetUser('_id') userId: string,
+    @Body() dto: InitiateForexRequestDto,
+  ) {
+    const data = await this.remittanceService.initiateForex(dto, userId);
     return new DataResponse(data, 'Forex request created successfully.');
   }
 
@@ -79,10 +83,11 @@ export class RemittanceController {
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @CompleteForexRequestSwagger()
   async completeForex(
+    @GetUser('_id') userId: string,
     @Param('id') id: string,
     @Body() dto: CompleteForexRequestDto,
   ) {
-    const data = await this.remittanceService.completeForex(id, dto);
+    const data = await this.remittanceService.completeForex(id, dto, userId);
     return new DataResponse(
       data,
       'Forex request completed and submitted for approval',
@@ -94,9 +99,13 @@ export class RemittanceController {
   @Get('forex/orders/dashboard')
   @GetForexOrdersDashboardSwagger()
   async getForexOrdersDashboard(
+    @GetUser('_id') userId: string,
     @Query() query: GetForexOrdersDashboardQueryDto,
   ) {
-    const result = await this.remittanceService.getForexOrdersDashboard(query);
+    const result = await this.remittanceService.getForexOrdersDashboard(
+      query,
+      userId,
+    );
     return {
       data: result.data,
       meta: result.meta,
