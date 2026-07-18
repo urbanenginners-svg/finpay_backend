@@ -93,6 +93,24 @@ export type ListForexOrdersParams = {
   toDate?: string;
 };
 
+export type ListAdminForexOrdersParams = {
+  pageNumber?: number;
+  pageSize?: number;
+  status?: string;
+  product?: string;
+  fromDate?: string;
+  toDate?: string;
+  createdByUserId?: string;
+  q?: string;
+};
+
+export type AdminForexOrderRow = PrithviForexDashboardOrder & {
+  createdByUserId: string;
+  email?: string;
+  phoneNumber?: string;
+  lastSyncedAt?: string;
+};
+
 function asString(value: string | number | null | undefined): string | null {
   if (value == null || value === '') return null;
   return String(value);
@@ -281,6 +299,51 @@ export class PrithviForexOrderService {
     return { data, meta: { total, page, limit } };
   }
 
+  async findAllForAdmin(
+    params: ListAdminForexOrdersParams,
+  ): Promise<{ data: AdminForexOrderRow[]; meta: { total: number; page: number; limit: number } }> {
+    const page = Math.max(1, params.pageNumber ?? 1);
+    const limit = Math.max(1, Math.min(100, params.pageSize ?? 10));
+    const filter = this.buildAdminFilter(params);
+
+    const [total, rows] = await Promise.all([
+      this.model.countDocuments(filter).exec(),
+      this.model
+        .find(filter)
+        .sort({ providerCreatedAt: -1, createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean()
+        .exec(),
+    ]);
+
+    const data: AdminForexOrderRow[] = rows.map((row) => ({
+      id: row.prithviOrderId,
+      createdByUserId: row.createdByUserId,
+      orderCode: row.orderCode ?? undefined,
+      orderType: row.orderType ?? undefined,
+      currency: row.currency ?? undefined,
+      product: row.product ?? undefined,
+      status: row.status,
+      statusLabel: row.statusLabel ?? undefined,
+      paymentStatus: row.paymentStatus ?? undefined,
+      currencyAmount: row.currencyAmount ?? undefined,
+      amountInINR: row.amountInINR ?? undefined,
+      totalAmount: row.totalAmount ?? undefined,
+      travelerName: row.travelerName ?? undefined,
+      email: row.email ?? undefined,
+      phoneNumber: row.phoneNumber ?? undefined,
+      lastSyncedAt: row.lastSyncedAt?.toISOString?.() ?? undefined,
+      createdAt:
+        row.providerCreatedAt?.toISOString?.() ??
+        (row.createdAt instanceof Date
+          ? row.createdAt.toISOString()
+          : undefined),
+    }));
+
+    return { data, meta: { total, page, limit } };
+  }
+
   private buildUserFilter(
     params: ListForexOrdersParams,
   ): FilterQuery<PrithviForexOrderDocument> {
@@ -288,6 +351,47 @@ export class PrithviForexOrderService {
       createdByUserId: String(params.createdByUserId),
     };
 
+    this.applySharedFilters(filter, params);
+    return filter;
+  }
+
+  private buildAdminFilter(
+    params: ListAdminForexOrdersParams,
+  ): FilterQuery<PrithviForexOrderDocument> {
+    const filter: FilterQuery<PrithviForexOrderDocument> = {};
+
+    if (params.createdByUserId) {
+      filter.createdByUserId = String(params.createdByUserId);
+    }
+
+    this.applySharedFilters(filter, params);
+
+    const q = params.q?.trim();
+    if (q) {
+      const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [
+        { orderCode: regex },
+        { travelerName: regex },
+        { email: regex },
+        { phoneNumber: regex },
+        { currency: regex },
+        { prithviOrderId: regex },
+        { createdByUserId: regex },
+      ];
+    }
+
+    return filter;
+  }
+
+  private applySharedFilters(
+    filter: FilterQuery<PrithviForexOrderDocument>,
+    params: {
+      status?: string;
+      product?: string;
+      fromDate?: string;
+      toDate?: string;
+    },
+  ): void {
     if (params.status) {
       filter.status = params.status;
     }
@@ -304,7 +408,5 @@ export class PrithviForexOrderService {
       }
       filter.providerCreatedAt = range;
     }
-
-    return filter;
   }
 }

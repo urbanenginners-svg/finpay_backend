@@ -4,6 +4,8 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 
 import {
   PrithviExchangeService,
@@ -11,6 +13,7 @@ import {
   extractPrithviRate,
 } from 'src/services/prithvi-exchange';
 import { PrithviForexOrderService } from 'src/services/prithvi-exchange/prithvi-forex-order.service';
+import { User, UserDocument } from 'src/services/mongoose/schemas/user.schema';
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import {
   CompleteForexRequestDto,
@@ -21,6 +24,11 @@ import {
   ProviderTokenStatusQueryDto,
 } from './dto';
 
+export type GetAdminForexOrdersQuery = GetForexOrdersDashboardQueryDto & {
+  createdByUserId?: string;
+  q?: string;
+};
+
 @Injectable()
 export class RemittanceService {
   private readonly logger = new Logger(RemittanceService.name);
@@ -29,6 +37,7 @@ export class RemittanceService {
     private readonly prithviService: PrithviExchangeService,
     private readonly prithviForex: PrithviForexApiService,
     private readonly forexOrders: PrithviForexOrderService,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
 
   getProviders() {
@@ -123,6 +132,70 @@ export class RemittanceService {
       fromDate: query.fromDate,
       toDate: query.toDate,
     });
+  }
+
+  /**
+   * Admin: all Finpay-booked forex orders across users, with owner profile.
+   */
+  async getAdminForexOrdersDashboard(query: GetAdminForexOrdersQuery) {
+    const result = await this.forexOrders.findAllForAdmin({
+      pageNumber: query.pageNumber,
+      pageSize: query.pageSize,
+      status: query.status,
+      product: query.product,
+      fromDate: query.fromDate,
+      toDate: query.toDate,
+      createdByUserId: query.createdByUserId,
+      q: query.q,
+    });
+
+    const userIds = [
+      ...new Set(result.data.map((row) => row.createdByUserId).filter(Boolean)),
+    ];
+    const users = userIds.length
+      ? await this.userModel
+          .find({ _id: { $in: userIds } })
+          .select('_id firstName lastName email phoneNumber')
+          .lean()
+          .exec()
+      : [];
+
+    const userById = new Map(
+      users.map((user) => [
+        String(user._id),
+        {
+          id: String(user._id),
+          firstName: user.firstName ?? '',
+          lastName: user.lastName ?? '',
+          email: user.email ?? null,
+          phoneNumber: user.phoneNumber ?? null,
+          displayName:
+            [user.firstName, user.lastName].filter(Boolean).join(' ') ||
+            user.email ||
+            String(user._id),
+        },
+      ]),
+    );
+
+    return {
+      data: result.data.map((row) => ({
+        ...row,
+        user: userById.get(row.createdByUserId) ?? {
+          id: row.createdByUserId,
+          firstName: '',
+          lastName: '',
+          email: null,
+          phoneNumber: null,
+          displayName: row.createdByUserId,
+        },
+      })),
+      meta: result.meta,
+    };
+  }
+
+  /** Admin: manually pull latest order status from the provider. */
+  async syncForexOrdersNow() {
+    return this.prithviForex.syncOrdersFromProvider();
   }
 
   async listPurposes(query: GetPurposesQueryDto) {
