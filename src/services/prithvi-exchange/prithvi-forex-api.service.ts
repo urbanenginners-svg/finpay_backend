@@ -47,6 +47,11 @@ const SENSITIVE_HEADERS = new Set([
 
 const REDACTED = '[REDACTED]';
 
+/** Prithvi forex APIs expect title-case order types (`Buy` / `Sell`), not `BUY` / `SELL`. */
+function toPrithviApiOrderType(orderType: PrithviOrderType | string): 'Buy' | 'Sell' {
+  return String(orderType).toUpperCase() === 'SELL' ? 'Sell' : 'Buy';
+}
+
 type JsonRequestOptions = {
   method: 'GET' | 'POST';
   callType: PrithviApiCallType;
@@ -78,7 +83,7 @@ export class PrithviForexApiService {
     params: InitiateForexRequestParams,
   ): Promise<InitiateForexRequestResult> {
     const requestBody = {
-      orderType: params.orderType,
+      orderType: toPrithviApiOrderType(params.orderType),
       orderDetails: params.orderDetails,
     };
 
@@ -166,7 +171,9 @@ export class PrithviForexApiService {
    */
   async listPurposes(params: GetPurposesParams = {}): Promise<PrithviPurpose[]> {
     const requestParams = this.omitUndefined({
-      orderType: params.orderType,
+      orderType: params.orderType
+        ? toPrithviApiOrderType(params.orderType)
+        : undefined,
       productType: params.productType,
     });
 
