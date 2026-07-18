@@ -216,8 +216,26 @@ export type GetForexOrdersDashboardParams = {
   toDate?: string;
 };
 
+/** Normalized row for the agent forex orders dashboard. */
+export type PrithviForexDashboardOrder = {
+  id: string;
+  orderCode?: string;
+  orderType?: PrithviOrderType | string;
+  currency?: string;
+  product?: PrithviProductType | string;
+  /** Status code (DRAFT / PENDING / APPROVED / …), not the Prithvi UUID. */
+  status: PrithviForexRequestStatus | string;
+  statusLabel?: string;
+  paymentStatus?: string;
+  currencyAmount?: string | number;
+  amountInINR?: string | number;
+  totalAmount?: string | number;
+  travelerName?: string;
+  createdAt?: string;
+};
+
 export type PrithviForexOrdersDashboardResult = {
-  data: PrithviForexRequestSummary[];
+  data: PrithviForexDashboardOrder[];
   meta: {
     total: number;
     page: number;

@@ -434,14 +434,32 @@ export class PrithviForexApiService {
     const sample: PrithviForexOrdersDashboardResult['data'] = [
       {
         id: '550e8400-e29b-41d4-a716-446655440001',
+        orderCode: 'DRY-PENDING-001',
         status: PrithviForexRequestStatus.PENDING,
+        statusLabel: 'Pending Approval',
         orderType: PrithviOrderType.BUY,
+        currency: 'USD',
+        product: PrithviProductType.CASH,
+        currencyAmount: '1000',
+        amountInINR: '85000',
+        totalAmount: '85000',
+        paymentStatus: 'NOT_PAID',
+        travelerName: 'Dry Run Traveler',
         createdAt: new Date().toISOString(),
       },
       {
         id: '550e8400-e29b-41d4-a716-446655440099',
+        orderCode: 'DRY-APPROVED-099',
         status: PrithviForexRequestStatus.APPROVED,
+        statusLabel: 'Approved',
         orderType: PrithviOrderType.BUY,
+        currency: 'EUR',
+        product: PrithviProductType.TT,
+        currencyAmount: '500',
+        amountInINR: '45000',
+        totalAmount: '45000',
+        paymentStatus: 'PAID',
+        travelerName: 'Dry Run Traveler',
         createdAt: new Date(Date.now() - 86_400_000).toISOString(),
       },
     ];
@@ -522,6 +540,11 @@ export class PrithviForexApiService {
     };
   }
 
+  /**
+   * Prithvi returns `{ orders, pagination }` inside `data`. Older / alternate
+   * shapes use a bare array or `{ data, meta }`. Always map rows so status is
+   * the human code (PENDING) rather than a UUID, and dates use `createdAt`.
+   */
   private normalizeDashboardResponse(
     envelope: PrithviApiResponse<unknown> & {
       meta?: PrithviForexOrdersDashboardResult['meta'];
@@ -529,35 +552,121 @@ export class PrithviForexApiService {
   ): PrithviForexOrdersDashboardResult {
     const data = envelope.data;
     const meta = envelope.meta;
+    const defaultMeta = (total: number, page = 1, limit = 10) =>
+      meta ?? { total, page, limit };
+
+    // Live Prithvi shape: { success, data: { orders, pagination } }
+    if (
+      data &&
+      typeof data === 'object' &&
+      Array.isArray((data as { orders?: unknown }).orders)
+    ) {
+      const payload = data as {
+        orders: unknown[];
+        pagination?: {
+          page?: number;
+          limit?: number;
+          total?: number;
+        };
+      };
+      const orders = payload.orders.map((row) => this.normalizeDashboardOrder(row));
+      const pagination = payload.pagination;
+      return {
+        data: orders,
+        meta: {
+          total: pagination?.total ?? orders.length,
+          page: pagination?.page ?? 1,
+          limit: pagination?.limit ?? 10,
+        },
+      };
+    }
 
     if (Array.isArray(data) && meta) {
-      return { data: data as PrithviForexOrdersDashboardResult['data'], meta };
+      return {
+        data: data.map((row) => this.normalizeDashboardOrder(row)),
+        meta,
+      };
     }
 
     if (
       data &&
       typeof data === 'object' &&
-      Array.isArray((data as PrithviForexOrdersDashboardResult).data)
+      Array.isArray((data as { data?: unknown }).data)
     ) {
-      const nested = data as PrithviForexOrdersDashboardResult;
+      const nested = data as {
+        data: unknown[];
+        meta?: PrithviForexOrdersDashboardResult['meta'];
+      };
+      const orders = nested.data.map((row) => this.normalizeDashboardOrder(row));
       return {
-        data: nested.data,
-        meta: nested.meta ?? meta ?? { total: nested.data.length, page: 1, limit: 10 },
+        data: orders,
+        meta:
+          nested.meta ??
+          meta ?? { total: orders.length, page: 1, limit: 10 },
       };
     }
 
     if (Array.isArray(data)) {
+      const orders = data.map((row) => this.normalizeDashboardOrder(row));
       return {
-        data: data as PrithviForexOrdersDashboardResult['data'],
-        meta: meta ?? {
-          total: data.length,
-          page: 1,
-          limit: data.length || 10,
-        },
+        data: orders,
+        meta: defaultMeta(orders.length, 1, orders.length || 10),
       };
     }
 
-    return { data: [], meta: meta ?? { total: 0, page: 1, limit: 10 } };
+    return { data: [], meta: defaultMeta(0) };
+  }
+
+  private normalizeDashboardOrder(row: unknown): PrithviForexOrdersDashboardResult['data'][number] {
+    const o =
+      row && typeof row === 'object'
+        ? (row as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+
+    const tx =
+      o.transactionStatus && typeof o.transactionStatus === 'object'
+        ? (o.transactionStatus as Record<string, unknown>)
+        : undefined;
+
+    const statusFromTx =
+      (typeof tx?.code === 'string' && tx.code) ||
+      (typeof tx?.customerCode === 'string' && tx.customerCode) ||
+      undefined;
+
+    const rawStatus = typeof o.status === 'string' ? o.status : undefined;
+    // Prefer transactionStatus.code; fall back to status only when it looks
+    // like a code (not a UUID).
+    const statusLooksLikeUuid =
+      !!rawStatus &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        rawStatus,
+      );
+
+    return {
+      id: typeof o.id === 'string' ? o.id : String(o.id ?? ''),
+      orderCode: typeof o.orderCode === 'string' ? o.orderCode : undefined,
+      orderType: typeof o.orderType === 'string' ? o.orderType : undefined,
+      currency: typeof o.currency === 'string' ? o.currency : undefined,
+      product: typeof o.product === 'string' ? o.product : undefined,
+      status:
+        statusFromTx ??
+        (!statusLooksLikeUuid && rawStatus ? rawStatus : 'UNKNOWN'),
+      statusLabel: typeof tx?.label === 'string' ? tx.label : undefined,
+      paymentStatus:
+        typeof o.paymentStatus === 'string' ? o.paymentStatus : undefined,
+      currencyAmount:
+        o.currencyAmount != null ? (o.currencyAmount as string | number) : undefined,
+      amountInINR:
+        o.amountInINR != null ? (o.amountInINR as string | number) : undefined,
+      totalAmount:
+        o.totalAmount != null ? (o.totalAmount as string | number) : undefined,
+      travelerName:
+        typeof o.travelerName === 'string' ? o.travelerName : undefined,
+      createdAt:
+        (typeof o.createdAt === 'string' && o.createdAt) ||
+        (typeof o.created_at === 'string' && o.created_at) ||
+        undefined,
+    };
   }
 
   /**
