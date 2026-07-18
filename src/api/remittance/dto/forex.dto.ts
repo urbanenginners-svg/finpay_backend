@@ -117,7 +117,10 @@ export class CompleteForexOrderDto {
   })
   panNumber: string;
 
-  @ApiProperty({ example: 'Leisure/Holiday/Personal Visit' })
+  @ApiProperty({
+    example: 'purpose-uuid-or-id',
+    description: 'Prithvi purpose id from the purposes list',
+  })
   @IsString()
   @MinLength(2)
   purpose: string;
