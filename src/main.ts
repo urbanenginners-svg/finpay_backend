@@ -49,7 +49,7 @@ async function bootstrap() {
 
   createSwagger(app);
 
-  await app.listen(configService.get("PORT") ?? 3100);
+  await app.listen(configService.get("PORT") ?? 3300);
 
   // Raise the Node.js keep-alive and headers timeout above the default 5 s so
   // heavy bulk uploads (e.g. 150+ consignment items) don't get silently dropped

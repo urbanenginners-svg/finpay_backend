@@ -214,6 +214,28 @@ export class User {
   @Prop({ required: false, type: AgentDocumentsSchema })
   agentDocuments?: AgentDocuments;
 
+  @ApiProperty({
+    required: false,
+    description: 'Uploaded PAN card document (File ID)',
+  })
+  @Prop({
+    required: false,
+    type: String,
+    ref: 'File',
+  })
+  panCardDocument?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Uploaded passport document (File ID)',
+  })
+  @Prop({
+    required: false,
+    type: String,
+    ref: 'File',
+  })
+  passportDocument?: string;
+
   @ApiProperty({ required: false })
   @Prop({ required: false, type: String })
   rejectionReason?: string;

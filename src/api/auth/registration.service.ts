@@ -472,6 +472,17 @@ export class RegistrationService {
       throw new BadRequestException(passportResult.message);
     }
 
+    const panCardDocument = await this.linkAgentDocument(
+      dto.panCardDocument,
+      userId,
+      'PAN card',
+    );
+    const passportDocument = await this.linkAgentDocument(
+      dto.passportDocument,
+      userId,
+      'Passport',
+    );
+
     user.panCardNumber = panCardNumber;
     user.passportFileNumber = dto.passportFileNumber;
     user.passportNumber = passportResult.passportNumber;
@@ -480,6 +491,8 @@ export class RegistrationService {
     user.passportVerificationStatus = PassportVerificationStatusEnum.VERIFIED;
     user.passportVerificationRef =
       dto.passportVerificationRef ?? passportResult.verificationId;
+    user.panCardDocument = panCardDocument;
+    user.passportDocument = passportDocument;
     user.registrationStatus = RegistrationStatusEnum.VERIFIED;
     await user.save();
 
