@@ -7,6 +7,7 @@ import {
   IsEmail,
   IsEnum,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -230,7 +231,113 @@ export class CompleteForexOrderDto {
   })
   endDate?: string;
 
-  // Purpose-driven fields (flattened — not nested under fieldValues)
+  // TT beneficiary fields (flattened onto the order)
+  @ApiPropertyOptional({ example: '680f1a2b3c4d5e6f7a8b9c0d' })
+  @IsOptional()
+  @IsString()
+  beneficiaryId?: string;
+
+  @ApiPropertyOptional({ example: 'John Smith' })
+  @IsOptional()
+  @IsString()
+  institutionName?: string;
+
+  @ApiPropertyOptional({ example: '123 Main St' })
+  @IsOptional()
+  @IsString()
+  institutionAddress?: string;
+
+  @ApiPropertyOptional({ example: 'CHASUS33' })
+  @IsOptional()
+  @IsString()
+  swiftCode?: string;
+
+  @ApiPropertyOptional({ example: '021000021' })
+  @IsOptional()
+  @IsString()
+  routingNumber?: string;
+
+  @ApiPropertyOptional({ example: '1234567890' })
+  @IsOptional()
+  @IsString()
+  bankAccountNumber?: string;
+
+  @ApiPropertyOptional({ example: 'Chase Bank' })
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @ApiPropertyOptional({ example: '270 Park Avenue, New York' })
+  @IsOptional()
+  @IsString()
+  beneficiaryBankAddress?: string;
+
+  @ApiPropertyOptional({ example: 'Student ID 11212121' })
+  @IsOptional()
+  @IsString()
+  additionalInfo?: string;
+
+  @ApiPropertyOptional({ example: 'Correspondent Bank' })
+  @IsOptional()
+  @IsString()
+  interimBankName?: string;
+
+  @ApiPropertyOptional({ example: '1 Bank Plaza' })
+  @IsOptional()
+  @IsString()
+  interimBankAddress?: string;
+
+  @ApiPropertyOptional({ example: 'IRVTUS3N' })
+  @IsOptional()
+  @IsString()
+  interimBankCode?: string;
+
+  @ApiPropertyOptional({ example: 'Belgium' })
+  @IsOptional()
+  @IsString()
+  interimBankCountry?: string;
+
+  @ApiPropertyOptional({ example: 'Austria' })
+  @IsOptional()
+  @IsString()
+  benCountry?: string;
+
+  @ApiPropertyOptional({ example: 'Father' })
+  @IsOptional()
+  @IsString()
+  beneficiaryRelation?: string;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === undefined || value === null
+      ? value
+      : value === true || value === 'true',
+  )
+  @IsBoolean()
+  isInterimBankSelected?: boolean;
+
+  /**
+   * Purpose-config dynamic answers (keys vary by purpose, e.g. correspondentBankCharges, asPerDoc).
+   * Nested so Nest whitelist does not reject unknown purpose field keys.
+   * Flattened onto the Prithvi complete payload by the forex API service.
+   */
+  @ApiPropertyOptional({
+    description:
+      'Purpose-driven dynamic field answers. Keys come from purpose config requiredFields (e.g. correspondentBankCharges, asPerDoc, passportNumber).',
+    type: 'object',
+    additionalProperties: true,
+    example: {
+      correspondentBankCharges: 'OUR',
+      asPerDoc: 'Yes',
+      passportNumber: 'P1234567',
+    },
+  })
+  @IsOptional()
+  @IsObject()
+  purposeAnswers?: Record<string, string | boolean | number | null>;
+
+  // Legacy purpose-driven fields (still accepted if sent top-level)
   @ApiPropertyOptional({ example: 'P1234567' })
   @IsOptional()
   @IsString()

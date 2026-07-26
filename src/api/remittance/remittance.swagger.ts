@@ -83,7 +83,7 @@ export function CompleteForexRequestSwagger() {
     ApiOperation({
       summary: 'Complete forex request (Step 2)',
       description:
-        'Finalizes a DRAFT booking with traveler and purpose fields within the 20-minute rate lock. For CASH/CARD, panNumber, deliveryAddress, pincode, and sourceOfFunds may be omitted; send startDate (and optional endDate) instead. TT typically still sends PAN, delivery, and fund-source fields. Documents must already be uploaded via upload-document. Purpose answers and confirmations are sent as top-level order fields (not nested under fieldValues).',
+        'Finalizes a DRAFT booking with traveler and purpose fields within the 20-minute rate lock. For CASH/CARD, panNumber, deliveryAddress, pincode, and sourceOfFunds may be omitted; send startDate (and optional endDate) instead. TT sends beneficiary bank fields. Purpose-config dynamic answers must be sent under orders[].purposeAnswers (any keys from purpose requiredFields, e.g. correspondentBankCharges, asPerDoc) — they are flattened for Prithvi. Documents must already be uploaded via upload-document.',
     }),
     ApiParam({
       name: 'id',

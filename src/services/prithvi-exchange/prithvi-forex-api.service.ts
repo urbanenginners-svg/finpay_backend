@@ -329,7 +329,7 @@ export class PrithviForexApiService {
 
   /**
    * Build Prithvi complete order body.
-   * Purpose fields and confirmations are already flattened on the order.
+   * Purpose answers may arrive nested under purposeAnswers (dynamic keys per purpose).
    * Documents are uploaded separately via upload-document — do not resend them.
    */
   private toPrithviCompleteOrder(
@@ -338,11 +338,24 @@ export class PrithviForexApiService {
     const payload: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(order)) {
-      if (key === 'fieldValues' || key === 'documents' || key === 'confirmations') {
+      if (
+        key === 'fieldValues' ||
+        key === 'documents' ||
+        key === 'confirmations' ||
+        key === 'purposeAnswers'
+      ) {
         continue;
       }
       if (value === undefined) continue;
       payload[key] = value;
+    }
+
+    const purposeAnswers = order.purposeAnswers;
+    if (purposeAnswers && typeof purposeAnswers === 'object') {
+      for (const [key, value] of Object.entries(purposeAnswers)) {
+        if (value === undefined) continue;
+        payload[key] = value;
+      }
     }
 
     return payload;

@@ -211,6 +211,28 @@ export type CompleteForexOrderPayload = {
   startDate?: string;
   /** Travelling end date from the booking form (optional). */
   endDate?: string;
+  /** Local Finpay beneficiary id (TT). */
+  beneficiaryId?: string;
+  institutionName?: string;
+  institutionAddress?: string;
+  swiftCode?: string;
+  routingNumber?: string;
+  bankAccountNumber?: string;
+  bankName?: string;
+  beneficiaryBankAddress?: string;
+  additionalInfo?: string;
+  interimBankName?: string;
+  interimBankAddress?: string;
+  interimBankCode?: string;
+  interimBankCountry?: string;
+  benCountry?: string;
+  beneficiaryRelation?: string;
+  isInterimBankSelected?: boolean;
+  /**
+   * Purpose-config dynamic answers. Flattened onto the Prithvi payload.
+   * Keys vary by purpose (e.g. correspondentBankCharges, asPerDoc).
+   */
+  purposeAnswers?: Record<string, string | boolean | number | null>;
   passportNumber?: string;
   passportfilenumber?: string;
   dateofbirth?: string;
