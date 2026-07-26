@@ -144,6 +144,18 @@ export class PrithviForexOrder {
   preferredPaymentMode?: string | null;
 
   @ApiPropertyOptional({
+    description: 'Travelling start date (YYYY-MM-DD) from complete payload.',
+  })
+  @Prop({ required: false, type: String, default: null })
+  startDate?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Travelling end date (YYYY-MM-DD) from complete payload.',
+  })
+  @Prop({ required: false, type: String, default: null })
+  endDate?: string | null;
+
+  @ApiPropertyOptional({
     description:
       'Prithvi document storage paths keyed by documentType (e.g. passportFrontImage).',
     type: 'object',

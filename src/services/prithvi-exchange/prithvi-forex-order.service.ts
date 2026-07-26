@@ -62,6 +62,10 @@ export type UpsertForexOrderFromCompleteInput = {
   sourceOfFunds?: string | null;
   preferredDeliveryMode?: string | null;
   preferredPaymentMode?: string | null;
+  /** Travelling start date (YYYY-MM-DD). */
+  startDate?: string | null;
+  /** Travelling end date (YYYY-MM-DD). */
+  endDate?: string | null;
   documents?: Record<string, string>;
   localDocumentFileIds?: Record<string, string>;
   providerUpdatedAt?: string | Date | null;
@@ -211,6 +215,8 @@ export class PrithviForexOrderService {
       $set.preferredDeliveryMode = input.preferredDeliveryMode;
     if (input.preferredPaymentMode != null)
       $set.preferredPaymentMode = input.preferredPaymentMode;
+    if (input.startDate != null) $set.startDate = input.startDate;
+    if (input.endDate != null) $set.endDate = input.endDate;
     if (input.documents != null) $set.documents = input.documents;
     if (input.localDocumentFileIds != null)
       $set.localDocumentFileIds = input.localDocumentFileIds;

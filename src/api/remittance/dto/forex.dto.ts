@@ -112,12 +112,17 @@ export class CompleteForexOrderDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ example: 'ABCDE1234Z' })
+  @ApiPropertyOptional({
+    example: 'ABCDE1234Z',
+    description:
+      'Optional for CASH/CARD (not collected on the booking form). Typically sent for TT.',
+  })
+  @IsOptional()
   @IsString()
   @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/i, {
     message: 'panNumber must be a valid PAN format',
   })
-  panNumber: string;
+  panNumber?: string;
 
   @ApiProperty({
     example: 'purpose-uuid-or-id',
@@ -127,36 +132,61 @@ export class CompleteForexOrderDto {
   @MinLength(2)
   purpose: string;
 
-  @ApiProperty({ example: ['USA'], type: [String] })
+  @ApiProperty({ example: ['United States', 'United Kingdom'], type: [String] })
   @IsArray()
   @ArrayMinSize(1)
   @IsString({ each: true })
   travelingCountries: string[];
 
-  @ApiProperty({ example: '456 Park Avenue' })
+  @ApiPropertyOptional({
+    example: '456 Park Avenue',
+    description:
+      'Optional for CASH/CARD (not collected on the booking form). Typically sent for TT.',
+  })
+  @IsOptional()
   @IsString()
   @MinLength(5)
-  deliveryAddress: string;
+  deliveryAddress?: string;
 
-  @ApiProperty({ example: '560001' })
+  @ApiPropertyOptional({
+    example: '560001',
+    description:
+      'Optional for CASH/CARD (not collected on the booking form). Typically sent for TT.',
+  })
+  @IsOptional()
   @IsString()
   @Matches(/^\d{6}$/, { message: 'pincode must be a 6-digit Indian PIN' })
-  pincode: string;
+  pincode?: string;
 
-  @ApiProperty({ example: 'Salary' })
+  @ApiPropertyOptional({
+    example: 'Salary',
+    description:
+      'Optional for CASH/CARD (not collected on the booking form). Typically sent for TT.',
+  })
+  @IsOptional()
   @IsString()
   @MinLength(2)
-  sourceOfFunds: string;
+  sourceOfFunds?: string;
 
-  @ApiProperty({ example: 'Doorstep' })
+  @ApiPropertyOptional({
+    example: 'Doorstep',
+    description:
+      'Preferred delivery mode. May come from purpose config fields; defaults may be applied by the client.',
+  })
+  @IsOptional()
   @IsString()
   @MinLength(2)
-  preferredDeliveryMode: string;
+  preferredDeliveryMode?: string;
 
-  @ApiProperty({ example: 'Online' })
+  @ApiPropertyOptional({
+    example: 'Online',
+    description:
+      'Preferred payment mode. May come from purpose config fields; defaults may be applied by the client.',
+  })
+  @IsOptional()
   @IsString()
   @MinLength(2)
-  preferredPaymentMode: string;
+  preferredPaymentMode?: string;
 
   @ApiProperty({ example: 83.5, description: 'Selling rate locked at initiate' })
   @IsNumber()
@@ -175,6 +205,30 @@ export class CompleteForexOrderDto {
   @Min(0)
   @Type(() => Number)
   gst: number;
+
+  @ApiPropertyOptional({
+    example: '2026-08-01',
+    description:
+      'Travelling start date (YYYY-MM-DD). Sent for CASH/CARD from travellingStartDate.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'startDate must be YYYY-MM-DD',
+  })
+  startDate?: string;
+
+  @ApiPropertyOptional({
+    example: '2026-08-15',
+    description:
+      'Travelling end date (YYYY-MM-DD), optional. Sent for CASH/CARD from travellingEndDate.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'endDate must be YYYY-MM-DD',
+  })
+  endDate?: string;
 
   // Purpose-driven fields (flattened — not nested under fieldValues)
   @ApiPropertyOptional({ example: 'P1234567' })

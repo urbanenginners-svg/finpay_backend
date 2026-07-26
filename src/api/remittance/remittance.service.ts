@@ -410,6 +410,8 @@ export class RemittanceService {
               snapshot?.preferredDeliveryMode ?? payload.preferredDeliveryMode,
             preferredPaymentMode:
               snapshot?.preferredPaymentMode ?? payload.preferredPaymentMode,
+            startDate: payload.startDate ?? null,
+            endDate: payload.endDate ?? null,
             providerUpdatedAt:
               snapshot?.updatedAt ??
               snapshot?.updated_at ??
@@ -457,6 +459,8 @@ export class RemittanceService {
               sourceOfFunds: payload.sourceOfFunds,
               preferredDeliveryMode: payload.preferredDeliveryMode,
               preferredPaymentMode: payload.preferredPaymentMode,
+              startDate: payload.startDate,
+              endDate: payload.endDate,
               sellingRate: payload.sellingRate,
               gst: payload.gst,
               serviceCharge: payload.serviceCharge,

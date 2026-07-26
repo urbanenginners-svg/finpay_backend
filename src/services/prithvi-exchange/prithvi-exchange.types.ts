@@ -196,17 +196,21 @@ export type CompleteForexOrderPayload = {
   travelerName: string;
   phoneNumber: string;
   email: string;
-  panNumber: string;
   purpose: string;
   travelingCountries: string[];
-  deliveryAddress: string;
-  pincode: string;
-  sourceOfFunds: string;
-  preferredDeliveryMode: string;
-  preferredPaymentMode: string;
   sellingRate: number;
   serviceCharge: number;
   gst: number;
+  panNumber?: string;
+  deliveryAddress?: string;
+  pincode?: string;
+  sourceOfFunds?: string;
+  preferredDeliveryMode?: string;
+  preferredPaymentMode?: string;
+  /** Travelling start date from the booking form. */
+  startDate?: string;
+  /** Travelling end date from the booking form (optional). */
+  endDate?: string;
   passportNumber?: string;
   passportfilenumber?: string;
   dateofbirth?: string;
@@ -264,6 +268,8 @@ export type CompleteForexOrderSnapshot = {
   sourceOfFunds?: string;
   preferredDeliveryMode?: string;
   preferredPaymentMode?: string;
+  startDate?: string;
+  endDate?: string;
   created_at?: string;
   updated_at?: string;
   createdAt?: string;
