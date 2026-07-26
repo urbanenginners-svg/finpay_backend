@@ -10,7 +10,7 @@ export enum PrithviApiCallType {
   FOREX_COMPLETE = 'forex_complete',
   FOREX_ORDERS_DASHBOARD = 'forex_orders_dashboard',
   ORDER_UPLOAD_DOCUMENT = 'order_upload_document',
-  PAYMENTS_ORDER_CREATE = 'payments_order_create',
+  ORDER_PAYMENT_LINK = 'order_payment_link',
   PURPOSE_LIST = 'purpose_list',
   PURPOSE_CONFIG = 'purpose_config',
 }
@@ -257,19 +257,15 @@ export type UploadForexOrderDocumentResult = {
   forexOrder?: Record<string, unknown>;
 };
 
-export type CreatePaymentOrderParams = {
+export type CreatePaymentLinkParams = {
   orderId: string;
-  orderAmount: number;
-  currency?: string;
-  paymentMethod?: string;
-  paymentMode?: string;
 };
 
-/**
- * Prithvi payment create response varies by gateway; keep as a loose object
- * and let the client pick checkout / redirect fields when present.
- */
-export type CreatePaymentOrderResult = Record<string, unknown>;
+export type CreatePaymentLinkResult = {
+  paymentLink: string;
+  paymentLinkFull: string;
+  token: string;
+};
 
 export type CompleteForexRequestParams = {
   forexRequestId: string;

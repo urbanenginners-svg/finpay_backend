@@ -17,7 +17,6 @@ import {
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import {
   CompleteForexRequestDto,
-  CreatePaymentOrderDto,
   InitiateForexRequestDto,
   RemittanceProviderDto,
   RemittanceRateResponseDto,
@@ -98,16 +97,23 @@ export function CompleteForexRequestSwagger() {
   );
 }
 
-export function CreatePaymentOrderSwagger() {
+export function CreatePaymentLinkSwagger() {
   return applyDecorators(
     ApiBearerAuth(),
     ApiOperation({
-      summary: 'Create payment order for a forex booking',
+      summary: 'Generate payment link for a forex order',
       description:
-        'Creates a payment session for an owned forex order. Proxies to Prithvi POST /payments/order/create.',
+        'Creates a payment link for an owned forex order. Proxies to Prithvi POST /orders/:orderId/payment-link.',
     }),
-    ApiBody({ type: CreatePaymentOrderDto }),
-    ApiResponse({ status: 200, description: 'Payment order created' }),
+    ApiParam({
+      name: 'orderId',
+      description: 'Prithvi order line id from initiate (orders[].id)',
+      example: 'a347e960-253c-4706-a5ba-606904fed48c',
+    }),
+    ApiResponse({
+      status: 200,
+      description: 'Payment link generated (paymentLinkFull, paymentLink, token)',
+    }),
     ApiResponse({ status: 400, description: 'Validation or provider client error' }),
     ApiResponse({ status: 401, description: 'Unauthorized' }),
     ApiResponse({ status: 404, description: 'Order not found for this account' }),

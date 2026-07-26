@@ -37,8 +37,8 @@ import {
   SyncForexOrdersFromProviderResult,
   UploadForexOrderDocumentParams,
   UploadForexOrderDocumentResult,
-  CreatePaymentOrderParams,
-  CreatePaymentOrderResult,
+  CreatePaymentLinkParams,
+  CreatePaymentLinkResult,
 } from './prithvi-exchange.types';
 
 const SENSITIVE_KEYS = new Set([
@@ -148,46 +148,39 @@ export class PrithviForexApiService {
   }
 
   /**
-   * Create a payment session for a completed forex order.
-   * Proxies to Prithvi POST /payments/order/create.
+   * Generate a payment link for a completed forex order.
+   * Proxies to Prithvi POST /orders/:orderId/payment-link.
    */
-  async createPaymentOrder(
-    params: CreatePaymentOrderParams,
-  ): Promise<CreatePaymentOrderResult> {
+  async createPaymentLink(
+    params: CreatePaymentLinkParams,
+  ): Promise<CreatePaymentLinkResult> {
     const orderId = params.orderId?.trim();
     if (!orderId) {
       throw new BadRequestException('Order id is required');
     }
-    if (!Number.isFinite(params.orderAmount) || params.orderAmount <= 0) {
-      throw new BadRequestException('Order amount must be a positive number');
-    }
 
-    const requestBody = {
-      order_id: orderId,
-      order_amount: params.orderAmount,
-      currency: (params.currency ?? 'INR').trim() || 'INR',
-      payment_method: (params.paymentMethod ?? 'ALL').trim() || 'ALL',
-      metadata: {
-        forex_order_id: orderId,
-        payment_mode: (params.paymentMode ?? 'full').trim() || 'full',
-      },
-    };
+    const path = PRITHVI_API_PATHS.ORDER_PAYMENT_LINK.replace(
+      ':orderId',
+      encodeURIComponent(orderId),
+    );
 
     if (!this.isActive) {
-      return this.dryRunCreatePaymentOrder(requestBody);
+      return this.dryRunCreatePaymentLink(orderId);
     }
 
-    return this.requestJson<CreatePaymentOrderResult>({
+    const data = await this.requestJson<CreatePaymentLinkResult>({
       method: 'POST',
-      callType: PrithviApiCallType.PAYMENTS_ORDER_CREATE,
-      path: PRITHVI_API_PATHS.PAYMENTS_ORDER_CREATE,
-      body: requestBody,
+      callType: PrithviApiCallType.ORDER_PAYMENT_LINK,
+      path,
+      body: null,
       params: null,
       clientErrorMessage:
-        'Unable to create payment for this order. Please verify the order and try again.',
+        'Unable to generate payment link for this order. Please verify the order and try again.',
       serverErrorMessage:
-        'Unable to create payment right now. Please try again later.',
+        'Unable to generate payment link right now. Please try again later.',
     });
+
+    return this.normalizePaymentLinkResult(data);
   }
 
   /**
@@ -859,30 +852,29 @@ export class PrithviForexApiService {
     return result;
   }
 
-  private dryRunCreatePaymentOrder(
-    requestBody: Record<string, unknown>,
-  ): CreatePaymentOrderResult {
+  private dryRunCreatePaymentLink(orderId: string): CreatePaymentLinkResult {
     this.logger.warn(
-      `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run payment order create. order_id=${String(requestBody.order_id ?? '')}`,
+      `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run payment link. orderId=${orderId}`,
     );
 
-    const result: CreatePaymentOrderResult = {
-      id: `dry-payment-${randomUUID()}`,
-      order_id: requestBody.order_id,
-      order_amount: requestBody.order_amount,
-      currency: requestBody.currency,
-      payment_method: requestBody.payment_method,
-      status: 'CREATED',
-      payment_url: null,
-      metadata: requestBody.metadata,
+    const token = `dry_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+    const result: CreatePaymentLinkResult = {
+      paymentLink: `/payment/?token=${token}`,
+      paymentLinkFull: `http://lead-application-stage.s3-website.ap-south-1.amazonaws.com/payment/?token=${token}`,
+      token,
     };
 
     void this.apiLog
       .create({
-        callType: PrithviApiCallType.PAYMENTS_ORDER_CREATE,
+        callType: PrithviApiCallType.ORDER_PAYMENT_LINK,
         method: 'POST',
-        url: this.buildUrl(PRITHVI_API_PATHS.PAYMENTS_ORDER_CREATE),
-        requestBody: this.sanitizeObject(requestBody),
+        url: this.buildUrl(
+          PRITHVI_API_PATHS.ORDER_PAYMENT_LINK.replace(
+            ':orderId',
+            encodeURIComponent(orderId),
+          ),
+        ),
+        requestBody: null,
         requestParams: null,
         requestHeaders: this.sanitizeHeaders({
           Authorization: 'Bearer [REDACTED]',
@@ -890,7 +882,7 @@ export class PrithviForexApiService {
           accept: 'application/json',
         }),
         httpStatus: null,
-        responseBody: result,
+        responseBody: result as unknown as Record<string, unknown>,
         success: true,
         errorMessage: null,
         durationMs: 0,
@@ -903,6 +895,31 @@ export class PrithviForexApiService {
       );
 
     return result;
+  }
+
+  private normalizePaymentLinkResult(
+    data: CreatePaymentLinkResult | Record<string, unknown>,
+  ): CreatePaymentLinkResult {
+    const record = (data ?? {}) as Record<string, unknown>;
+    const paymentLink =
+      typeof record.paymentLink === 'string' ? record.paymentLink : '';
+    const paymentLinkFull =
+      typeof record.paymentLinkFull === 'string'
+        ? record.paymentLinkFull
+        : '';
+    const token = typeof record.token === 'string' ? record.token : '';
+
+    if (!paymentLinkFull && !paymentLink) {
+      throw new BadRequestException(
+        'Payment link was not returned by the provider. Please try again.',
+      );
+    }
+
+    return {
+      paymentLink,
+      paymentLinkFull: paymentLinkFull || paymentLink,
+      token,
+    };
   }
 
   private dryRunOrdersDashboard(

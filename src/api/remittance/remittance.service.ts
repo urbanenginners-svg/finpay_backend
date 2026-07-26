@@ -20,7 +20,6 @@ import { FileResourceEnum } from 'src/utils/enums/file-resource.enum';
 import { FilesService } from 'src/api/files/files.service';
 import {
   CompleteForexRequestDto,
-  CreatePaymentOrderDto,
   GetForexOrdersDashboardQueryDto,
   GetPurposesQueryDto,
   GetRemittanceRatesQueryDto,
@@ -121,30 +120,24 @@ export class RemittanceService {
   }
 
   /**
-   * Create a payment session for a forex order the user owns.
-   * Proxies to Prithvi POST /payments/order/create.
+   * Generate a payment link for a forex order the user owns.
+   * Proxies to Prithvi POST /orders/:orderId/payment-link.
    */
-  async createPaymentOrder(dto: CreatePaymentOrderDto, userId: string) {
-    const orderId = dto.order_id?.trim();
-    if (!orderId) {
+  async createPaymentLink(orderId: string, userId: string) {
+    const trimmedOrderId = orderId?.trim();
+    if (!trimmedOrderId) {
       throw new BadRequestException('Order id is required');
     }
 
     const owned = await this.forexOrders.findOwnedByUser(
-      orderId,
+      trimmedOrderId,
       String(userId),
     );
     if (!owned) {
       throw new NotFoundException('Forex order not found for this account');
     }
 
-    return this.prithviForex.createPaymentOrder({
-      orderId,
-      orderAmount: dto.order_amount,
-      currency: dto.currency,
-      paymentMethod: dto.payment_method,
-      paymentMode: dto.metadata?.payment_mode ?? 'full',
-    });
+    return this.prithviForex.createPaymentLink({ orderId: trimmedOrderId });
   }
 
   /**

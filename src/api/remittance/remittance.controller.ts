@@ -20,7 +20,6 @@ import { memoryStorage } from 'multer';
 import { RemittanceService } from './remittance.service';
 import {
   CompleteForexRequestDto,
-  CreatePaymentOrderDto,
   GetForexOrdersDashboardQueryDto,
   GetPurposesQueryDto,
   GetRemittanceRatesQueryDto,
@@ -37,7 +36,7 @@ import {
 } from 'src/utils/validators/file.validator';
 import {
   CompleteForexRequestSwagger,
-  CreatePaymentOrderSwagger,
+  CreatePaymentLinkSwagger,
   GetForexOrdersDashboardSwagger,
   GetPurposeConfigSwagger,
   GetPurposesSwagger,
@@ -108,17 +107,20 @@ export class RemittanceController {
 
   @ApiBearerAuth()
   @Version('1')
-  @Post('payments/order/create')
+  @Post('forex/orders/:orderId/payment-link')
   @HttpCode(HttpStatus.OK)
   @UseGuards(ThrottlerBehindProxyGuard)
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
-  @CreatePaymentOrderSwagger()
-  async createPaymentOrder(
+  @CreatePaymentLinkSwagger()
+  async createPaymentLink(
     @GetUser('_id') userId: string,
-    @Body() dto: CreatePaymentOrderDto,
+    @Param('orderId') orderId: string,
   ) {
-    const data = await this.remittanceService.createPaymentOrder(dto, userId);
-    return new DataResponse(data, 'Payment order created successfully.');
+    const data = await this.remittanceService.createPaymentLink(
+      orderId,
+      userId,
+    );
+    return new DataResponse(data, 'Payment link generated successfully.');
   }
 
   @ApiBearerAuth()
