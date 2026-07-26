@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsNumber,
@@ -14,6 +15,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 import {
   PrithviForexRequestStatus,
@@ -173,6 +175,46 @@ export class CompleteForexOrderDto {
   @Min(0)
   @Type(() => Number)
   gst: number;
+
+  // Purpose-driven fields (flattened — not nested under fieldValues)
+  @ApiPropertyOptional({ example: 'P1234567' })
+  @IsOptional()
+  @IsString()
+  passportNumber?: string;
+
+  @ApiPropertyOptional({ example: 'AB12C3456' })
+  @IsOptional()
+  @IsString()
+  passportfilenumber?: string;
+
+  @ApiPropertyOptional({ example: '1990-01-15' })
+  @IsOptional()
+  @IsString()
+  dateofbirth?: string;
+
+  @ApiPropertyOptional({ example: 'Acme Travels Pvt Ltd' })
+  @IsOptional()
+  @IsString()
+  businessName?: string;
+
+  // Confirmations flattened (not nested under confirmations / fieldValues)
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  visaConfirmation?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  selfCollectionConfirm?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  currencyDeclarationConfirm?: boolean;
 }
 
 export class CompleteForexRequestDto {
@@ -241,4 +283,15 @@ export class GetPurposesQueryDto {
   @IsOptional()
   @IsEnum(PrithviProductType)
   productType?: PrithviProductType;
+}
+
+export class UploadForexOrderDocumentDto {
+  @ApiProperty({
+    example: 'passportFrontImage',
+    description: 'documentType key from purpose config requiredDocuments',
+  })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(80)
+  documentType: string;
 }

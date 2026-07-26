@@ -1,4 +1,5 @@
 import axios, { isAxiosError } from 'axios';
+import FormData = require('form-data');
 import {
   BadRequestException,
   Injectable,
@@ -17,6 +18,7 @@ import { PrithviExchangeService } from './prithvi-exchange.service';
 import { PrithviForexOrderService } from './prithvi-forex-order.service';
 import { PrithviPurposeCacheService } from './prithvi-purpose-cache.service';
 import {
+  CompleteForexOrderPayload,
   CompleteForexOrderSnapshot,
   CompleteForexRequestParams,
   CompleteForexRequestResult,
@@ -33,6 +35,8 @@ import {
   PrithviPurpose,
   PrithviPurposeConfig,
   SyncForexOrdersFromProviderResult,
+  UploadForexOrderDocumentParams,
+  UploadForexOrderDocumentResult,
 } from './prithvi-exchange.types';
 
 const SENSITIVE_KEYS = new Set([
@@ -116,7 +120,9 @@ export class PrithviForexApiService {
   async completeForexRequest(
     params: CompleteForexRequestParams,
   ): Promise<CompleteForexRequestResult> {
-    const requestBody = { orders: params.orders };
+    const requestBody = {
+      orders: params.orders.map((order) => this.toPrithviCompleteOrder(order)),
+    };
     const path = PRITHVI_API_PATHS.FOREX_COMPLETE.replace(
       ':id',
       params.forexRequestId,
@@ -137,6 +143,266 @@ export class PrithviForexApiService {
       serverErrorMessage:
         'Unable to complete forex request right now. Please try again later.',
     }).then((result) => this.normalizeCompleteResult(result));
+  }
+
+  /**
+   * Upload a KYC document to Prithvi for a draft order line.
+   * POST /orders/:orderId/upload-document (multipart: document + documentType).
+   */
+  async uploadOrderDocument(
+    params: UploadForexOrderDocumentParams,
+  ): Promise<UploadForexOrderDocumentResult> {
+    const orderId = params.orderId?.trim();
+    const documentType = params.documentType?.trim();
+    if (!orderId) {
+      throw new BadRequestException('Order id is required');
+    }
+    if (!documentType) {
+      throw new BadRequestException('documentType is required');
+    }
+    if (!params.buffer?.length) {
+      throw new BadRequestException('Document file is required');
+    }
+
+    if (!this.isActive) {
+      return this.dryRunUploadDocument(orderId, documentType);
+    }
+
+    const path = PRITHVI_API_PATHS.ORDER_UPLOAD_DOCUMENT.replace(
+      ':orderId',
+      encodeURIComponent(orderId),
+    );
+    const url = this.buildUrl(path);
+    const startedAt = Date.now();
+    let httpStatus: number | null = null;
+    let responseBody: Record<string, unknown> | null = null;
+    let requestHeaders: Record<string, unknown> | null = null;
+    let success = false;
+    let errorMessage: string | null = null;
+
+    const buildForm = () => {
+      // Match Prithvi curl: multipart fields documentType + document (file).
+      const form = new FormData();
+      form.append('documentType', documentType);
+      form.append('document', params.buffer, {
+        filename: params.filename || `${documentType}.png`,
+        contentType: params.mimeType || 'application/octet-stream',
+        knownLength: params.buffer.length,
+      });
+      return form;
+    };
+
+    const buildHeaders = (token: string, form: FormData) => ({
+      ...form.getHeaders(),
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    });
+
+    try {
+      let token = await this.prithvi.getValidAccessToken();
+      let form = buildForm();
+      requestHeaders = this.sanitizeHeaders(buildHeaders(token, form));
+      let response = await axios.request({
+        method: 'POST',
+        url,
+        data: form,
+        headers: buildHeaders(token, form),
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+        validateStatus: () => true,
+      });
+
+      if (this.isAuthTokenRejected(response.status, response.data)) {
+        this.logger.warn(
+          'Prithvi order upload-document received 401; refreshing OAuth token and retrying once.',
+        );
+        token = await this.prithvi.getValidAccessToken({ forceRefresh: true });
+        form = buildForm();
+        requestHeaders = this.sanitizeHeaders(buildHeaders(token, form));
+        response = await axios.request({
+          method: 'POST',
+          url,
+          data: form,
+          headers: buildHeaders(token, form),
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
+          validateStatus: () => true,
+        });
+      }
+
+      httpStatus = response.status;
+      responseBody = this.sanitizeObject(
+        (response.data ?? {}) as Record<string, unknown>,
+      );
+
+      if (response.status >= 400 && response.status < 500) {
+        errorMessage = `HTTP ${response.status}: ${JSON.stringify(response.data)}`;
+        const providerMessage = this.extractProviderMessage(response.data);
+        throw new BadRequestException(
+          providerMessage ??
+            'Unable to upload document. Please check the file and try again.',
+        );
+      }
+
+      if (response.status < 200 || response.status >= 300) {
+        errorMessage = `HTTP ${response.status}: ${JSON.stringify(response.data)}`;
+        this.logger.error(
+          `Prithvi order upload-document HTTP ${response.status}: ${JSON.stringify(response.data)}`,
+        );
+        throw new InternalServerErrorException(
+          'Unable to upload document to provider right now. Please try again later.',
+        );
+      }
+
+      const envelope =
+        response.data && typeof response.data === 'object'
+          ? (response.data as Record<string, unknown>)
+          : null;
+      if (envelope && 'success' in envelope && envelope.success === false) {
+        errorMessage = `API error: ${JSON.stringify(response.data)}`;
+        const providerMessage = this.extractProviderMessage(response.data);
+        throw new BadRequestException(
+          providerMessage ??
+            'Unable to upload document. Please check the file and try again.',
+        );
+      }
+
+      const parsed = this.parseUploadDocumentResponse(
+        response.data,
+        documentType,
+      );
+      if (!parsed.prithviPath) {
+        errorMessage = `Missing ${documentType} path in upload response`;
+        throw new BadRequestException(
+          `Provider did not return a path for ${documentType}.`,
+        );
+      }
+
+      success = true;
+      return parsed;
+    } catch (err) {
+      if (
+        err instanceof BadRequestException ||
+        err instanceof InternalServerErrorException
+      ) {
+        throw err;
+      }
+      errorMessage = isAxiosError(err)
+        ? `Network error: ${err.message}`
+        : err instanceof Error
+          ? err.message
+          : String(err);
+      this.logger.error(
+        `Prithvi order upload-document failed: ${errorMessage}`,
+      );
+      throw new InternalServerErrorException(
+        'Unable to upload document to provider right now. Please try again later.',
+      );
+    } finally {
+      void this.apiLog
+        .create({
+          callType: PrithviApiCallType.ORDER_UPLOAD_DOCUMENT,
+          method: 'POST',
+          url,
+          requestBody: {
+            documentType,
+            filename: params.filename,
+            mimeType: params.mimeType,
+            size: params.buffer.length,
+          },
+          requestParams: null,
+          requestHeaders,
+          httpStatus,
+          responseBody,
+          success,
+          errorMessage,
+          durationMs: Date.now() - startedAt,
+          isDryRun: false,
+        })
+        .catch((e: unknown) =>
+          this.logger.error(
+            `Prithvi API log save failed: ${e instanceof Error ? e.message : String(e)}`,
+          ),
+        );
+    }
+  }
+
+  /**
+   * Build Prithvi complete order body.
+   * Purpose fields and confirmations are already flattened on the order.
+   * Documents are uploaded separately via upload-document — do not resend them.
+   */
+  private toPrithviCompleteOrder(
+    order: CompleteForexOrderPayload,
+  ): Record<string, unknown> {
+    const payload: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(order)) {
+      if (key === 'fieldValues' || key === 'documents' || key === 'confirmations') {
+        continue;
+      }
+      if (value === undefined) continue;
+      payload[key] = value;
+    }
+
+    return payload;
+  }
+
+  private parseUploadDocumentResponse(
+    raw: unknown,
+    documentType: string,
+  ): UploadForexOrderDocumentResult {
+    // Live Prithvi shape:
+    // { success: true, data: { forexOrder: { [documentType]: "path/..." } }, message }
+    const root =
+      raw && typeof raw === 'object'
+        ? (raw as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+
+    const data =
+      root.data && typeof root.data === 'object'
+        ? (root.data as Record<string, unknown>)
+        : root;
+
+    const forexOrder =
+      data.forexOrder && typeof data.forexOrder === 'object'
+        ? (data.forexOrder as Record<string, unknown>)
+        : root.forexOrder && typeof root.forexOrder === 'object'
+          ? (root.forexOrder as Record<string, unknown>)
+          : null;
+
+    if (!forexOrder) {
+      return { documentType, prithviPath: '', forexOrder: undefined };
+    }
+
+    const prithviPath =
+      typeof forexOrder[documentType] === 'string'
+        ? String(forexOrder[documentType]).trim()
+        : '';
+
+    return {
+      documentType,
+      prithviPath,
+      forexOrder,
+    };
+  }
+
+  private dryRunUploadDocument(
+    orderId: string,
+    documentType: string,
+  ): UploadForexOrderDocumentResult {
+    const prithviPath = `dry-run/${orderId}/${documentType.toLowerCase()}.png`;
+    this.logger.warn(
+      `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run document upload. orderId=${orderId} documentType=${documentType}`,
+    );
+    return {
+      documentType,
+      prithviPath,
+      forexOrder: {
+        id: orderId,
+        [documentType]: prithviPath,
+      },
+    };
   }
 
   /**
@@ -641,8 +907,161 @@ export class PrithviForexApiService {
     const match = purposes.find((p) => p.code === code) ?? purposes[0];
 
     return {
+      id: `dry-run-purpose-${match.code}`,
       code: match.code,
       name: match.name,
+      description: match.description,
+      category: match.category,
+      orderType: match.orderType,
+      productType: match.productType,
+      isActive: true,
+      requiredFields: [
+        {
+          id: 'dry-passport-file',
+          fieldKey: 'passportfilenumber',
+          fieldLabel: 'Passport File Number',
+          fieldType: 'text',
+          isRequired: true,
+          validationRules: {
+            regex: '^[A-Za-z0-9]{6,20}$',
+            minLength: 6,
+            maxLength: 20,
+          },
+          displayOrder: 2,
+          isActive: true,
+        },
+        {
+          id: 'dry-dob',
+          fieldKey: 'dateofbirth',
+          fieldLabel: 'Date of Birth',
+          fieldType: 'date',
+          isRequired: true,
+          validationRules: {},
+          displayOrder: 3,
+          isActive: true,
+        },
+        {
+          id: 'dry-passport-number',
+          fieldKey: 'passportNumber',
+          fieldLabel: 'Passport Number',
+          fieldType: 'text',
+          isRequired: true,
+          validationRules: { regex: '^[A-Z0-9]{6,9}$' },
+          displayOrder: 4,
+          isActive: true,
+        },
+        {
+          id: 'dry-payment',
+          fieldKey: 'preferredPaymentMode',
+          fieldLabel: 'Preferred Mode of Payment',
+          fieldType: 'radio',
+          isRequired: true,
+          validationRules: {
+            icons: {
+              UPI: 'Smartphone',
+              Cash: 'Banknote',
+              Cheque: 'FileText',
+              'Debit Card': 'CreditCard',
+              'Net Banking': 'Globe',
+            },
+            allowed: ['Cash', 'UPI', 'Net Banking', 'Debit Card', 'Cheque'],
+          },
+          displayOrder: 100,
+          isActive: true,
+        },
+        {
+          id: 'dry-delivery',
+          fieldKey: 'preferredDeliveryMode',
+          fieldLabel: 'Preferred Mode of Delivery',
+          fieldType: 'radio',
+          isRequired: true,
+          validationRules: {
+            icons: {
+              'Home Delivery': 'Home',
+              'Collect at Branch': 'Store',
+              'Express Home Delivery @ 250 Rs': 'Zap',
+            },
+            allowed: [
+              'Collect at Branch',
+              'Home Delivery',
+              'Express Home Delivery @ 250 Rs',
+            ],
+          },
+          displayOrder: 101,
+          isActive: true,
+        },
+        {
+          id: 'dry-confirmations',
+          fieldKey: 'confirmations',
+          fieldLabel: 'Confirmations',
+          fieldType: 'confirmCheckbox',
+          isRequired: true,
+          validationRules: {
+            labels: {
+              visaConfirmation:
+                'Click here if you don’t need a visa or will get one when you arrive.',
+              selfCollectionConfirm:
+                'I confirm I will be there in person to pick up the order when it’s delivered.',
+              currencyDeclarationConfirm:
+                'I confirm I have all valid documents and haven’t bought or transferred more than USD 250,000 in foreign currency in this financial year.',
+            },
+            allowed: [
+              'visaConfirmation',
+              'currencyDeclarationConfirm',
+              'selfCollectionConfirm',
+            ],
+          },
+          displayOrder: 200,
+          isActive: true,
+        },
+      ],
+      requiredDocuments: [
+        {
+          id: 'dry-passport-front',
+          documentType: 'passportFrontImage',
+          documentLabel: 'Passport Front',
+          isMandatory: true,
+          allowedFormats: 'pdf,jpg,png',
+          maxFileSizeMb: 5,
+          isActive: true,
+        },
+        {
+          id: 'dry-passport-back',
+          documentType: 'passportBackImage',
+          documentLabel: 'Passport Back',
+          isMandatory: true,
+          allowedFormats: 'pdf,jpg,png',
+          maxFileSizeMb: 5,
+          isActive: true,
+        },
+        {
+          id: 'dry-air-ticket',
+          documentType: 'airTicket',
+          documentLabel: 'Air Ticket',
+          isMandatory: true,
+          allowedFormats: 'pdf,jpg,png',
+          maxFileSizeMb: 5,
+          isActive: true,
+        },
+        {
+          id: 'dry-visa',
+          documentType: 'visaImage',
+          documentLabel: 'Visa',
+          isMandatory: true,
+          allowedFormats: 'pdf,jpg,png',
+          maxFileSizeMb: 5,
+          isActive: true,
+        },
+        {
+          id: 'dry-pan',
+          documentType: 'panCardImage',
+          documentLabel: 'PAN Card',
+          isMandatory: true,
+          allowedFormats: 'pdf,jpg,png',
+          maxFileSizeMb: 5,
+          isActive: true,
+        },
+      ],
       documentsRequired: ['Passport', 'Visa', 'Air Ticket'],
       allowedProducts: [
         PrithviProductType.CASH,

@@ -62,6 +62,8 @@ export type UpsertForexOrderFromCompleteInput = {
   sourceOfFunds?: string | null;
   preferredDeliveryMode?: string | null;
   preferredPaymentMode?: string | null;
+  documents?: Record<string, string>;
+  localDocumentFileIds?: Record<string, string>;
   providerUpdatedAt?: string | Date | null;
 };
 
@@ -209,6 +211,9 @@ export class PrithviForexOrderService {
       $set.preferredDeliveryMode = input.preferredDeliveryMode;
     if (input.preferredPaymentMode != null)
       $set.preferredPaymentMode = input.preferredPaymentMode;
+    if (input.documents != null) $set.documents = input.documents;
+    if (input.localDocumentFileIds != null)
+      $set.localDocumentFileIds = input.localDocumentFileIds;
     if (input.providerUpdatedAt != null)
       $set.providerUpdatedAt = asDate(input.providerUpdatedAt);
 
@@ -256,6 +261,40 @@ export class PrithviForexOrderService {
       .exec();
 
     return result.matchedCount > 0;
+  }
+
+  async findOwnedByUser(
+    prithviOrderId: string,
+    createdByUserId: string,
+  ): Promise<PrithviForexOrderDocument | null> {
+    return this.model
+      .findOne({
+        prithviOrderId,
+        createdByUserId: String(createdByUserId),
+      })
+      .exec();
+  }
+
+  async setUploadedDocument(input: {
+    prithviOrderId: string;
+    documentType: string;
+    prithviPath: string;
+    localFileId?: string | null;
+  }): Promise<PrithviForexOrderDocument | null> {
+    const $set: Record<string, unknown> = {
+      [`documents.${input.documentType}`]: input.prithviPath,
+    };
+    if (input.localFileId) {
+      $set[`localDocumentFileIds.${input.documentType}`] = input.localFileId;
+    }
+
+    return this.model
+      .findOneAndUpdate(
+        { prithviOrderId: input.prithviOrderId },
+        { $set },
+        { new: true },
+      )
+      .exec();
   }
 
   async findDashboardForUser(

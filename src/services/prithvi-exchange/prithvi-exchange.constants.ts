@@ -9,6 +9,7 @@ export const PRITHVI_API_PATHS = {
   FOREX_INITIATE: '/forex/initiate',
   FOREX_COMPLETE: '/forex/:id/complete',
   FOREX_ORDERS_DASHBOARD: '/forex/orders/dashboard',
+  ORDER_UPLOAD_DOCUMENT: '/orders/:orderId/upload-document',
   PURPOSE_LIST: '/purpose',
   PURPOSE_CONFIG: '/purpose/:code/config',
 } as const;

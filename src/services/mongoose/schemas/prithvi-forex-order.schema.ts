@@ -143,6 +143,23 @@ export class PrithviForexOrder {
   @Prop({ required: false, type: String, default: null })
   preferredPaymentMode?: string | null;
 
+  @ApiPropertyOptional({
+    description:
+      'Prithvi document storage paths keyed by documentType (e.g. passportFrontImage).',
+    type: 'object',
+    additionalProperties: { type: 'string' },
+  })
+  @Prop({ required: false, type: Object, default: {} })
+  documents?: Record<string, string>;
+
+  @ApiPropertyOptional({
+    description: 'Finpay S3 file ids keyed by documentType (local copy).',
+    type: 'object',
+    additionalProperties: { type: 'string' },
+  })
+  @Prop({ required: false, type: Object, default: {} })
+  localDocumentFileIds?: Record<string, string>;
+
   @ApiPropertyOptional()
   @Prop({ required: false, type: String, default: null })
   sessionId?: string | null;

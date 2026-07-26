@@ -7,11 +7,15 @@ import {
   Param,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
   Version,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { memoryStorage } from 'multer';
 
 import { RemittanceService } from './remittance.service';
 import {
@@ -20,11 +24,16 @@ import {
   GetPurposesQueryDto,
   GetRemittanceRatesQueryDto,
   InitiateForexRequestDto,
+  UploadForexOrderDocumentDto,
 } from './dto';
 import { DataResponse } from 'src/utils/response';
 import { Public } from 'src/utils/decorators/public-key.decorator';
 import { GetUser } from 'src/utils/decorators/get-user.decorator';
 import { ThrottlerBehindProxyGuard } from 'src/services/throttler/throttler-proxy.guard';
+import {
+  imageFileFilter,
+  MAX_FILE_SIZE_BYTES,
+} from 'src/utils/validators/file.validator';
 import {
   CompleteForexRequestSwagger,
   GetForexOrdersDashboardSwagger,
@@ -33,6 +42,7 @@ import {
   GetRemittanceProvidersSwagger,
   GetRemittanceRatesSwagger,
   InitiateForexRequestSwagger,
+  UploadForexOrderDocumentSwagger,
 } from './remittance.swagger';
 
 @ApiTags('Remittance')
@@ -92,6 +102,35 @@ export class RemittanceController {
       data,
       'Forex request completed and submitted for approval',
     );
+  }
+
+  @ApiBearerAuth()
+  @Version('1')
+  @Post('forex/orders/:orderId/upload-document')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerBehindProxyGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 40 } })
+  @UploadForexOrderDocumentSwagger()
+  @UseInterceptors(
+    FileInterceptor('document', {
+      storage: memoryStorage(),
+      fileFilter: imageFileFilter,
+      limits: { fileSize: MAX_FILE_SIZE_BYTES },
+    }),
+  )
+  async uploadForexOrderDocument(
+    @GetUser('_id') userId: string,
+    @Param('orderId') orderId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: UploadForexOrderDocumentDto,
+  ) {
+    const data = await this.remittanceService.uploadForexOrderDocument(
+      orderId,
+      dto.documentType,
+      file,
+      userId,
+    );
+    return new DataResponse(data, 'Document uploaded successfully.');
   }
 
   @ApiBearerAuth()

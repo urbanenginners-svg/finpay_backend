@@ -2,6 +2,7 @@ import { applyDecorators } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiConsumes,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -82,7 +83,7 @@ export function CompleteForexRequestSwagger() {
     ApiOperation({
       summary: 'Complete forex request (Step 2)',
       description:
-        'Finalizes a DRAFT booking with traveler, PAN, travel, and delivery details. Must occur within the 20-minute rate lock. Proxies to Prithvi POST /forex/:id/complete.',
+        'Finalizes a DRAFT booking with traveler, PAN, travel, delivery, and purpose fields. Must occur within the 20-minute rate lock. Documents must already be uploaded via upload-document. Purpose answers and confirmations are sent as top-level order fields (not nested under fieldValues).',
     }),
     ApiParam({
       name: 'id',
@@ -93,6 +94,48 @@ export function CompleteForexRequestSwagger() {
     ApiResponse({ status: 200, description: 'Forex request submitted for approval' }),
     ApiResponse({ status: 400, description: 'Validation or expired session' }),
     ApiResponse({ status: 401, description: 'Unauthorized' }),
+  );
+}
+
+export function UploadForexOrderDocumentSwagger() {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiConsumes('multipart/form-data'),
+    ApiOperation({
+      summary: 'Upload forex order document',
+      description:
+        'Stores the file in Finpay S3 and uploads to Prithvi POST /orders/:orderId/upload-document. Returns the Prithvi path to send on complete.',
+    }),
+    ApiParam({
+      name: 'orderId',
+      description: 'Prithvi order line id from initiate (orders[].id)',
+      example: '3c4733c4-b624-48a8-9e21-312b5502d90d',
+    }),
+    ApiBody({
+      schema: {
+        type: 'object',
+        required: ['document', 'documentType'],
+        properties: {
+          document: {
+            type: 'string',
+            format: 'binary',
+            description: 'Document file (pdf/jpg/png)',
+          },
+          documentType: {
+            type: 'string',
+            example: 'passportFrontImage',
+            description: 'documentType from purpose config requiredDocuments',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: 200,
+      description: 'Document uploaded; returns prithviPath for complete payload',
+    }),
+    ApiResponse({ status: 400, description: 'Validation failure' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+    ApiResponse({ status: 404, description: 'Order not found' }),
   );
 }
 
@@ -137,7 +180,7 @@ export function GetPurposeConfigSwagger() {
     ApiOperation({
       summary: 'Get purpose KYC / product config (public)',
       description:
-        'Returns required documents and allowed products for a purpose code.',
+        'Returns required fields and documents for a purpose code.',
     }),
     ApiParam({ name: 'code', example: 'S0001' }),
     ApiResponse({ status: 200, description: 'Purpose config retrieved' }),

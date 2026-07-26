@@ -9,6 +9,7 @@ export enum PrithviApiCallType {
   FOREX_INITIATE = 'forex_initiate',
   FOREX_COMPLETE = 'forex_complete',
   FOREX_ORDERS_DASHBOARD = 'forex_orders_dashboard',
+  ORDER_UPLOAD_DOCUMENT = 'order_upload_document',
   PURPOSE_LIST = 'purpose_list',
   PURPOSE_CONFIG = 'purpose_config',
 }
@@ -206,6 +207,27 @@ export type CompleteForexOrderPayload = {
   sellingRate: number;
   serviceCharge: number;
   gst: number;
+  passportNumber?: string;
+  passportfilenumber?: string;
+  dateofbirth?: string;
+  businessName?: string;
+  visaConfirmation?: boolean;
+  selfCollectionConfirm?: boolean;
+  currencyDeclarationConfirm?: boolean;
+};
+
+export type UploadForexOrderDocumentParams = {
+  orderId: string;
+  documentType: string;
+  buffer: Buffer;
+  filename: string;
+  mimeType: string;
+};
+
+export type UploadForexOrderDocumentResult = {
+  documentType: string;
+  prithviPath: string;
+  forexOrder?: Record<string, unknown>;
 };
 
 export type CompleteForexRequestParams = {
@@ -318,9 +340,54 @@ export type PrithviPurpose = {
   isActive?: boolean;
 };
 
+export type PrithviPurposeFieldValidationRules = {
+  regex?: string;
+  minLength?: number;
+  maxLength?: number;
+  allowed?: string[];
+  labels?: Record<string, string>;
+  icons?: Record<string, string>;
+};
+
+export type PrithviPurposeRequiredField = {
+  id: string;
+  purposeCodeId?: string;
+  fieldKey: string;
+  fieldLabel: string;
+  applicableUserTypes?: string[];
+  fieldType: string;
+  isRequired: boolean;
+  validationRules?: PrithviPurposeFieldValidationRules | null;
+  displayOrder?: number;
+  isActive?: boolean;
+  isDelete?: boolean;
+};
+
+export type PrithviPurposeRequiredDocument = {
+  id: string;
+  purposeCodeId?: string;
+  documentType: string;
+  documentLabel: string;
+  applicableUserTypes?: string[];
+  isMandatory: boolean;
+  allowedFormats?: string;
+  maxFileSizeMb?: number;
+  isActive?: boolean;
+  isDelete?: boolean;
+};
+
 export type PrithviPurposeConfig = {
+  id?: string;
   code: string;
   name: string;
-  documentsRequired: string[];
-  allowedProducts: Array<PrithviProductType | string>;
+  description?: string;
+  category?: string;
+  orderType?: PrithviOrderType | string;
+  productType?: PrithviProductType | string;
+  isActive?: boolean;
+  requiredFields?: PrithviPurposeRequiredField[];
+  requiredDocuments?: PrithviPurposeRequiredDocument[];
+  /** @deprecated Prefer requiredDocuments from live purpose config */
+  documentsRequired?: string[];
+  allowedProducts?: Array<PrithviProductType | string>;
 };

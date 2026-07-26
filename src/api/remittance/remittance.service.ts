@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -15,6 +16,8 @@ import {
 import { PrithviForexOrderService } from 'src/services/prithvi-exchange/prithvi-forex-order.service';
 import { User, UserDocument } from 'src/services/mongoose/schemas/user.schema';
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
+import { FileResourceEnum } from 'src/utils/enums/file-resource.enum';
+import { FilesService } from 'src/api/files/files.service';
 import {
   CompleteForexRequestDto,
   GetForexOrdersDashboardQueryDto,
@@ -37,6 +40,7 @@ export class RemittanceService {
     private readonly prithviService: PrithviExchangeService,
     private readonly prithviForex: PrithviForexApiService,
     private readonly forexOrders: PrithviForexOrderService,
+    private readonly filesService: FilesService,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
 
@@ -113,6 +117,79 @@ export class RemittanceService {
     );
 
     return data;
+  }
+
+  /**
+   * Upload a purpose document to Finpay S3 and Prithvi order upload-document.
+   * Returns the Prithvi storage path that must be sent on complete.
+   */
+  async uploadForexOrderDocument(
+    orderId: string,
+    documentType: string,
+    file: Express.Multer.File,
+    userId: string,
+  ) {
+    if (!orderId?.trim()) {
+      throw new BadRequestException('Order id is required');
+    }
+    if (!documentType?.trim()) {
+      throw new BadRequestException('documentType is required');
+    }
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Document file is required');
+    }
+
+    const owned = await this.forexOrders.findOwnedByUser(
+      orderId.trim(),
+      String(userId),
+    );
+    if (!owned) {
+      throw new NotFoundException('Forex order not found for this account');
+    }
+
+    let localFileId: string | null = null;
+    try {
+      const localFile = await this.filesService.uploadSingle(
+        file,
+        {
+          type: FileResourceEnum.DOCUMENT,
+          referenceId: orderId.trim(),
+        },
+        String(userId),
+      );
+      localFileId = String(localFile._id);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to store forex document in Finpay S3: ${detail}`,
+      );
+      throw new InternalServerErrorException(
+        'Unable to store document in Finpay storage. Please try again.',
+      );
+    }
+
+    const prithviResult = await this.prithviForex.uploadOrderDocument({
+      orderId: orderId.trim(),
+      documentType: documentType.trim(),
+      buffer: file.buffer,
+      filename: file.originalname,
+      mimeType: file.mimetype,
+    });
+
+    await this.forexOrders.setUploadedDocument({
+      prithviOrderId: orderId.trim(),
+      documentType: documentType.trim(),
+      prithviPath: prithviResult.prithviPath,
+      localFileId,
+    });
+
+    return {
+      documentType: prithviResult.documentType,
+      prithviPath: prithviResult.prithviPath,
+      localFileId,
+      fileName: file.originalname,
+      forexOrder: prithviResult.forexOrder,
+    };
   }
 
   /**
