@@ -17,6 +17,7 @@ import {
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import {
   CompleteForexRequestDto,
+  CreatePaymentOrderDto,
   InitiateForexRequestDto,
   RemittanceProviderDto,
   RemittanceRateResponseDto,
@@ -94,6 +95,22 @@ export function CompleteForexRequestSwagger() {
     ApiResponse({ status: 200, description: 'Forex request submitted for approval' }),
     ApiResponse({ status: 400, description: 'Validation or expired session' }),
     ApiResponse({ status: 401, description: 'Unauthorized' }),
+  );
+}
+
+export function CreatePaymentOrderSwagger() {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Create payment order for a forex booking',
+      description:
+        'Creates a payment session for an owned forex order. Proxies to Prithvi POST /payments/order/create.',
+    }),
+    ApiBody({ type: CreatePaymentOrderDto }),
+    ApiResponse({ status: 200, description: 'Payment order created' }),
+    ApiResponse({ status: 400, description: 'Validation or provider client error' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+    ApiResponse({ status: 404, description: 'Order not found for this account' }),
   );
 }
 

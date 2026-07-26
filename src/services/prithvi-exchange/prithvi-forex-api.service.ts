@@ -37,6 +37,8 @@ import {
   SyncForexOrdersFromProviderResult,
   UploadForexOrderDocumentParams,
   UploadForexOrderDocumentResult,
+  CreatePaymentOrderParams,
+  CreatePaymentOrderResult,
 } from './prithvi-exchange.types';
 
 const SENSITIVE_KEYS = new Set([
@@ -143,6 +145,49 @@ export class PrithviForexApiService {
       serverErrorMessage:
         'Unable to complete forex request right now. Please try again later.',
     }).then((result) => this.normalizeCompleteResult(result));
+  }
+
+  /**
+   * Create a payment session for a completed forex order.
+   * Proxies to Prithvi POST /payments/order/create.
+   */
+  async createPaymentOrder(
+    params: CreatePaymentOrderParams,
+  ): Promise<CreatePaymentOrderResult> {
+    const orderId = params.orderId?.trim();
+    if (!orderId) {
+      throw new BadRequestException('Order id is required');
+    }
+    if (!Number.isFinite(params.orderAmount) || params.orderAmount <= 0) {
+      throw new BadRequestException('Order amount must be a positive number');
+    }
+
+    const requestBody = {
+      order_id: orderId,
+      order_amount: params.orderAmount,
+      currency: (params.currency ?? 'INR').trim() || 'INR',
+      payment_method: (params.paymentMethod ?? 'ALL').trim() || 'ALL',
+      metadata: {
+        forex_order_id: orderId,
+        payment_mode: (params.paymentMode ?? 'full').trim() || 'full',
+      },
+    };
+
+    if (!this.isActive) {
+      return this.dryRunCreatePaymentOrder(requestBody);
+    }
+
+    return this.requestJson<CreatePaymentOrderResult>({
+      method: 'POST',
+      callType: PrithviApiCallType.PAYMENTS_ORDER_CREATE,
+      path: PRITHVI_API_PATHS.PAYMENTS_ORDER_CREATE,
+      body: requestBody,
+      params: null,
+      clientErrorMessage:
+        'Unable to create payment for this order. Please verify the order and try again.',
+      serverErrorMessage:
+        'Unable to create payment right now. Please try again later.',
+    });
   }
 
   /**
@@ -800,6 +845,52 @@ export class PrithviForexApiService {
         }),
         httpStatus: null,
         responseBody: result as unknown as Record<string, unknown>,
+        success: true,
+        errorMessage: null,
+        durationMs: 0,
+        isDryRun: true,
+      })
+      .catch((e: unknown) =>
+        this.logger.error(
+          `Prithvi API log save failed: ${e instanceof Error ? e.message : String(e)}`,
+        ),
+      );
+
+    return result;
+  }
+
+  private dryRunCreatePaymentOrder(
+    requestBody: Record<string, unknown>,
+  ): CreatePaymentOrderResult {
+    this.logger.warn(
+      `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run payment order create. order_id=${String(requestBody.order_id ?? '')}`,
+    );
+
+    const result: CreatePaymentOrderResult = {
+      id: `dry-payment-${randomUUID()}`,
+      order_id: requestBody.order_id,
+      order_amount: requestBody.order_amount,
+      currency: requestBody.currency,
+      payment_method: requestBody.payment_method,
+      status: 'CREATED',
+      payment_url: null,
+      metadata: requestBody.metadata,
+    };
+
+    void this.apiLog
+      .create({
+        callType: PrithviApiCallType.PAYMENTS_ORDER_CREATE,
+        method: 'POST',
+        url: this.buildUrl(PRITHVI_API_PATHS.PAYMENTS_ORDER_CREATE),
+        requestBody: this.sanitizeObject(requestBody),
+        requestParams: null,
+        requestHeaders: this.sanitizeHeaders({
+          Authorization: 'Bearer [REDACTED]',
+          'Content-Type': 'application/json',
+          accept: 'application/json',
+        }),
+        httpStatus: null,
+        responseBody: result,
         success: true,
         errorMessage: null,
         durationMs: 0,
