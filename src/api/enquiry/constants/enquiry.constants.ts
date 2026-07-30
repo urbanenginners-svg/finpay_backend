@@ -123,10 +123,10 @@ export const INDICATIVE_FX_RATES_INR: Record<SupportedCurrency, number> = {
 };
 
 export const SERVICE_TYPE_LABELS: Record<ServiceEnquiryType, string> = {
-  [ServiceEnquiryType.OUTWARD_REMITTANCE]: 'Outward Remittance',
+  [ServiceEnquiryType.OUTWARD_REMITTANCE]: 'Send Money Abroad',
   [ServiceEnquiryType.FOREIGN_EXCHANGE]: 'Foreign Exchange',
   [ServiceEnquiryType.MUTUAL_FUND]: 'Mutual Fund',
-  [ServiceEnquiryType.TRAVEL]: 'Travel',
+  [ServiceEnquiryType.TRAVEL]: 'Tour & Travel',
   [ServiceEnquiryType.INSURANCE]: 'Insurance',
   [ServiceEnquiryType.LOAN]: 'Loan',
 };
