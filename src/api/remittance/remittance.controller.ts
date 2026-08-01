@@ -20,6 +20,7 @@ import { memoryStorage } from 'multer';
 import { RemittanceService } from './remittance.service';
 import {
   CompleteForexRequestDto,
+  GetAgentChargesQueryDto,
   GetForexOrdersDashboardQueryDto,
   GetPurposesQueryDto,
   GetRemittanceRatesQueryDto,
@@ -37,6 +38,7 @@ import {
 import {
   CompleteForexRequestSwagger,
   CreatePaymentLinkSwagger,
+  GetAgentChargesSwagger,
   GetForexOrdersDashboardSwagger,
   GetPurposeConfigSwagger,
   GetPurposesSwagger,
@@ -69,6 +71,17 @@ export class RemittanceController {
   async getRates(@Query() query: GetRemittanceRatesQueryDto) {
     const rate = await this.remittanceService.getRates(query);
     return new DataResponse(rate);
+  }
+
+  @ApiBearerAuth()
+  @Version('1')
+  @Get('charges')
+  @UseGuards(ThrottlerBehindProxyGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @GetAgentChargesSwagger()
+  async getCharges(@Query() query: GetAgentChargesQueryDto) {
+    const charges = await this.remittanceService.getCharges(query);
+    return new DataResponse(charges, 'Agent charges retrieved successfully');
   }
 
   @ApiBearerAuth()

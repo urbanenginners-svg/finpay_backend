@@ -33,6 +33,24 @@ export class GetRemittanceRatesQueryDto {
   agentId?: string;
 }
 
+export class GetAgentChargesQueryDto {
+  @ApiProperty({
+    enum: PrithviOrderType,
+    example: PrithviOrderType.BUY,
+    description: 'Transaction direction: BUY or SELL',
+  })
+  @IsEnum(PrithviOrderType)
+  orderType: PrithviOrderType;
+
+  @ApiProperty({
+    enum: PrithviProductType,
+    example: PrithviProductType.CASH,
+    description: 'Product modality: CASH, CARD, or TT',
+  })
+  @IsEnum(PrithviProductType)
+  productType: PrithviProductType;
+}
+
 export class RemittanceRateResponseDto {
   @ApiProperty({ example: 'prithvi' })
   provider: string;

@@ -62,6 +62,26 @@ export function GetRemittanceRatesSwagger() {
   );
 }
 
+export function GetAgentChargesSwagger() {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Get agent charges for order/product',
+      description:
+        'Proxies Prithvi GET /agents/charges. Returns mapped charge fields: each *Min value greater than zero is exposed without the Min suffix (serviceCharge, deliveryCharge, nostroCharge), plus gstRate for GST calculation.',
+    }),
+    ApiQuery({ name: 'orderType', enum: PrithviOrderType, required: true }),
+    ApiQuery({ name: 'productType', enum: PrithviProductType, required: true }),
+    ApiResponse({
+      status: 200,
+      description: 'Agent charges retrieved successfully',
+    }),
+    ApiResponse({ status: 400, description: 'Validation failure' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+    ApiResponse({ status: 429, description: 'Too many requests' }),
+  );
+}
+
 export function InitiateForexRequestSwagger() {
   return applyDecorators(
     ApiBearerAuth(),

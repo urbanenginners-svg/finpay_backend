@@ -4,6 +4,7 @@ export enum PrithviApiCallType {
   OAUTH_INTROSPECT = 'oauth_introspect',
   OAUTH_REVOKE = 'oauth_revoke',
   AGENT_RATES = 'agent_rates',
+  AGENT_CHARGES = 'agent_charges',
   PASSPORT_VERIFY = 'passport_verify',
   PAN_VERIFY = 'pan_verify',
   FOREX_INITIATE = 'forex_initiate',
@@ -117,6 +118,50 @@ export type GetAgentRatesParams = {
   agentId?: string;
 };
 
+export type GetAgentChargesParams = {
+  orderType: PrithviOrderType;
+  productType: PrithviProductType;
+};
+
+/** Raw Prithvi GET /agents/charges `data` payload. */
+export type PrithviAgentChargesRaw = {
+  id: string;
+  agentId: string;
+  orderType: string;
+  productType: string;
+  serviceChargeMin: string;
+  serviceChargeMax: string;
+  deliveryChargeMin: string;
+  deliveryChargeMax: string;
+  nostroChargeMin: string;
+  nostroChargeMax: string;
+  gstRate: string;
+  isActive: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
+/**
+ * Mapped agent charges for booking.
+ * `*Min` fields with value > 0 become stripped keys (serviceCharge, deliveryCharge, nostroCharge).
+ */
+export type PrithviAgentChargesResult = {
+  id: string;
+  agentId: string;
+  orderType: string;
+  productType: string;
+  gstRate: number;
+  isActive: boolean;
+  /** Present only when serviceChargeMin > 0. */
+  serviceCharge?: number;
+  /** Present only when deliveryChargeMin > 0. */
+  deliveryCharge?: number;
+  /** Present only when nostroChargeMin > 0. */
+  nostroCharge?: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type VerifyPassportParams = {
   fileNumber: string;
   name: string;
@@ -150,6 +195,10 @@ export type PrithviForexOrderDetail = {
   agentSellingRate: number;
   gst: number;
   serviceCharge: number;
+  /** From agent charges deliveryChargeMin when > 0. */
+  deliveryCharge?: number;
+  /** From agent charges nostroChargeMin when > 0. */
+  nostroCharge?: number;
 };
 
 export type InitiateForexRequestParams = {
@@ -202,6 +251,12 @@ export type CompleteForexOrderPayload = {
   sellingRate: number;
   serviceCharge: number;
   gst: number;
+  /** Product modality (CASH / CARD / TT). */
+  productType: PrithviProductType;
+  /** From agent charges deliveryChargeMin when > 0. */
+  deliveryCharge?: number;
+  /** From agent charges nostroChargeMin when > 0. */
+  nostroCharge?: number;
   panNumber?: string;
   deliveryAddress?: string;
   pincode?: string;

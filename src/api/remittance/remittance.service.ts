@@ -20,6 +20,7 @@ import { FileResourceEnum } from 'src/utils/enums/file-resource.enum';
 import { FilesService } from 'src/api/files/files.service';
 import {
   CompleteForexRequestDto,
+  GetAgentChargesQueryDto,
   GetForexOrdersDashboardQueryDto,
   GetPurposesQueryDto,
   GetRemittanceRatesQueryDto,
@@ -81,6 +82,13 @@ export class RemittanceService {
       fromCache: rates.fromCache,
       currencies,
     };
+  }
+
+  async getCharges(query: GetAgentChargesQueryDto) {
+    return this.prithviForex.getAgentCharges({
+      orderType: query.orderType,
+      productType: query.productType,
+    });
   }
 
   async initiateForex(dto: InitiateForexRequestDto, userId: string) {

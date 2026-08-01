@@ -22,10 +22,13 @@ import {
   CompleteForexOrderSnapshot,
   CompleteForexRequestParams,
   CompleteForexRequestResult,
+  GetAgentChargesParams,
   GetForexOrdersDashboardParams,
   GetPurposesParams,
   InitiateForexRequestParams,
   InitiateForexRequestResult,
+  PrithviAgentChargesRaw,
+  PrithviAgentChargesResult,
   PrithviApiCallType,
   PrithviApiResponse,
   PrithviForexOrdersDashboardResult,
@@ -62,6 +65,47 @@ function toPrithviApiOrderType(orderType: PrithviOrderType | string): 'Buy' | 'S
   return String(orderType).toUpperCase() === 'SELL' ? 'Sell' : 'Buy';
 }
 
+/** Prithvi charges query expects lowercase product type (`cash` / `card` / `tt`). */
+function toPrithviChargesProductType(
+  productType: PrithviProductType | string,
+): string {
+  return String(productType).toLowerCase();
+}
+
+/**
+ * Map `*Min` charge fields: keep only values > 0 and strip the `Min` suffix
+ * (e.g. serviceChargeMin → serviceCharge).
+ */
+function mapChargeMinsFromRaw(
+  raw: PrithviAgentChargesRaw,
+): Pick<
+  PrithviAgentChargesResult,
+  'serviceCharge' | 'deliveryCharge' | 'nostroCharge'
+> {
+  const mapped: Pick<
+    PrithviAgentChargesResult,
+    'serviceCharge' | 'deliveryCharge' | 'nostroCharge'
+  > = {};
+
+  const pairs: Array<{
+    minKey: keyof PrithviAgentChargesRaw;
+    outKey: 'serviceCharge' | 'deliveryCharge' | 'nostroCharge';
+  }> = [
+    { minKey: 'serviceChargeMin', outKey: 'serviceCharge' },
+    { minKey: 'deliveryChargeMin', outKey: 'deliveryCharge' },
+    { minKey: 'nostroChargeMin', outKey: 'nostroCharge' },
+  ];
+
+  for (const { minKey, outKey } of pairs) {
+    const value = Number(raw[minKey]);
+    if (Number.isFinite(value) && value > 0) {
+      mapped[outKey] = value;
+    }
+  }
+
+  return mapped;
+}
+
 type JsonRequestOptions = {
   method: 'GET' | 'POST';
   callType: PrithviApiCallType;
@@ -86,6 +130,35 @@ export class PrithviForexApiService {
 
   get isActive(): boolean {
     return this.prithvi.isActive;
+  }
+
+  /**
+   * Agent fee schedule for the selected order/product context.
+   * Proxies Prithvi GET /agents/charges and maps *Min > 0 → stripped keys.
+   */
+  async getAgentCharges(
+    params: GetAgentChargesParams,
+  ): Promise<PrithviAgentChargesResult> {
+    if (!this.isActive) {
+      return this.dryRunAgentCharges(params);
+    }
+
+    const raw = await this.requestJson<PrithviAgentChargesRaw>({
+      method: 'GET',
+      callType: PrithviApiCallType.AGENT_CHARGES,
+      path: PRITHVI_API_PATHS.AGENT_CHARGES,
+      body: null,
+      params: {
+        orderType: toPrithviApiOrderType(params.orderType),
+        productType: toPrithviChargesProductType(params.productType),
+      },
+      clientErrorMessage:
+        'Unable to load agent charges. Please check order type and product and try again.',
+      serverErrorMessage:
+        'Unable to load agent charges right now. Please try again later.',
+    });
+
+    return this.normalizeAgentCharges(raw);
   }
 
   /**
@@ -397,6 +470,52 @@ export class PrithviForexApiService {
     }
 
     return payload;
+  }
+
+  private normalizeAgentCharges(
+    raw: PrithviAgentChargesRaw,
+  ): PrithviAgentChargesResult {
+    const gstRate = Number(raw?.gstRate);
+    const mappedMins = mapChargeMinsFromRaw(raw);
+
+    return {
+      id: raw.id,
+      agentId: raw.agentId,
+      orderType: raw.orderType,
+      productType: raw.productType,
+      gstRate: Number.isFinite(gstRate) ? gstRate : 0,
+      isActive: raw.isActive !== false,
+      ...mappedMins,
+      createdAt: raw.created_at,
+      updatedAt: raw.updated_at,
+    };
+  }
+
+  private dryRunAgentCharges(
+    params: GetAgentChargesParams,
+  ): PrithviAgentChargesResult {
+    this.logger.warn(
+      `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run agent charges. orderType=${params.orderType} productType=${params.productType}`,
+    );
+
+    const raw: PrithviAgentChargesRaw = {
+      id: randomUUID(),
+      agentId: this.prithvi.getConfiguredAgentId() ?? randomUUID(),
+      orderType: toPrithviApiOrderType(params.orderType),
+      productType: String(params.productType).toUpperCase(),
+      serviceChargeMin: '175.00',
+      serviceChargeMax: '1000.00',
+      deliveryChargeMin: '0.00',
+      deliveryChargeMax: '300.00',
+      nostroChargeMin: '0.00',
+      nostroChargeMax: '0.00',
+      gstRate: '0.001800',
+      isActive: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    return this.normalizeAgentCharges(raw);
   }
 
   private parseUploadDocumentResponse(

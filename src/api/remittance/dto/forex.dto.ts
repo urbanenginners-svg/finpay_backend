@@ -76,6 +76,28 @@ export class ForexOrderDetailDto {
   @Min(0)
   @Type(() => Number)
   serviceCharge: number;
+
+  @ApiPropertyOptional({
+    example: 50,
+    description:
+      'Delivery charge from agent charges (deliveryChargeMin when > 0). Omit when zero.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  deliveryCharge?: number;
+
+  @ApiPropertyOptional({
+    example: 25,
+    description:
+      'Nostro charge from agent charges (nostroChargeMin when > 0). Omit when zero.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  nostroCharge?: number;
 }
 
 export class InitiateForexRequestDto {
@@ -112,6 +134,14 @@ export class CompleteForexOrderDto {
   @ApiProperty({ example: 'jane.doe@example.com' })
   @IsEmail()
   email: string;
+
+  @ApiProperty({
+    enum: PrithviProductType,
+    example: PrithviProductType.CASH,
+    description: 'Product modality locked at booking: CASH, CARD, or TT',
+  })
+  @IsEnum(PrithviProductType)
+  productType: PrithviProductType;
 
   @ApiPropertyOptional({
     example: 'ABCDE1234Z',
@@ -206,6 +236,28 @@ export class CompleteForexOrderDto {
   @Min(0)
   @Type(() => Number)
   gst: number;
+
+  @ApiPropertyOptional({
+    example: 50,
+    description:
+      'Delivery charge from agent charges (deliveryChargeMin when > 0). Omit when zero.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  deliveryCharge?: number;
+
+  @ApiPropertyOptional({
+    example: 25,
+    description:
+      'Nostro charge from agent charges (nostroChargeMin when > 0). Omit when zero.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  nostroCharge?: number;
 
   @ApiPropertyOptional({
     example: '2026-08-01',
