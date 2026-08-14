@@ -66,15 +66,19 @@ export function GetAgentChargesSwagger() {
   return applyDecorators(
     ApiBearerAuth(),
     ApiOperation({
-      summary: 'Get agent charges for order/product',
+      summary: 'Get charges for order/product/amount',
       description:
-        'Proxies Prithvi GET /agents/charges. Returns mapped charge fields: each *Min value greater than zero is exposed without the Min suffix (serviceCharge, deliveryCharge, nostroCharge), plus gstRate for GST calculation.',
+        'Proxies Prithvi GET /charges. Returns charge line items (FIXED or PERCENTAGE) with calculated totals. Use `items[].chargeType` as the UI label. Also returns mapped absolute amounts (gst, serviceCharge, deliveryCharge, nostroCharge) for initiate/complete.',
     }),
     ApiQuery({ name: 'orderType', enum: PrithviOrderType, required: true }),
     ApiQuery({ name: 'productType', enum: PrithviProductType, required: true }),
+    ApiQuery({ name: 'currencyCode', required: true, example: 'USD' }),
+    ApiQuery({ name: 'currencyAmount', required: true, example: 10000 }),
+    ApiQuery({ name: 'inrAmount', required: true, example: 952500 }),
+    ApiQuery({ name: 'scope', required: false, example: 'global' }),
     ApiResponse({
       status: 200,
-      description: 'Agent charges retrieved successfully',
+      description: 'Charges retrieved successfully',
     }),
     ApiResponse({ status: 400, description: 'Validation failure' }),
     ApiResponse({ status: 401, description: 'Unauthorized' }),

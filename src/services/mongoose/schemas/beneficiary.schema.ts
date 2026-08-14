@@ -72,6 +72,13 @@ export class Beneficiary {
   @Prop({ required: true, type: Boolean, default: false })
   isInterimBankSelected: boolean;
 
+  @ApiPropertyOptional({
+    description: 'Prithvi beneficiary UUID returned by POST /beneficiaries.',
+    example: 'a297ded2-9df0-4a48-a774-d9149a2bd954',
+  })
+  @Prop({ required: false, type: String, default: null, trim: true, index: true })
+  prithviBeneficiaryId?: string | null;
+
   createdAt?: Date;
   updatedAt?: Date;
 }

@@ -284,7 +284,10 @@ export class CompleteForexOrderDto {
   endDate?: string;
 
   // TT beneficiary fields (flattened onto the order)
-  @ApiPropertyOptional({ example: '680f1a2b3c4d5e6f7a8b9c0d' })
+  @ApiPropertyOptional({
+    example: 'a297ded2-9df0-4a48-a774-d9149a2bd954',
+    description: 'Prithvi beneficiary id from POST /beneficiaries (not the local Mongo _id).',
+  })
   @IsOptional()
   @IsString()
   beneficiaryId?: string;

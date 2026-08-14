@@ -121,45 +121,85 @@ export type GetAgentRatesParams = {
 export type GetAgentChargesParams = {
   orderType: PrithviOrderType;
   productType: PrithviProductType;
+  currencyCode: string;
+  currencyAmount: number;
+  inrAmount: number;
+  /** Defaults to `global` when omitted. */
+  scope?: string;
 };
 
-/** Raw Prithvi GET /agents/charges `data` payload. */
-export type PrithviAgentChargesRaw = {
-  id: string;
-  agentId: string;
-  orderType: string;
-  productType: string;
-  serviceChargeMin: string;
-  serviceChargeMax: string;
-  deliveryChargeMin: string;
-  deliveryChargeMax: string;
-  nostroChargeMin: string;
-  nostroChargeMax: string;
-  gstRate: string;
-  isActive: boolean;
-  created_at?: string;
-  updated_at?: string;
+export type PrithviChargeCalculationType = 'FIXED' | 'PERCENTAGE';
+
+/** Raw line item from Prithvi GET /charges `data[]`. */
+export type PrithviChargeLineRaw = {
+  component?: string;
+  source_scope?: string;
+  charge_type: string;
+  charge_code: string;
+  order_type?: string;
+  product_type?: string;
+  min_amount?: string | null;
+  max_amount?: string | null;
+  calculation_type: PrithviChargeCalculationType | string;
+  calculation_value: string | number;
+  additional_charge?: string | number | null;
+  max_cap?: string | number | null;
+  partner_calculation_type?: string | null;
+  partner_calculation_value?: string | number | null;
+  partner_additional_charge?: string | number | null;
+  bank_id?: string | null;
+  purpose_id?: string | null;
+  bank_code?: string | null;
+  purpose_code?: string | null;
+  currency_code?: string | null;
+  payer_type?: string | null;
+  remittance_type?: string | null;
+  delivery_mode?: string | null;
+  distance_from?: number | null;
+  distance_to?: number | null;
+  charge_name?: string | null;
+  prithiviCharge?: number;
+  partnerCharge?: number;
+  totalCharge?: number;
+};
+
+/** Normalized charge line for UI (`chargeType` is the display label). */
+export type PrithviChargeLine = {
+  component?: string;
+  sourceScope?: string;
+  /** Display label for UI (from `charge_type`). */
+  chargeType: string;
+  chargeCode: string;
+  orderType?: string;
+  productType?: string;
+  calculationType: PrithviChargeCalculationType | string;
+  calculationValue: number;
+  additionalCharge: number | null;
+  maxCap: number | null;
+  currencyCode?: string | null;
+  chargeName?: string | null;
+  prithiviCharge: number;
+  partnerCharge: number;
+  totalCharge: number;
 };
 
 /**
- * Mapped agent charges for booking.
- * `*Min` fields with value > 0 become stripped keys (serviceCharge, deliveryCharge, nostroCharge).
+ * Mapped charges for booking.
+ * `items` drive the UI via `chargeType`; absolute totals feed initiate/complete.
  */
 export type PrithviAgentChargesResult = {
-  id: string;
-  agentId: string;
   orderType: string;
   productType: string;
-  gstRate: number;
-  isActive: boolean;
-  /** Present only when serviceChargeMin > 0. */
-  serviceCharge?: number;
-  /** Present only when deliveryChargeMin > 0. */
+  currencyCode: string;
+  currencyAmount: number;
+  inrAmount: number;
+  scope: string;
+  items: PrithviChargeLine[];
+  /** Absolute GST (INR) from the GST line item. */
+  gst: number;
+  serviceCharge: number;
   deliveryCharge?: number;
-  /** Present only when nostroChargeMin > 0. */
   nostroCharge?: number;
-  createdAt?: string;
-  updatedAt?: string;
 };
 
 export type VerifyPassportParams = {
@@ -267,7 +307,7 @@ export type CompleteForexOrderPayload = {
   startDate?: string;
   /** Travelling end date from the booking form (optional). */
   endDate?: string;
-  /** Local Finpay beneficiary id (TT). */
+  /** Prithvi beneficiary id (TT). */
   beneficiaryId?: string;
   institutionName?: string;
   institutionAddress?: string;

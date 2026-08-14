@@ -27,10 +27,11 @@ import {
   GetPurposesParams,
   InitiateForexRequestParams,
   InitiateForexRequestResult,
-  PrithviAgentChargesRaw,
   PrithviAgentChargesResult,
   PrithviApiCallType,
   PrithviApiResponse,
+  PrithviChargeLine,
+  PrithviChargeLineRaw,
   PrithviForexOrdersDashboardResult,
   PrithviForexRequestStatus,
   PrithviOrderType,
@@ -65,45 +66,68 @@ function toPrithviApiOrderType(orderType: PrithviOrderType | string): 'Buy' | 'S
   return String(orderType).toUpperCase() === 'SELL' ? 'Sell' : 'Buy';
 }
 
-/** Prithvi charges query expects lowercase product type (`cash` / `card` / `tt`). */
-function toPrithviChargesProductType(
-  productType: PrithviProductType | string,
-): string {
-  return String(productType).toLowerCase();
+function toFiniteNumber(value: unknown, fallback = 0): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function toOptionalNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 /**
- * Map `*Min` charge fields: keep only values > 0 and strip the `Min` suffix
- * (e.g. serviceChargeMin → serviceCharge).
+ * Resolve booking field from charge_type (UI label) first, then charge_code.
+ * Prefer charge_type so e.g. SERVICE_CHARGE + "Nostro Charge" → nostroCharge.
  */
-function mapChargeMinsFromRaw(
-  raw: PrithviAgentChargesRaw,
-): Pick<
-  PrithviAgentChargesResult,
-  'serviceCharge' | 'deliveryCharge' | 'nostroCharge'
-> {
-  const mapped: Pick<
-    PrithviAgentChargesResult,
-    'serviceCharge' | 'deliveryCharge' | 'nostroCharge'
-  > = {};
+function resolveChargeFieldKey(
+  item: Pick<PrithviChargeLineRaw, 'charge_type' | 'charge_code' | 'charge_name'>,
+): 'gst' | 'serviceCharge' | 'deliveryCharge' | 'nostroCharge' | null {
+  const label = [
+    item.charge_type,
+    item.charge_name,
+    item.charge_code,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
 
-  const pairs: Array<{
-    minKey: keyof PrithviAgentChargesRaw;
-    outKey: 'serviceCharge' | 'deliveryCharge' | 'nostroCharge';
-  }> = [
-    { minKey: 'serviceChargeMin', outKey: 'serviceCharge' },
-    { minKey: 'deliveryChargeMin', outKey: 'deliveryCharge' },
-    { minKey: 'nostroChargeMin', outKey: 'nostroCharge' },
-  ];
+  if (label.includes('gst')) return 'gst';
+  if (label.includes('nostro')) return 'nostroCharge';
+  if (label.includes('delivery')) return 'deliveryCharge';
+  if (label.includes('service')) return 'serviceCharge';
 
-  for (const { minKey, outKey } of pairs) {
-    const value = Number(raw[minKey]);
-    if (Number.isFinite(value) && value > 0) {
-      mapped[outKey] = value;
-    }
-  }
+  const code = String(item.charge_code ?? '').toUpperCase();
+  if (code === 'GST') return 'gst';
+  if (code.includes('NOSTRO')) return 'nostroCharge';
+  if (code.includes('DELIVERY')) return 'deliveryCharge';
+  if (code.includes('SERVICE')) return 'serviceCharge';
+  return null;
+}
 
-  return mapped;
+function normalizeChargeLine(raw: PrithviChargeLineRaw): PrithviChargeLine {
+  const totalCharge = toFiniteNumber(
+    raw.totalCharge ?? raw.prithiviCharge,
+    0,
+  );
+  return {
+    component: raw.component,
+    sourceScope: raw.source_scope,
+    chargeType: String(raw.charge_type ?? raw.charge_name ?? raw.charge_code ?? ''),
+    chargeCode: String(raw.charge_code ?? ''),
+    orderType: raw.order_type,
+    productType: raw.product_type,
+    calculationType: String(raw.calculation_type ?? ''),
+    calculationValue: toFiniteNumber(raw.calculation_value, 0),
+    additionalCharge: toOptionalNumber(raw.additional_charge),
+    maxCap: toOptionalNumber(raw.max_cap),
+    currencyCode: raw.currency_code,
+    chargeName: raw.charge_name ?? null,
+    prithiviCharge: toFiniteNumber(raw.prithiviCharge, totalCharge),
+    partnerCharge: toFiniteNumber(raw.partnerCharge, 0),
+    totalCharge,
+  };
 }
 
 type JsonRequestOptions = {
@@ -133,8 +157,8 @@ export class PrithviForexApiService {
   }
 
   /**
-   * Agent fee schedule for the selected order/product context.
-   * Proxies Prithvi GET /agents/charges and maps *Min > 0 → stripped keys.
+   * Charge schedule for the selected order/product/amount context.
+   * Proxies Prithvi GET /charges (FIXED / PERCENTAGE line items with totals).
    */
   async getAgentCharges(
     params: GetAgentChargesParams,
@@ -143,22 +167,27 @@ export class PrithviForexApiService {
       return this.dryRunAgentCharges(params);
     }
 
-    const raw = await this.requestJson<PrithviAgentChargesRaw>({
+    const scope = (params.scope ?? 'global').trim() || 'global';
+    const raw = await this.requestJson<PrithviChargeLineRaw[]>({
       method: 'GET',
       callType: PrithviApiCallType.AGENT_CHARGES,
       path: PRITHVI_API_PATHS.AGENT_CHARGES,
       body: null,
       params: {
-        orderType: toPrithviApiOrderType(params.orderType),
-        productType: toPrithviChargesProductType(params.productType),
+        order_type: String(params.orderType).toUpperCase(),
+        product_type: String(params.productType).toUpperCase(),
+        currency_code: String(params.currencyCode).toUpperCase(),
+        currency_amount: params.currencyAmount,
+        inr_amount: params.inrAmount,
+        scope,
       },
       clientErrorMessage:
-        'Unable to load agent charges. Please check order type and product and try again.',
+        'Unable to load charges. Please check order, product, currency, and amount and try again.',
       serverErrorMessage:
-        'Unable to load agent charges right now. Please try again later.',
+        'Unable to load charges right now. Please try again later.',
     });
 
-    return this.normalizeAgentCharges(raw);
+    return this.normalizeAgentCharges(raw, params, scope);
   }
 
   /**
@@ -473,49 +502,95 @@ export class PrithviForexApiService {
   }
 
   private normalizeAgentCharges(
-    raw: PrithviAgentChargesRaw,
+    raw: PrithviChargeLineRaw[] | null | undefined,
+    params: GetAgentChargesParams,
+    scope: string,
   ): PrithviAgentChargesResult {
-    const gstRate = Number(raw?.gstRate);
-    const mappedMins = mapChargeMinsFromRaw(raw);
+    const lines = Array.isArray(raw) ? raw : [];
+    const items = lines.map(normalizeChargeLine);
 
-    return {
-      id: raw.id,
-      agentId: raw.agentId,
-      orderType: raw.orderType,
-      productType: raw.productType,
-      gstRate: Number.isFinite(gstRate) ? gstRate : 0,
-      isActive: raw.isActive !== false,
-      ...mappedMins,
-      createdAt: raw.created_at,
-      updatedAt: raw.updated_at,
+    let gst = 0;
+    let serviceCharge = 0;
+    let deliveryCharge = 0;
+    let nostroCharge = 0;
+
+    for (let i = 0; i < lines.length; i += 1) {
+      const key = resolveChargeFieldKey(lines[i]);
+      const amount = items[i]?.totalCharge ?? 0;
+      if (!key || !(amount > 0)) continue;
+      if (key === 'gst') gst += amount;
+      else if (key === 'serviceCharge') serviceCharge += amount;
+      else if (key === 'deliveryCharge') deliveryCharge += amount;
+      else if (key === 'nostroCharge') nostroCharge += amount;
+    }
+
+    const result: PrithviAgentChargesResult = {
+      orderType: String(params.orderType).toUpperCase(),
+      productType: String(params.productType).toUpperCase(),
+      currencyCode: String(params.currencyCode).toUpperCase(),
+      currencyAmount: params.currencyAmount,
+      inrAmount: params.inrAmount,
+      scope,
+      items,
+      gst,
+      serviceCharge,
     };
+
+    if (deliveryCharge > 0) result.deliveryCharge = deliveryCharge;
+    if (nostroCharge > 0) result.nostroCharge = nostroCharge;
+
+    return result;
   }
 
   private dryRunAgentCharges(
     params: GetAgentChargesParams,
   ): PrithviAgentChargesResult {
+    const scope = (params.scope ?? 'global').trim() || 'global';
     this.logger.warn(
-      `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run agent charges. orderType=${params.orderType} productType=${params.productType}`,
+      `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run charges. orderType=${params.orderType} productType=${params.productType} currency=${params.currencyCode} amount=${params.currencyAmount}`,
     );
 
-    const raw: PrithviAgentChargesRaw = {
-      id: randomUUID(),
-      agentId: this.prithvi.getConfiguredAgentId() ?? randomUUID(),
-      orderType: toPrithviApiOrderType(params.orderType),
-      productType: String(params.productType).toUpperCase(),
-      serviceChargeMin: '175.00',
-      serviceChargeMax: '1000.00',
-      deliveryChargeMin: '0.00',
-      deliveryChargeMax: '300.00',
-      nostroChargeMin: '0.00',
-      nostroChargeMax: '0.00',
-      gstRate: '0.001800',
-      isActive: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    const currencyCode = String(params.currencyCode).toUpperCase();
+    const orderType = String(params.orderType).toUpperCase();
+    const productType = String(params.productType).toUpperCase();
+    const gstBase = Math.round(params.inrAmount * 0.0018 * 100) / 100;
 
-    return this.normalizeAgentCharges(raw);
+    const raw: PrithviChargeLineRaw[] = [
+      {
+        component: 'BASE',
+        source_scope: scope,
+        charge_type: 'Service Charge',
+        charge_code: 'SERVICE_CHARGE',
+        order_type: orderType,
+        product_type: productType,
+        calculation_type: 'FIXED',
+        calculation_value: '175.000000',
+        currency_code: currencyCode,
+        charge_name: 'Service Charge',
+        prithiviCharge: 175,
+        partnerCharge: 0,
+        totalCharge: 175,
+      },
+      {
+        component: 'BASE',
+        source_scope: scope,
+        charge_type: 'GST',
+        charge_code: 'GST',
+        order_type: orderType,
+        product_type: productType,
+        calculation_type: 'PERCENTAGE',
+        calculation_value: '0.180000',
+        additional_charge: null,
+        max_cap: null,
+        currency_code: currencyCode,
+        charge_name: 'GST',
+        prithiviCharge: gstBase,
+        partnerCharge: 0,
+        totalCharge: gstBase,
+      },
+    ];
+
+    return this.normalizeAgentCharges(raw, params, scope);
   }
 
   private parseUploadDocumentResponse(

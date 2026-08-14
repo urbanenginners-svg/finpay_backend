@@ -4,7 +4,8 @@ export const PRITHVI_API_PATHS = {
   OAUTH_INTROSPECT: '/auth/oauth/introspect',
   OAUTH_REVOKE: '/auth/oauth/revoke',
   AGENT_RATES: '/rates/agents',
-  AGENT_CHARGES: '/agents/charges',
+  /** Global charge schedule (FIXED / PERCENTAGE line items). */
+  AGENT_CHARGES: '/charges',
   PASSPORT_VERIFY: '/verification/passport',
   PAN_VERIFY: '/verification/pan-number',
   FOREX_INITIATE: '/forex/initiate',

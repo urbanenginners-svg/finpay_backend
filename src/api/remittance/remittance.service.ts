@@ -88,6 +88,10 @@ export class RemittanceService {
     return this.prithviForex.getAgentCharges({
       orderType: query.orderType,
       productType: query.productType,
+      currencyCode: query.currencyCode,
+      currencyAmount: query.currencyAmount,
+      inrAmount: query.inrAmount,
+      scope: query.scope,
     });
   }
 

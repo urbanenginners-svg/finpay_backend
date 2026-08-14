@@ -81,7 +81,7 @@ export class RemittanceController {
   @GetAgentChargesSwagger()
   async getCharges(@Query() query: GetAgentChargesQueryDto) {
     const charges = await this.remittanceService.getCharges(query);
-    return new DataResponse(charges, 'Agent charges retrieved successfully');
+    return new DataResponse(charges, 'Charges fetched successfully');
   }
 
   @ApiBearerAuth()

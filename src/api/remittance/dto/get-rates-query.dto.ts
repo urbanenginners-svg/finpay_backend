@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
 
 import {
   PrithviOrderType,
@@ -44,11 +52,44 @@ export class GetAgentChargesQueryDto {
 
   @ApiProperty({
     enum: PrithviProductType,
-    example: PrithviProductType.CASH,
+    example: PrithviProductType.TT,
     description: 'Product modality: CASH, CARD, or TT',
   })
   @IsEnum(PrithviProductType)
   productType: PrithviProductType;
+
+  @ApiProperty({
+    example: 'USD',
+    description: 'ISO currency code for the FX amount',
+  })
+  @IsString()
+  currencyCode: string;
+
+  @ApiProperty({
+    example: 10000,
+    description: 'Foreign currency amount',
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  currencyAmount: number;
+
+  @ApiProperty({
+    example: 952500,
+    description: 'INR equivalent of currencyAmount × rate',
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  inrAmount: number;
+
+  @ApiPropertyOptional({
+    example: 'global',
+    description: 'Charge scope. Defaults to global.',
+  })
+  @IsOptional()
+  @IsString()
+  scope?: string;
 }
 
 export class RemittanceRateResponseDto {
