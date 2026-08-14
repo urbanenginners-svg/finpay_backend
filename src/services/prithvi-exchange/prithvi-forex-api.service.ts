@@ -11,6 +11,7 @@ import { randomUUID } from 'crypto';
 import { AppConfigService } from 'src/services/env/env.service';
 import {
   PRITHVI_API_PATHS,
+  PRITHVI_DEFAULT_PAYMENT_REDIRECT_URL,
   PRITHVI_FOREX_DRAFT_TTL_MS,
 } from './prithvi-exchange.constants';
 import { PrithviApiLogService } from './prithvi-api-log.service';
@@ -251,7 +252,7 @@ export class PrithviForexApiService {
 
   /**
    * Generate a payment link for a completed forex order.
-   * Proxies to Prithvi POST /orders/:orderId/payment-link.
+   * Proxies to Prithvi POST /orders/:orderId/payment-link with redirectUrl.
    */
   async createPaymentLink(
     params: CreatePaymentLinkParams,
@@ -265,16 +266,19 @@ export class PrithviForexApiService {
       ':orderId',
       encodeURIComponent(orderId),
     );
+    const requestBody = {
+      redirectUrl: this.resolvePaymentRedirectUrl(params.redirectUrl),
+    };
 
     if (!this.isActive) {
-      return this.dryRunCreatePaymentLink(orderId);
+      return this.dryRunCreatePaymentLink(orderId, requestBody);
     }
 
     const data = await this.requestJson<CreatePaymentLinkResult>({
       method: 'POST',
       callType: PrithviApiCallType.ORDER_PAYMENT_LINK,
       path,
-      body: null,
+      body: requestBody,
       params: null,
       clientErrorMessage:
         'Unable to generate payment link for this order. Please verify the order and try again.',
@@ -1046,7 +1050,17 @@ export class PrithviForexApiService {
     return result;
   }
 
-  private dryRunCreatePaymentLink(orderId: string): CreatePaymentLinkResult {
+  private resolvePaymentRedirectUrl(override?: string): string {
+    const configured =
+      override?.trim() ||
+      this.config.get('PRITHVI_PAYMENT_REDIRECT_URL')?.trim();
+    return configured || PRITHVI_DEFAULT_PAYMENT_REDIRECT_URL;
+  }
+
+  private dryRunCreatePaymentLink(
+    orderId: string,
+    requestBody: { redirectUrl: string },
+  ): CreatePaymentLinkResult {
     this.logger.warn(
       `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run payment link. orderId=${orderId}`,
     );
@@ -1068,7 +1082,7 @@ export class PrithviForexApiService {
             encodeURIComponent(orderId),
           ),
         ),
-        requestBody: null,
+        requestBody,
         requestParams: null,
         requestHeaders: this.sanitizeHeaders({
           Authorization: 'Bearer [REDACTED]',

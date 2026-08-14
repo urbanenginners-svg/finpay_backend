@@ -133,7 +133,7 @@ export class RemittanceService {
 
   /**
    * Generate a payment link for a forex order the user owns.
-   * Proxies to Prithvi POST /orders/:orderId/payment-link.
+   * Proxies to Prithvi POST /orders/:orderId/payment-link with redirectUrl.
    */
   async createPaymentLink(orderId: string, userId: string) {
     const trimmedOrderId = orderId?.trim();

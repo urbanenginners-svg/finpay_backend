@@ -127,7 +127,7 @@ export function CreatePaymentLinkSwagger() {
     ApiOperation({
       summary: 'Generate payment link for a forex order',
       description:
-        'Creates a payment link for an owned forex order. Proxies to Prithvi POST /orders/:orderId/payment-link.',
+        'Creates a payment link for an owned forex order. Proxies to Prithvi POST /orders/:orderId/payment-link with redirectUrl (orders dashboard).',
     }),
     ApiParam({
       name: 'orderId',

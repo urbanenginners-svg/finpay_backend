@@ -354,6 +354,7 @@ export type UploadForexOrderDocumentResult = {
 
 export type CreatePaymentLinkParams = {
   orderId: string;
+  redirectUrl?: string;
 };
 
 export type CreatePaymentLinkResult = {

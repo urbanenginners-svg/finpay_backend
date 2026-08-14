@@ -225,6 +225,11 @@ export class EnvironmentVariables {
   @IsString()
   PRITHVI_ACTIVE_MODE: string;
 
+  /** Post-payment return URL for Prithvi payment links. Defaults to finpayremit.com orders page. */
+  @IsOptional()
+  @IsString()
+  PRITHVI_PAYMENT_REDIRECT_URL: string;
+
   /** Prithvi Lead System API base URL for PAN / passport verification. */
   @IsOptional()
   @IsString()

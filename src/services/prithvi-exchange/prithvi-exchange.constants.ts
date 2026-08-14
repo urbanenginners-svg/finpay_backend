@@ -17,6 +17,10 @@ export const PRITHVI_API_PATHS = {
   PURPOSE_CONFIG: '/purpose/:code/config',
 } as const;
 
+/** Post-payment return URL sent to Prithvi POST /orders/:orderId/payment-link. */
+export const PRITHVI_DEFAULT_PAYMENT_REDIRECT_URL =
+  'https://finpayremit.com/dashboard/forex/orders';
+
 /** Draft forex rate lock window from Prithvi (Step 1 → Step 2). */
 export const PRITHVI_FOREX_DRAFT_TTL_MS = 20 * 60 * 1000;
 
