@@ -7,6 +7,28 @@ import {
 } from 'src/services/prithvi-exchange';
 import { RemittanceRateResponseDto } from '../remittance/dto';
 
+export function SyncAdminRatesSwagger() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Manually sync agent FX rates from Prithvi (admin)',
+      description:
+        'Fetches live agent FX rates from Prithvi, persists them to MongoDB, and returns sync metadata.',
+    }),
+    ApiQuery({
+      name: 'agentId',
+      required: false,
+      description: 'Agent UUID. Defaults to PRITHVI_AGENT_ID from server config.',
+    }),
+    ApiResponse({
+      status: 200,
+      description: 'Rates synced successfully',
+    }),
+    ApiResponse({ status: 400, description: 'Validation failure' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+    ApiResponse({ status: 403, description: 'Forbidden' }),
+  );
+}
+
 export function GetAdminRatesSwagger() {
   return applyDecorators(
     ApiOperation({

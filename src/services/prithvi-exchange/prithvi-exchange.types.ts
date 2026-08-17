@@ -200,6 +200,8 @@ export type PrithviAgentChargesResult = {
   /** Absolute GST (INR) from the GST line item. */
   gst: number;
   serviceCharge: number;
+  /** Sum of `prithiviCharge` on PERCENTAGE lines (passed through to initiate). */
+  prithiviCharge?: number;
   deliveryCharge?: number;
   nostroCharge?: number;
 };
@@ -241,6 +243,8 @@ export type PrithviForexOrderDetail = {
   deliveryCharge?: number;
   /** From agent charges nostroChargeMin when > 0. */
   nostroCharge?: number;
+  /** PERCENTAGE charge `prithiviCharge` from GET /charges. */
+  prithiviCharge?: number;
 };
 
 export type InitiateForexRequestParams = {
@@ -299,6 +303,8 @@ export type CompleteForexOrderPayload = {
   deliveryCharge?: number;
   /** From agent charges nostroChargeMin when > 0. */
   nostroCharge?: number;
+  /** PERCENTAGE charge `prithiviCharge` from GET /charges. */
+  prithiviCharge?: number;
   panNumber?: string;
   deliveryAddress?: string;
   pincode?: string;

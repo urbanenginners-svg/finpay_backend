@@ -112,22 +112,29 @@ function resolveLineTotalCharge(
   inrAmount: number,
 ): number {
   const record = raw as PrithviChargeLineRaw & Record<string, unknown>;
-  const provided = toFiniteNumber(
-    firstDefined(
-      raw.totalCharge,
-      record.total_charge,
-      raw.prithiviCharge,
-      record.prithivi_charge,
-    ),
-    NaN,
-  );
-  if (Number.isFinite(provided) && provided > 0) {
-    return Math.round(provided * 100) / 100;
-  }
-
   const calcType = String(
     raw.calculation_type ?? record.calculationType ?? '',
   ).toUpperCase();
+  const prithiviCharge = toFiniteNumber(
+    firstDefined(raw.prithiviCharge, record.prithivi_charge),
+    NaN,
+  );
+  const totalCharge = toFiniteNumber(
+    firstDefined(raw.totalCharge, record.total_charge),
+    NaN,
+  );
+
+  // PERCENTAGE lines (e.g. GST): Prithvi initiate validates `prithiviCharge`.
+  if (calcType === 'PERCENTAGE' && Number.isFinite(prithiviCharge) && prithiviCharge > 0) {
+    return Math.round(prithiviCharge * 100) / 100;
+  }
+  if (Number.isFinite(totalCharge) && totalCharge > 0) {
+    return Math.round(totalCharge * 100) / 100;
+  }
+  if (Number.isFinite(prithiviCharge) && prithiviCharge > 0) {
+    return Math.round(prithiviCharge * 100) / 100;
+  }
+
   const value = toFiniteNumber(
     firstDefined(raw.calculation_value, record.calculationValue),
     0,
@@ -183,12 +190,14 @@ function bookingChargeFieldsFromResult(charges: PrithviAgentChargesResult): {
   serviceCharge: number;
   deliveryCharge?: number;
   nostroCharge?: number;
+  prithiviCharge?: number;
 } {
   const fields: {
     gst: number;
     serviceCharge: number;
     deliveryCharge?: number;
     nostroCharge?: number;
+    prithiviCharge?: number;
   } = {
     gst: charges.gst,
     serviceCharge: charges.serviceCharge,
@@ -198,6 +207,9 @@ function bookingChargeFieldsFromResult(charges: PrithviAgentChargesResult): {
   }
   if ((charges.nostroCharge ?? 0) > 0) {
     fields.nostroCharge = charges.nostroCharge;
+  }
+  if ((charges.prithiviCharge ?? 0) > 0) {
+    fields.prithiviCharge = charges.prithiviCharge;
   }
   return fields;
 }
@@ -305,6 +317,7 @@ export class PrithviForexApiService {
       serviceCharge: number;
       deliveryCharge?: number;
       nostroCharge?: number;
+      prithiviCharge?: number;
     },
   >(params: GetAgentChargesParams, order: T): Promise<T> {
     const charges = await this.getAgentCharges(params);
@@ -314,13 +327,15 @@ export class PrithviForexApiService {
         charges.items.map((item) => ({
           type: item.chargeType,
           code: item.chargeCode,
+          calc: item.calculationType,
+          prithiviCharge: item.prithiviCharge,
           total: item.totalCharge,
           min: item.minAmount,
           max: item.maxAmount,
         })),
       )}`,
     );
-    const { deliveryCharge: _delivery, nostroCharge: _nostro, ...rest } =
+    const { deliveryCharge: _delivery, nostroCharge: _nostro, prithiviCharge: _prithivi, ...rest } =
       order;
     return {
       ...rest,
@@ -665,10 +680,19 @@ export class PrithviForexApiService {
     let serviceCharge = 0;
     let deliveryCharge = 0;
     let nostroCharge = 0;
+    let prithiviCharge = 0;
 
     for (let i = 0; i < items.length; i += 1) {
       const key = resolveChargeFieldKey(lines[i]);
-      const amount = items[i]?.totalCharge ?? 0;
+      const item = items[i];
+      const isPercentage = String(item?.calculationType ?? '').toUpperCase() === 'PERCENTAGE';
+      const amount =
+        isPercentage && (item?.prithiviCharge ?? 0) > 0
+          ? item.prithiviCharge
+          : (item?.totalCharge ?? 0);
+      if (isPercentage && (item?.prithiviCharge ?? 0) > 0) {
+        prithiviCharge += item.prithiviCharge;
+      }
       if (!key || !(amount > 0)) continue;
       if (key === 'gst') gst += amount;
       else if (key === 'serviceCharge') serviceCharge += amount;
@@ -690,6 +714,7 @@ export class PrithviForexApiService {
 
     if (deliveryCharge > 0) result.deliveryCharge = deliveryCharge;
     if (nostroCharge > 0) result.nostroCharge = nostroCharge;
+    if (prithiviCharge > 0) result.prithiviCharge = prithiviCharge;
 
     return result;
   }

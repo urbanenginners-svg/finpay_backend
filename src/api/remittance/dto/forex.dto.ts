@@ -78,6 +78,17 @@ export class ForexOrderDetailDto {
   serviceCharge: number;
 
   @ApiPropertyOptional({
+    example: 274.35,
+    description:
+      'Prithvi percentage charge (prithiviCharge) from GET /charges. Sent for PERCENTAGE lines such as GST.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  prithiviCharge?: number;
+
+  @ApiPropertyOptional({
     example: 50,
     description:
       'Delivery charge from agent charges (deliveryChargeMin when > 0). Omit when zero.',
@@ -236,6 +247,17 @@ export class CompleteForexOrderDto {
   @Min(0)
   @Type(() => Number)
   gst: number;
+
+  @ApiPropertyOptional({
+    example: 274.35,
+    description:
+      'Prithvi percentage charge (prithiviCharge) from GET /charges. Sent for PERCENTAGE lines such as GST.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  prithiviCharge?: number;
 
   @ApiPropertyOptional({
     example: 50,

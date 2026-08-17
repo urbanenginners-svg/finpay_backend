@@ -12,7 +12,6 @@ import {
   PrithviExchangeService,
   PrithviForexApiService,
   PrithviOrderType,
-  PrithviProductType,
   extractPrithviRate,
 } from 'src/services/prithvi-exchange';
 import { PrithviForexOrderService } from 'src/services/prithvi-exchange/prithvi-forex-order.service';
@@ -21,7 +20,6 @@ import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import { FileResourceEnum } from 'src/utils/enums/file-resource.enum';
 import { FilesService } from 'src/api/files/files.service';
 import {
-  CompleteForexOrderDto,
   CompleteForexRequestDto,
   ForexOrderDetailDto,
   GetAgentChargesQueryDto,
@@ -31,11 +29,6 @@ import {
   InitiateForexRequestDto,
   ProviderTokenStatusQueryDto,
 } from './dto';
-
-function toPositiveNumber(value: unknown): number | null {
-  const n = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
 
 export type GetAdminForexOrdersQuery = GetForexOrdersDashboardQueryDto & {
   createdByUserId?: string;
@@ -132,20 +125,15 @@ export class RemittanceService {
     }
 
     const forexRequestId = id.trim();
-    const orders = await Promise.all(
-      dto.orders.map((order) =>
-        this.overlayCompleteCharges(String(userId), order),
-      ),
-    );
     const data = await this.prithviForex.completeForexRequest({
       forexRequestId,
-      orders,
+      orders: dto.orders,
     });
 
     await this.persistCompleteOrders(
       String(userId),
       forexRequestId,
-      { ...dto, orders },
+      dto,
       data,
     );
 
@@ -329,6 +317,17 @@ export class RemittanceService {
     return this.prithviForex.syncOrdersFromProvider();
   }
 
+  /** Admin: manually fetch latest agent FX rates from Prithvi and update the cache. */
+  async syncRatesNow(agentId?: string) {
+    const rates = await this.prithviService.syncAgentRatesFromProvider(agentId);
+    return {
+      agentId: agentId ?? this.prithviService.getConfiguredAgentId(),
+      currencyCount: rates.currencies.length,
+      timestamp: rates.timestamp,
+      isDryRun: !this.prithviService.isActive,
+    };
+  }
+
   async listPurposes(query: GetPurposesQueryDto) {
     return this.prithviForex.listPurposes({
       orderType: query.orderType,
@@ -377,53 +376,6 @@ export class RemittanceService {
       },
       order,
     );
-  }
-
-  private async overlayCompleteCharges(
-    userId: string,
-    order: CompleteForexOrderDto,
-  ): Promise<CompleteForexOrderDto> {
-    const owned = await this.forexOrders.findOwnedByUser(
-      order.orderId,
-      userId,
-    );
-    const currencyAmount = toPositiveNumber(owned?.currencyAmount);
-    const inrAmount = toPositiveNumber(owned?.amountInINR);
-    const currencyCode = owned?.currency?.trim();
-    if (!owned || !currencyCode || !currencyAmount || !inrAmount) {
-      this.logger.warn(
-        `Skipping charge overlay on complete; missing persisted amounts for order ${order.orderId}`,
-      );
-      return order;
-    }
-
-    const orderType =
-      String(owned.orderType ?? '').toUpperCase() === 'SELL'
-        ? PrithviOrderType.SELL
-        : PrithviOrderType.BUY;
-    const productType = (order.productType ||
-      owned.product ||
-      PrithviProductType.TT) as PrithviProductType;
-
-    try {
-      return await this.prithviForex.withProviderCharges(
-        {
-          orderType,
-          productType,
-          currencyCode,
-          currencyAmount,
-          inrAmount,
-          scope: 'global',
-        },
-        order,
-      );
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      this.logger.warn(
-        `Could not overlay charges on complete for ${order.orderId}: ${detail}`,
-      );
-      return order;
-    }
   }
 
   private async persistInitiateOrders(
