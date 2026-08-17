@@ -176,6 +176,8 @@ export type PrithviChargeLine = {
   calculationValue: number;
   additionalCharge: number | null;
   maxCap: number | null;
+  minAmount: number | null;
+  maxAmount: number | null;
   currencyCode?: string | null;
   chargeName?: string | null;
   prithiviCharge: number;

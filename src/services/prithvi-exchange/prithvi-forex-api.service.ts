@@ -78,44 +78,142 @@ function toOptionalNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function firstDefined(...values: unknown[]): unknown {
+  return values.find((value) => value !== undefined && value !== null);
+}
+
+function unwrapChargeLines(raw: unknown): PrithviChargeLineRaw[] {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== 'object') return [];
+  const obj = raw as Record<string, unknown>;
+  for (const key of ['data', 'charges', 'items', 'result']) {
+    const nested = obj[key];
+    if (Array.isArray(nested)) return nested as PrithviChargeLineRaw[];
+    if (nested && typeof nested === 'object') {
+      const inner = unwrapChargeLines(nested);
+      if (inner.length) return inner;
+    }
+  }
+  return [];
+}
+
+function isChargeInRange(
+  minAmount: number | null,
+  maxAmount: number | null,
+  inrAmount: number,
+): boolean {
+  if (minAmount != null && inrAmount < minAmount) return false;
+  if (maxAmount != null && inrAmount > maxAmount) return false;
+  return true;
+}
+
+function resolveLineTotalCharge(
+  raw: PrithviChargeLineRaw,
+  inrAmount: number,
+): number {
+  const record = raw as PrithviChargeLineRaw & Record<string, unknown>;
+  const provided = toFiniteNumber(
+    firstDefined(
+      raw.totalCharge,
+      record.total_charge,
+      raw.prithiviCharge,
+      record.prithivi_charge,
+    ),
+    NaN,
+  );
+  if (Number.isFinite(provided) && provided > 0) {
+    return Math.round(provided * 100) / 100;
+  }
+
+  const calcType = String(
+    raw.calculation_type ?? record.calculationType ?? '',
+  ).toUpperCase();
+  const value = toFiniteNumber(
+    firstDefined(raw.calculation_value, record.calculationValue),
+    0,
+  );
+  const additional = toFiniteNumber(
+    firstDefined(raw.additional_charge, record.additionalCharge),
+    0,
+  );
+  const maxCap = toOptionalNumber(firstDefined(raw.max_cap, record.maxCap));
+  let total =
+    calcType === 'PERCENTAGE'
+      ? inrAmount * (value / 100) + additional
+      : value + additional;
+  if (maxCap != null && total > maxCap) total = maxCap;
+  return Math.round(total * 100) / 100;
+}
+
 /**
- * Resolve booking field from charge_type (UI label) first, then charge_code.
- * Prefer charge_type so e.g. SERVICE_CHARGE + "Nostro Charge" → nostroCharge.
+ * Map a charge line onto initiate/complete fields.
+ * `charge_code` SERVICE_CHARGE is the service fee Prithvi validates, even when
+ * `charge_type` is a display label like "Nostro Charge".
  */
 function resolveChargeFieldKey(
-  item: Pick<PrithviChargeLineRaw, 'charge_type' | 'charge_code' | 'charge_name'>,
+  item: Pick<PrithviChargeLineRaw, 'charge_type' | 'charge_code' | 'charge_name'> &
+    Partial<PrithviChargeLine>,
 ): 'gst' | 'serviceCharge' | 'deliveryCharge' | 'nostroCharge' | null {
+  const code = String(item.chargeCode ?? item.charge_code ?? '').toUpperCase();
   const label = [
+    item.chargeType,
     item.charge_type,
+    item.chargeName,
     item.charge_name,
-    item.charge_code,
   ]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
 
-  if (label.includes('gst')) return 'gst';
-  if (label.includes('nostro')) return 'nostroCharge';
-  if (label.includes('delivery')) return 'deliveryCharge';
-  if (label.includes('service')) return 'serviceCharge';
-
-  const code = String(item.charge_code ?? '').toUpperCase();
-  if (code === 'GST') return 'gst';
-  if (code.includes('NOSTRO')) return 'nostroCharge';
-  if (code.includes('DELIVERY')) return 'deliveryCharge';
-  if (code.includes('SERVICE')) return 'serviceCharge';
+  if (label.includes('gst') || code.includes('GST')) return 'gst';
+  if (label.includes('delivery') || code.includes('DELIVERY')) {
+    return 'deliveryCharge';
+  }
+  if (code.includes('SERVICE') || label.includes('service')) {
+    return 'serviceCharge';
+  }
+  if (label.includes('nostro') || code.includes('NOSTRO')) {
+    return 'nostroCharge';
+  }
   return null;
 }
 
-function normalizeChargeLine(raw: PrithviChargeLineRaw): PrithviChargeLine {
-  const totalCharge = toFiniteNumber(
-    raw.totalCharge ?? raw.prithiviCharge,
-    0,
-  );
+function bookingChargeFieldsFromResult(charges: PrithviAgentChargesResult): {
+  gst: number;
+  serviceCharge: number;
+  deliveryCharge?: number;
+  nostroCharge?: number;
+} {
+  const fields: {
+    gst: number;
+    serviceCharge: number;
+    deliveryCharge?: number;
+    nostroCharge?: number;
+  } = {
+    gst: charges.gst,
+    serviceCharge: charges.serviceCharge,
+  };
+  if ((charges.deliveryCharge ?? 0) > 0) {
+    fields.deliveryCharge = charges.deliveryCharge;
+  }
+  if ((charges.nostroCharge ?? 0) > 0) {
+    fields.nostroCharge = charges.nostroCharge;
+  }
+  return fields;
+}
+
+function normalizeChargeLine(
+  raw: PrithviChargeLineRaw,
+  inrAmount: number,
+): PrithviChargeLine {
+  const record = raw as PrithviChargeLineRaw & Record<string, unknown>;
+  const totalCharge = resolveLineTotalCharge(raw, inrAmount);
   return {
     component: raw.component,
     sourceScope: raw.source_scope,
-    chargeType: String(raw.charge_type ?? raw.charge_name ?? raw.charge_code ?? ''),
+    chargeType: String(
+      raw.charge_type ?? raw.charge_name ?? raw.charge_code ?? '',
+    ),
     chargeCode: String(raw.charge_code ?? ''),
     orderType: raw.order_type,
     productType: raw.product_type,
@@ -123,6 +221,12 @@ function normalizeChargeLine(raw: PrithviChargeLineRaw): PrithviChargeLine {
     calculationValue: toFiniteNumber(raw.calculation_value, 0),
     additionalCharge: toOptionalNumber(raw.additional_charge),
     maxCap: toOptionalNumber(raw.max_cap),
+    minAmount: toOptionalNumber(
+      firstDefined(raw.min_amount, record.minAmount),
+    ),
+    maxAmount: toOptionalNumber(
+      firstDefined(raw.max_amount, record.maxAmount),
+    ),
     currencyCode: raw.currency_code,
     chargeName: raw.charge_name ?? null,
     prithiviCharge: toFiniteNumber(raw.prithiviCharge, totalCharge),
@@ -169,7 +273,7 @@ export class PrithviForexApiService {
     }
 
     const scope = (params.scope ?? 'global').trim() || 'global';
-    const raw = await this.requestJson<PrithviChargeLineRaw[]>({
+    const raw = await this.requestJson<unknown>({
       method: 'GET',
       callType: PrithviApiCallType.AGENT_CHARGES,
       path: PRITHVI_API_PATHS.AGENT_CHARGES,
@@ -188,7 +292,40 @@ export class PrithviForexApiService {
         'Unable to load charges right now. Please try again later.',
     });
 
-    return this.normalizeAgentCharges(raw, params, scope);
+    return this.normalizeAgentCharges(unwrapChargeLines(raw), params, scope);
+  }
+
+  /**
+   * Replace client gst/serviceCharge/etc with provider GET /charges amounts.
+   * Prithvi rejects initiate/complete when submitted GST or service fee drift.
+   */
+  async withProviderCharges<
+    T extends {
+      gst: number;
+      serviceCharge: number;
+      deliveryCharge?: number;
+      nostroCharge?: number;
+    },
+  >(params: GetAgentChargesParams, order: T): Promise<T> {
+    const charges = await this.getAgentCharges(params);
+    const fields = bookingChargeFieldsFromResult(charges);
+    this.logger.log(
+      `Applied provider charges gst=${fields.gst} serviceCharge=${fields.serviceCharge} for ${params.currencyCode} ${params.currencyAmount} ${params.productType} from items=${JSON.stringify(
+        charges.items.map((item) => ({
+          type: item.chargeType,
+          code: item.chargeCode,
+          total: item.totalCharge,
+          min: item.minAmount,
+          max: item.maxAmount,
+        })),
+      )}`,
+    );
+    const { deliveryCharge: _delivery, nostroCharge: _nostro, ...rest } =
+      order;
+    return {
+      ...rest,
+      ...fields,
+    } as T;
   }
 
   /**
@@ -510,15 +647,26 @@ export class PrithviForexApiService {
     params: GetAgentChargesParams,
     scope: string,
   ): PrithviAgentChargesResult {
-    const lines = Array.isArray(raw) ? raw : [];
-    const items = lines.map(normalizeChargeLine);
+    const allLines = Array.isArray(raw) ? raw : [];
+    const inRangeLines = allLines.filter((line) => {
+      const record = line as PrithviChargeLineRaw & Record<string, unknown>;
+      return isChargeInRange(
+        toOptionalNumber(firstDefined(line.min_amount, record.minAmount)),
+        toOptionalNumber(firstDefined(line.max_amount, record.maxAmount)),
+        params.inrAmount,
+      );
+    });
+    const lines = inRangeLines.length > 0 ? inRangeLines : allLines;
+    const items = lines.map((line) =>
+      normalizeChargeLine(line, params.inrAmount),
+    );
 
     let gst = 0;
     let serviceCharge = 0;
     let deliveryCharge = 0;
     let nostroCharge = 0;
 
-    for (let i = 0; i < lines.length; i += 1) {
+    for (let i = 0; i < items.length; i += 1) {
       const key = resolveChargeFieldKey(lines[i]);
       const amount = items[i]?.totalCharge ?? 0;
       if (!key || !(amount > 0)) continue;
