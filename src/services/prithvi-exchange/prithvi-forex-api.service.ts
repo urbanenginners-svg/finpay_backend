@@ -17,6 +17,7 @@ import {
 import { PrithviApiLogService } from './prithvi-api-log.service';
 import { PrithviExchangeService } from './prithvi-exchange.service';
 import { PrithviForexOrderService } from './prithvi-forex-order.service';
+import { ForexOrderNotificationService } from './forex-order-notification.service';
 import { PrithviPurposeCacheService } from './prithvi-purpose-cache.service';
 import {
   CompleteForexOrderPayload,
@@ -267,6 +268,7 @@ export class PrithviForexApiService {
     private readonly apiLog: PrithviApiLogService,
     private readonly purposeCache: PrithviPurposeCacheService,
     private readonly forexOrders: PrithviForexOrderService,
+    private readonly forexOrderNotifications: ForexOrderNotificationService,
   ) {}
 
   get isActive(): boolean {
@@ -851,7 +853,7 @@ export class PrithviForexApiService {
       );
 
       for (const row of result.data) {
-        const matched = await this.forexOrders.syncFromDashboard({
+        const synced = await this.forexOrders.syncFromDashboard({
           prithviOrderId: row.id,
           forexRequestId: row.forexRequestId ?? null,
           orderCode: row.orderCode ?? null,
@@ -868,7 +870,17 @@ export class PrithviForexApiService {
           providerCreatedAt: row.createdAt ?? null,
           providerUpdatedAt: row.updatedAt ?? null,
         });
-        if (matched) rowsMatched += 1;
+        if (synced.matched) rowsMatched += 1;
+        if (synced.statusChanged && synced.createdByUserId) {
+          await this.forexOrderNotifications.notifyIfStatusChanged({
+            createdByUserId: synced.createdByUserId,
+            previousStatus: synced.previousStatus ?? '',
+            newStatus: synced.newStatus ?? '',
+            statusLabel: synced.statusLabel,
+            orderCode: synced.orderCode,
+            prithviOrderId: synced.prithviOrderId,
+          });
+        }
       }
 
       if (result.data.length === 0) break;

@@ -117,6 +117,17 @@ export type AdminForexOrderRow = PrithviForexDashboardOrder & {
   lastSyncedAt?: string;
 };
 
+export type SyncForexOrderFromDashboardResult = {
+  matched: boolean;
+  statusChanged: boolean;
+  previousStatus: string | null;
+  newStatus: string | null;
+  statusLabel: string | null;
+  createdByUserId: string | null;
+  orderCode: string | null;
+  prithviOrderId: string;
+};
+
 function asString(value: string | number | null | undefined): string | null {
   if (value == null || value === '') return null;
   return String(value);
@@ -238,8 +249,32 @@ export class PrithviForexOrderService {
    */
   async syncFromDashboard(
     input: SyncForexOrderFromDashboardInput,
-  ): Promise<boolean> {
-    const result = await this.model
+  ): Promise<SyncForexOrderFromDashboardResult> {
+    const existing = await this.model
+      .findOne({ prithviOrderId: input.prithviOrderId })
+      .exec();
+
+    if (!existing) {
+      return {
+        matched: false,
+        statusChanged: false,
+        previousStatus: null,
+        newStatus: null,
+        statusLabel: null,
+        createdByUserId: null,
+        orderCode: null,
+        prithviOrderId: input.prithviOrderId,
+      };
+    }
+
+    const previousStatus = String(existing.status ?? '')
+      .trim()
+      .toUpperCase();
+    const newStatus = String(input.status ?? '')
+      .trim()
+      .toUpperCase();
+
+    await this.model
       .updateOne(
         { prithviOrderId: input.prithviOrderId },
         {
@@ -266,7 +301,74 @@ export class PrithviForexOrderService {
       )
       .exec();
 
-    return result.matchedCount > 0;
+    return {
+      matched: true,
+      statusChanged: Boolean(newStatus) && previousStatus !== newStatus,
+      previousStatus,
+      newStatus,
+      statusLabel: input.statusLabel ?? existing.statusLabel ?? null,
+      createdByUserId: existing.createdByUserId ?? null,
+      orderCode: input.orderCode ?? existing.orderCode ?? null,
+      prithviOrderId: input.prithviOrderId,
+    };
+  }
+
+  /**
+   * Admin/local status change (does not call Prithvi). Used so payment can
+   * be unlocked without waiting for provider dashboard sync.
+   */
+  async applyLocalStatus(input: {
+    prithviOrderId: string;
+    status: string;
+    statusLabel?: string | null;
+  }): Promise<SyncForexOrderFromDashboardResult> {
+    const existing = await this.model
+      .findOne({ prithviOrderId: input.prithviOrderId })
+      .exec();
+
+    if (!existing) {
+      return {
+        matched: false,
+        statusChanged: false,
+        previousStatus: null,
+        newStatus: null,
+        statusLabel: null,
+        createdByUserId: null,
+        orderCode: null,
+        prithviOrderId: input.prithviOrderId,
+      };
+    }
+
+    const previousStatus = String(existing.status ?? '')
+      .trim()
+      .toUpperCase();
+    const newStatus = String(input.status ?? '')
+      .trim()
+      .toUpperCase();
+
+    await this.model
+      .updateOne(
+        { prithviOrderId: input.prithviOrderId },
+        {
+          $set: {
+            status: newStatus,
+            statusLabel: input.statusLabel ?? existing.statusLabel ?? newStatus,
+            lastSyncedAt: new Date(),
+          },
+        },
+      )
+      .exec();
+
+    return {
+      matched: true,
+      statusChanged: Boolean(newStatus) && previousStatus !== newStatus,
+      previousStatus,
+      newStatus,
+      statusLabel: input.statusLabel ?? existing.statusLabel ?? newStatus,
+      createdByUserId: existing.createdByUserId ?? null,
+      orderCode: existing.orderCode ?? null,
+      prithviOrderId: input.prithviOrderId,
+    };
   }
 
   async findOwnedByUser(

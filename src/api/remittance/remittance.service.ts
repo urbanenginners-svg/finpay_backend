@@ -11,10 +11,12 @@ import { Model } from 'mongoose';
 import {
   PrithviExchangeService,
   PrithviForexApiService,
+  PrithviForexRequestStatus,
   PrithviOrderType,
   extractPrithviRate,
 } from 'src/services/prithvi-exchange';
 import { PrithviForexOrderService } from 'src/services/prithvi-exchange/prithvi-forex-order.service';
+import { ForexOrderNotificationService } from 'src/services/prithvi-exchange/forex-order-notification.service';
 import { User, UserDocument } from 'src/services/mongoose/schemas/user.schema';
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import { FileResourceEnum } from 'src/utils/enums/file-resource.enum';
@@ -43,6 +45,7 @@ export class RemittanceService {
     private readonly prithviService: PrithviExchangeService,
     private readonly prithviForex: PrithviForexApiService,
     private readonly forexOrders: PrithviForexOrderService,
+    private readonly forexOrderNotifications: ForexOrderNotificationService,
     private readonly filesService: FilesService,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
@@ -156,6 +159,22 @@ export class RemittanceService {
     );
     if (!owned) {
       throw new NotFoundException('Forex order not found for this account');
+    }
+
+    const status = String(owned.status ?? '')
+      .trim()
+      .toUpperCase();
+    if (status !== 'APPROVED') {
+      throw new BadRequestException(
+        'Payment is available only after your documents are approved. We will notify you by email and SMS.',
+      );
+    }
+
+    const paymentStatus = String(owned.paymentStatus ?? '')
+      .trim()
+      .toUpperCase();
+    if (paymentStatus === 'PAID') {
+      throw new BadRequestException('This order is already paid.');
     }
 
     return this.prithviForex.createPaymentLink({ orderId: trimmedOrderId });
@@ -315,6 +334,53 @@ export class RemittanceService {
   /** Admin: manually pull latest order status from the provider. */
   async syncForexOrdersNow() {
     return this.prithviForex.syncOrdersFromProvider();
+  }
+
+  /**
+   * Admin: set local forex order status so payment can be unlocked without
+   * waiting for the provider sync. Sends the same email/SMS as a status sync.
+   */
+  async updateForexOrderStatus(orderId: string, status: PrithviForexRequestStatus) {
+    const trimmedOrderId = orderId?.trim();
+    if (!trimmedOrderId) {
+      throw new BadRequestException('Order id is required');
+    }
+
+    const statusLabels: Record<PrithviForexRequestStatus, string> = {
+      [PrithviForexRequestStatus.DRAFT]: 'Draft',
+      [PrithviForexRequestStatus.PENDING]: 'Pending Approval',
+      [PrithviForexRequestStatus.APPROVED]: 'Approved',
+      [PrithviForexRequestStatus.CANCELLED]: 'Cancelled',
+    };
+
+    const result = await this.forexOrders.applyLocalStatus({
+      prithviOrderId: trimmedOrderId,
+      status,
+      statusLabel: statusLabels[status],
+    });
+
+    if (!result.matched) {
+      throw new NotFoundException('Forex order not found');
+    }
+
+    if (result.statusChanged && result.createdByUserId) {
+      await this.forexOrderNotifications.notifyIfStatusChanged({
+        createdByUserId: result.createdByUserId,
+        previousStatus: result.previousStatus ?? '',
+        newStatus: result.newStatus ?? '',
+        statusLabel: result.statusLabel,
+        orderCode: result.orderCode,
+        prithviOrderId: result.prithviOrderId,
+      });
+    }
+
+    return {
+      id: result.prithviOrderId,
+      previousStatus: result.previousStatus,
+      status: result.newStatus,
+      statusLabel: result.statusLabel,
+      statusChanged: result.statusChanged,
+    };
   }
 
   /** Admin: manually fetch latest agent FX rates from Prithvi and update the cache. */

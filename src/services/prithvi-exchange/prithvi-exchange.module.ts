@@ -17,9 +17,11 @@ import {
   PrithviForexOrder,
   PrithviForexOrderSchema,
 } from 'src/services/mongoose/schemas/prithvi-forex-order.schema';
+import { User, UserSchema } from 'src/services/mongoose/schemas/user.schema';
 import { PrithviAgentRatesCacheService } from './prithvi-agent-rates-cache.service';
 import { PrithviPurposeCacheService } from './prithvi-purpose-cache.service';
 import { PrithviForexOrderService } from './prithvi-forex-order.service';
+import { ForexOrderNotificationService } from './forex-order-notification.service';
 import { PrithviApiLogService } from './prithvi-api-log.service';
 import { PrithviExchangeService } from './prithvi-exchange.service';
 import { PrithviExchangeTasks } from './prithvi-exchange.tasks';
@@ -33,6 +35,7 @@ import { PrithviForexApiService } from './prithvi-forex-api.service';
       { name: PrithviAgentRatesCache.name, schema: PrithviAgentRatesCacheSchema },
       { name: PrithviPurposeCache.name, schema: PrithviPurposeCacheSchema },
       { name: PrithviForexOrder.name, schema: PrithviForexOrderSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   providers: [
@@ -43,6 +46,7 @@ import { PrithviForexApiService } from './prithvi-forex-api.service';
     PrithviAgentRatesCacheService,
     PrithviPurposeCacheService,
     PrithviForexOrderService,
+    ForexOrderNotificationService,
   ],
   exports: [
     PrithviExchangeService,
@@ -51,6 +55,7 @@ import { PrithviForexApiService } from './prithvi-forex-api.service';
     PrithviAgentRatesCacheService,
     PrithviPurposeCacheService,
     PrithviForexOrderService,
+    ForexOrderNotificationService,
   ],
 })
 export class PrithviExchangeModule {}

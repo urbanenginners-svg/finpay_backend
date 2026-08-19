@@ -107,7 +107,7 @@ export function CompleteForexRequestSwagger() {
     ApiOperation({
       summary: 'Complete forex request (Step 2)',
       description:
-        'Finalizes a DRAFT booking with traveler and purpose fields within the 20-minute rate lock. For CASH/CARD, panNumber, deliveryAddress, pincode, and sourceOfFunds may be omitted; send startDate (and optional endDate) instead. TT sends beneficiary bank fields. Purpose-config dynamic answers must be sent under orders[].purposeAnswers (any keys from purpose requiredFields, e.g. correspondentBankCharges, asPerDoc) — they are flattened for Prithvi. Documents must already be uploaded via upload-document.',
+        'Finalizes a DRAFT booking with traveler and purpose fields within the 20-minute rate lock. Submits documents for approval; payment is not taken at this step. For CASH/CARD, panNumber, deliveryAddress, pincode, and sourceOfFunds may be omitted; send startDate (and optional endDate) instead. TT sends beneficiary bank fields. Purpose-config dynamic answers must be sent under orders[].purposeAnswers (any keys from purpose requiredFields, e.g. correspondentBankCharges, asPerDoc) — they are flattened for Prithvi. Documents must already be uploaded via upload-document.',
     }),
     ApiParam({
       name: 'id',
@@ -127,7 +127,7 @@ export function CreatePaymentLinkSwagger() {
     ApiOperation({
       summary: 'Generate payment link for a forex order',
       description:
-        'Creates a payment link for an owned forex order. Proxies to Prithvi POST /orders/:orderId/payment-link with redirectUrl (orders dashboard).',
+        'Creates a payment link for an owned forex order that is APPROVED. Proxies to Prithvi POST /orders/:orderId/payment-link with redirectUrl (orders dashboard). Payment is blocked until documents are approved.',
     }),
     ApiParam({
       name: 'orderId',

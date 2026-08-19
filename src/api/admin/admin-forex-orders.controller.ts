@@ -1,6 +1,9 @@
 import {
+  Body,
   Controller,
   Get,
+  Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -31,7 +34,7 @@ import { CheckActionPolicy } from 'src/services/casl/casl-policies.decorator';
 import { PermissionEnum } from 'src/utils/enums/permission.enum';
 import { resource } from 'src/utils/constants/resource';
 import { DataResponse } from 'src/utils/response';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 class GetAdminForexOrdersQueryDto implements GetAdminForexOrdersQuery {
   @ApiPropertyOptional({ example: 1, default: 1 })
@@ -86,6 +89,12 @@ class GetAdminForexOrdersQueryDto implements GetAdminForexOrdersQuery {
   q?: string;
 }
 
+class UpdateAdminForexOrderStatusDto {
+  @ApiProperty({ enum: PrithviForexRequestStatus })
+  @IsEnum(PrithviForexRequestStatus)
+  status: PrithviForexRequestStatus;
+}
+
 @ApiTags('Admin - Forex Orders')
 @ApiBearerAuth()
 @Controller('admin/forex/orders')
@@ -132,6 +141,30 @@ export class AdminForexOrdersController {
     return new DataResponse(
       result,
       `Synced forex orders: ${result.rowsMatched} of ${result.rowsSeen} matched.`,
+    );
+  }
+
+  @Version('1')
+  @Patch(':orderId/status')
+  @ApiOperation({
+    summary: 'Set local forex order status',
+    description:
+      'Updates status in Finpay MongoDB without calling the provider. Set APPROVED to unlock payment for the user. Sends the same email/SMS as a status sync when the status changes.',
+  })
+  @CheckActionPolicy(PermissionEnum.UPDATE, resource.User)
+  async updateOrderStatus(
+    @Param('orderId') orderId: string,
+    @Body() dto: UpdateAdminForexOrderStatusDto,
+  ) {
+    const data = await this.remittanceService.updateForexOrderStatus(
+      orderId,
+      dto.status,
+    );
+    return new DataResponse(
+      data,
+      data.statusChanged
+        ? `Order status updated to ${data.status}.`
+        : `Order is already ${data.status}.`,
     );
   }
 }

@@ -57,6 +57,89 @@ export class HostingerService {
     });
   }
 
+  async sendForexOrderApproved(params: {
+    to: string;
+    fullName: string;
+    orderRef: string;
+  }): Promise<void> {
+    const subject = `Your forex documents are verified — ${params.orderRef}`;
+    const text = [
+      `Dear ${params.fullName},`,
+      '',
+      'Your documents are verified.',
+      '',
+      `Order: ${params.orderRef}`,
+      '',
+      'Please go to Transactions and make payment to complete this booking.',
+      '',
+      'Best regards,',
+      'FinPay Team',
+    ].join('\n');
+    const html = `
+<!DOCTYPE html>
+<html lang="en">
+  <body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6; margin: 0; padding: 0;">
+    <div style="max-width: 560px; margin: 0 auto; padding: 24px;">
+      <p>Dear ${this.escapeHtml(params.fullName)},</p>
+      <p>Your documents are verified.</p>
+      <p style="background: #f3f4f6; padding: 16px; border-radius: 8px;">
+        <strong>Order:</strong> ${this.escapeHtml(params.orderRef)}
+      </p>
+      <p>
+        Please go to <strong>Transactions</strong> and make payment to complete
+        this booking.
+      </p>
+      <p>Best regards,<br />FinPay Team</p>
+    </div>
+  </body>
+</html>`.trim();
+
+    await this.sendMail({ to: params.to, subject, text, html });
+  }
+
+  async sendForexOrderStatusUpdate(params: {
+    to: string;
+    fullName: string;
+    orderRef: string;
+    status: string;
+    statusLabel: string;
+  }): Promise<void> {
+    const subject = `Forex order ${params.orderRef} status: ${params.statusLabel}`;
+    const text = [
+      `Dear ${params.fullName},`,
+      '',
+      `The status of your forex order ${params.orderRef} has been updated.`,
+      '',
+      `Status: ${params.statusLabel} (${params.status})`,
+      '',
+      'You can check the latest details in your FinPay dashboard.',
+      '',
+      'Best regards,',
+      'FinPay Team',
+    ].join('\n');
+    const html = `
+<!DOCTYPE html>
+<html lang="en">
+  <body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6; margin: 0; padding: 0;">
+    <div style="max-width: 560px; margin: 0 auto; padding: 24px;">
+      <p>Dear ${this.escapeHtml(params.fullName)},</p>
+      <p>
+        The status of your forex order
+        <strong>${this.escapeHtml(params.orderRef)}</strong> has been updated.
+      </p>
+      <p style="background: #f3f4f6; padding: 16px; border-radius: 8px;">
+        <strong>Status:</strong> ${this.escapeHtml(params.statusLabel)}
+        (${this.escapeHtml(params.status)})
+      </p>
+      <p>You can check the latest details in your FinPay dashboard.</p>
+      <p>Best regards,<br />FinPay Team</p>
+    </div>
+  </body>
+</html>`.trim();
+
+    await this.sendMail({ to: params.to, subject, text, html });
+  }
+
   async sendEnquiryAdminNotification(
     params: SendEnquiryAdminNotificationParams,
   ): Promise<void> {
