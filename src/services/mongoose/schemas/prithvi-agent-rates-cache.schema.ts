@@ -10,7 +10,7 @@ export type PrithviAgentRatesCacheDocument =
 
 /**
  * Latest agent FX rates snapshot fetched from Prithvi.
- * Updated by scheduled cron (9 AM & 6 PM IST), not on every API request.
+ * Updated by scheduled cron (every 5 minutes), not on every API request.
  */
 @Schema({ collection: 'prithvi_agent_rates_cache', timestamps: true })
 export class PrithviAgentRatesCache {

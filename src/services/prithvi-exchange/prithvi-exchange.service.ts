@@ -180,7 +180,7 @@ export class PrithviExchangeService {
 
   /**
    * Return cached agent FX rates. On cache miss, fetches from Prithvi once,
-   * persists to MongoDB, then returns the result (cron still refreshes at 9 AM / 6 PM IST).
+   * persists to MongoDB, then returns the result (cron still refreshes every 5 minutes).
    */
   async getAgentRates(params: GetAgentRatesParams): Promise<CachedPrithviAgentRatesResult> {
     const agentId = this.resolveAgentId(params.agentId);

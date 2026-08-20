@@ -31,8 +31,8 @@ export const PRITHVI_TOKEN_REFRESH_BUFFER_MS = 60 * 60 * 1000;
 
 export const PRITHVI_PROVIDER_NAME = 'prithvi';
 
-/** Agent rates sync schedule: 9 AM and 6 PM IST. */
-export const PRITHVI_AGENT_RATES_CRON = '0 9,18 * * *';
+/** Agent rates sync schedule: every 5 minutes. */
+export const PRITHVI_AGENT_RATES_CRON = '*/5 * * * *';
 export const PRITHVI_AGENT_RATES_CRON_TIMEZONE = 'Asia/Kolkata';
 
 /** Purpose list sync: 1st of each month at 2:00 AM IST. */

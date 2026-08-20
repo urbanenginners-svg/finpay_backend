@@ -63,7 +63,7 @@ export class PrithviExchangeTasks implements OnModuleInit {
     }
   }
 
-  /** Sync agent FX rates from Prithvi at 9:00 AM and 6:00 PM IST. */
+  /** Sync agent FX rates from Prithvi every 5 minutes. */
   @Cron(PRITHVI_AGENT_RATES_CRON, { timeZone: PRITHVI_AGENT_RATES_CRON_TIMEZONE })
   async syncAgentRates(): Promise<void> {
     try {
