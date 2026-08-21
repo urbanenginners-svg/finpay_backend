@@ -244,7 +244,7 @@ export class PrithviForexOrderService {
   }
 
   /**
-   * Hourly sync: update an existing local order from Prithvi dashboard row.
+   * 30-minute sync: update an existing local order from Prithvi dashboard row.
    * Does not create orphans (orders must have been booked via Finpay).
    */
   async syncFromDashboard(

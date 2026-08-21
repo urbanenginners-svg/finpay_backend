@@ -92,10 +92,10 @@ export class PrithviExchangeTasks implements OnModuleInit {
   }
 
   /**
-   * Sync local forex orders from Prithvi dashboard every hour.
+   * Sync local forex orders from Prithvi dashboard every 30 minutes.
    * Matches by Prithvi order id; only updates rows booked via Finpay.
    */
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron(CronExpression.EVERY_30_MINUTES)
   async syncForexOrders(): Promise<void> {
     if (!this.prithviService.isActive) {
       return;

@@ -6,7 +6,7 @@ export type PrithviForexOrderDocument = HydratedDocument<PrithviForexOrder>;
 
 /**
  * Local copy of a Prithvi forex line order.
- * Created on book (initiate/complete), refreshed hourly from the Prithvi
+ * Created on book (initiate/complete), refreshed every 30 minutes from the Prithvi
  * orders dashboard, and served by GET /remittance/forex/orders/dashboard.
  */
 @Schema({ collection: 'prithvi_forex_orders', timestamps: true })
@@ -200,7 +200,7 @@ export class PrithviForexOrder {
   completedAt?: Date | null;
 
   @ApiPropertyOptional({
-    description: 'Last successful hourly dashboard sync.',
+    description: 'Last successful 30-minute dashboard sync.',
   })
   @Prop({ required: false, type: Date, default: null })
   lastSyncedAt?: Date | null;

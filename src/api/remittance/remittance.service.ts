@@ -254,7 +254,7 @@ export class RemittanceService {
   }
 
   /**
-   * Serve forex orders from local MongoDB (booked via Finpay + hourly sync).
+   * Serve forex orders from local MongoDB (booked via Finpay + 30-minute sync).
    * Scoped to the authenticated user — never the full Prithvi agent dashboard.
    */
   async getForexOrdersDashboard(
