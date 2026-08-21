@@ -61,6 +61,7 @@ export class HostingerService {
     to: string;
     fullName: string;
     orderRef: string;
+    paymentLink: string;
   }): Promise<void> {
     const subject = `Your forex documents are verified — ${params.orderRef}`;
     const text = [
@@ -70,7 +71,8 @@ export class HostingerService {
       '',
       `Order: ${params.orderRef}`,
       '',
-      'Please go to Transactions and make payment to complete this booking.',
+      'Please make payment using this FinPay link (you will be redirected to payment):',
+      params.paymentLink,
       '',
       'Best regards,',
       'FinPay Team',
@@ -85,9 +87,18 @@ export class HostingerService {
       <p style="background: #f3f4f6; padding: 16px; border-radius: 8px;">
         <strong>Order:</strong> ${this.escapeHtml(params.orderRef)}
       </p>
-      <p>
-        Please go to <strong>Transactions</strong> and make payment to complete
-        this booking.
+      <p>Please make payment to complete this booking.</p>
+      <p style="margin: 24px 0;">
+        <a
+          href="${this.escapeHtml(params.paymentLink)}"
+          style="display: inline-block; background: #1e3a5f; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 600;"
+        >
+          Pay now
+        </a>
+      </p>
+      <p style="font-size: 13px; color: #6b7280; word-break: break-all;">
+        Or open this FinPay link (you will be redirected to payment):<br />
+        <a href="${this.escapeHtml(params.paymentLink)}">${this.escapeHtml(params.paymentLink)}</a>
       </p>
       <p>Best regards,<br />FinPay Team</p>
     </div>

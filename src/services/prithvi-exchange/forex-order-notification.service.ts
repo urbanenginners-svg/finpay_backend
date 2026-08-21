@@ -6,6 +6,8 @@ import { HostingerService } from 'src/services/email/hostinger.service';
 import { SmsService } from 'src/services/sms/sms.service';
 import { SMS_TEMPLATE_KEYS } from 'src/services/sms/mappings/sms-template.registry';
 import { User, UserDocument } from 'src/services/mongoose/schemas/user.schema';
+import { AppConfigService } from 'src/services/env/env.service';
+import { PRITHVI_DEFAULT_PAYMENT_REDIRECT_URL } from './prithvi-exchange.constants';
 
 export type ForexOrderStatusNotifyInput = {
   createdByUserId: string;
@@ -30,6 +32,7 @@ export class ForexOrderNotificationService {
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private readonly hostingerService: HostingerService,
     private readonly smsService: SmsService,
+    private readonly config: AppConfigService,
   ) {}
 
   /**
@@ -67,11 +70,13 @@ export class ForexOrderNotificationService {
     const statusLabel = input.statusLabel?.trim() || next;
 
     if (next === 'DOCUMENTS_APPROVED_AWAITING_FUNDS') {
+      const paymentLink = this.buildFinpayPayUrl(input.prithviOrderId);
       await this.sendApprovedNotifications({
         name,
         email: user.email,
         phoneNumber: user.phoneNumber,
         orderRef,
+        paymentLink,
       });
       return;
     }
@@ -85,11 +90,29 @@ export class ForexOrderNotificationService {
     });
   }
 
+  /**
+   * Finpay deep link. User opens this → our app creates the Prithvi payment
+   * link and redirects them to Prithvi. Never send the raw Prithvi URL in mail/SMS.
+   */
+  private buildFinpayPayUrl(prithviOrderId: string): string {
+    const configured =
+      this.config.get('PRITHVI_PAYMENT_REDIRECT_URL')?.trim() ||
+      PRITHVI_DEFAULT_PAYMENT_REDIRECT_URL;
+
+    try {
+      const origin = new URL(configured).origin;
+      return `${origin}/dashboard/forex/pay/${encodeURIComponent(prithviOrderId)}`;
+    } catch {
+      return `https://finpayremit.com/dashboard/forex/pay/${encodeURIComponent(prithviOrderId)}`;
+    }
+  }
+
   private async sendApprovedNotifications(params: {
     name: string;
     email?: string;
     phoneNumber?: string;
     orderRef: string;
+    paymentLink: string;
   }): Promise<void> {
     if (params.email?.trim()) {
       try {
@@ -97,6 +120,7 @@ export class ForexOrderNotificationService {
           to: params.email.trim(),
           fullName: params.name,
           orderRef: params.orderRef,
+          paymentLink: params.paymentLink,
         });
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
@@ -118,6 +142,7 @@ export class ForexOrderNotificationService {
           variables: {
             name: params.name,
             order: params.orderRef,
+            link: params.paymentLink,
           },
         });
       } catch (error) {

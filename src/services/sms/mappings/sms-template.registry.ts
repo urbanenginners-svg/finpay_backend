@@ -29,8 +29,8 @@ const enquiryAdvisorAlert: SmsTemplateDefinition = {
 
 const forexOrderApproved: SmsTemplateDefinition = {
   bodyTemplate:
-    'Hi {name}, your FinPay order {order} documents are verified. Please go to Transactions and make payment.',
-  variableKeys: ['name', 'order'],
+    'Hi {name}, your FinPay order {order} documents are verified. Pay here: {link}',
+  variableKeys: ['name', 'order', 'link'],
 };
 
 /** All SMS message templates. Add new templates here (and a key in {@link SMS_TEMPLATE_KEYS}). */
