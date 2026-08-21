@@ -164,9 +164,9 @@ export class RemittanceService {
     const status = String(owned.status ?? '')
       .trim()
       .toUpperCase();
-    if (status !== 'APPROVED') {
+    if (status !== 'DOCUMENTS_APPROVED_AWAITING_FUNDS') {
       throw new BadRequestException(
-        'Payment is available only after your documents are approved. We will notify you by email and SMS.',
+        'Payment is available only after your documents are approved and the order is awaiting funds. We will notify you by email and SMS.',
       );
     }
 
@@ -350,6 +350,8 @@ export class RemittanceService {
       [PrithviForexRequestStatus.DRAFT]: 'Draft',
       [PrithviForexRequestStatus.PENDING]: 'Pending Approval',
       [PrithviForexRequestStatus.APPROVED]: 'Approved',
+      [PrithviForexRequestStatus.DOCUMENTS_APPROVED_AWAITING_FUNDS]:
+        'Documents Approved — Awaiting Funds',
       [PrithviForexRequestStatus.CANCELLED]: 'Cancelled',
     };
 

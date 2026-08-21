@@ -49,7 +49,8 @@ export class PrithviForexOrder {
   product?: string | null;
 
   @ApiProperty({
-    description: 'Status code (DRAFT / PENDING / APPROVED / …).',
+    description:
+      'Status code (DRAFT / PENDING / APPROVED / DOCUMENTS_APPROVED_AWAITING_FUNDS / …).',
     example: 'PENDING',
   })
   @Prop({ required: true, type: String, index: true })

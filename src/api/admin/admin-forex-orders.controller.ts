@@ -149,7 +149,7 @@ export class AdminForexOrdersController {
   @ApiOperation({
     summary: 'Set local forex order status',
     description:
-      'Updates status in Finpay MongoDB without calling the provider. Set APPROVED to unlock payment for the user. Sends the same email/SMS as a status sync when the status changes.',
+      'Updates status in Finpay MongoDB without calling the provider. Set DOCUMENTS_APPROVED_AWAITING_FUNDS to unlock payment for the user. Sends email/SMS when status changes (payment notify on that status).',
   })
   @CheckActionPolicy(PermissionEnum.UPDATE, resource.User)
   async updateOrderStatus(

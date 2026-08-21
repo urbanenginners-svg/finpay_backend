@@ -33,8 +33,9 @@ export class ForexOrderNotificationService {
   ) {}
 
   /**
-   * Email (and SMS when newly APPROVED) the signup contact when sync changes status.
-   * Failures are logged and never thrown, so order sync is not blocked.
+   * Email (and SMS when newly DOCUMENTS_APPROVED_AWAITING_FUNDS) the signup
+   * contact when sync changes status. Failures are logged and never thrown,
+   * so order sync is not blocked.
    */
   async notifyIfStatusChanged(
     input: ForexOrderStatusNotifyInput,
@@ -65,7 +66,7 @@ export class ForexOrderNotificationService {
       input.orderCode?.trim() || input.prithviOrderId.slice(0, 8);
     const statusLabel = input.statusLabel?.trim() || next;
 
-    if (next === 'APPROVED') {
+    if (next === 'DOCUMENTS_APPROVED_AWAITING_FUNDS') {
       await this.sendApprovedNotifications({
         name,
         email: user.email,

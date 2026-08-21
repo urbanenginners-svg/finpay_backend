@@ -127,7 +127,7 @@ export function CreatePaymentLinkSwagger() {
     ApiOperation({
       summary: 'Generate payment link for a forex order',
       description:
-        'Creates a payment link for an owned forex order that is APPROVED. Proxies to Prithvi POST /orders/:orderId/payment-link with redirectUrl (orders dashboard). Payment is blocked until documents are approved.',
+        'Creates a payment link for an owned forex order that is DOCUMENTS_APPROVED_AWAITING_FUNDS. Proxies to Prithvi POST /orders/:orderId/payment-link with redirectUrl (orders dashboard). Payment is blocked until that status.',
     }),
     ApiParam({
       name: 'orderId',
