@@ -222,36 +222,10 @@ export class CompleteUserRegistrationDto {
   @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, { message: 'PAN must be in valid format (e.g. ABCDE1234F)' })
   panCardNumber: string;
 
-  @ApiProperty({ example: 'PA1079341954215' })
-  @IsString()
-  @IsNotEmpty()
-  passportFileNumber: string;
-
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   panVerificationRef?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  passportVerificationRef?: string;
-
-  @ApiProperty({
-    example: 'file::123e4567-e89b-12d3-a456-426614174010',
-    description: 'PAN card file ID from POST /files/upload',
-  })
-  @IsString()
-  @IsNotEmpty()
-  panCardDocument: string;
-
-  @ApiProperty({
-    example: 'file::123e4567-e89b-12d3-a456-426614174011',
-    description: 'Passport file ID from POST /files/upload',
-  })
-  @IsString()
-  @IsNotEmpty()
-  passportDocument: string;
 }
 
 /** Text fields for multipart agent registration (document files are uploaded separately). */

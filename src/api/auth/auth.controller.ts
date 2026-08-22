@@ -208,7 +208,7 @@ export class AuthController {
 
   @Version('1')
   @Post('register/user/complete')
-  @ApiOperation({ summary: 'Complete user registration KYC (step 2)' })
+  @ApiOperation({ summary: 'Complete user registration KYC (step 2) — PAN number verification only' })
   async completeUserRegistration(
     @GetUser('_id') userId: string,
     @Body() dto: CompleteUserRegistrationDto,
