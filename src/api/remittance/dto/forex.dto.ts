@@ -405,7 +405,7 @@ export class CompleteForexOrderDto {
     type: 'object',
     additionalProperties: true,
     example: {
-      correspondentBankCharges: 'OUR',
+      correspondentBankCharges: 'BEN',
       asPerDoc: 'Yes',
       passportNumber: 'P1234567',
     },
