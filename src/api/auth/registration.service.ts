@@ -216,7 +216,9 @@ export class RegistrationService {
       user.lastName = normalizedLastName;
       user.email = email;
       user.phoneNumber = phoneNumber;
-      user.dateOfBirth = new Date(dateOfBirth);
+      if (dateOfBirth) {
+        user.dateOfBirth = new Date(dateOfBirth);
+      }
       user.userType = userType;
       user.role = role._id;
       user.registrationStatus = RegistrationStatusEnum.PENDING_OTP;
@@ -227,7 +229,7 @@ export class RegistrationService {
         lastName: normalizedLastName,
         email,
         phoneNumber,
-        dateOfBirth: new Date(dateOfBirth),
+        ...(dateOfBirth ? { dateOfBirth: new Date(dateOfBirth) } : {}),
         userType,
         role: role._id,
         password: hashedPassword,
@@ -291,7 +293,9 @@ export class RegistrationService {
     user.firstName = firstName;
     user.lastName = normalizedLastName;
     user.email = email;
-    user.dateOfBirth = new Date(dateOfBirth);
+    if (dateOfBirth) {
+      user.dateOfBirth = new Date(dateOfBirth);
+    }
 
     if (password) {
       user.password = await bcrypt.hash(password, 10);

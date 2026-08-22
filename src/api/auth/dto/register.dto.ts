@@ -40,9 +40,11 @@ export class RegisterInitDto {
   @Matches(/^[6-9]\d{9}$/, { message: 'Phone number must be a valid 10-digit Indian mobile number' })
   phoneNumber: string;
 
-  @ApiProperty({ example: '1990-01-15' })
+  @ApiPropertyOptional({ example: '1990-01-15', description: 'Required for agent passport verification' })
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  @IsOptional()
   @IsDateString()
-  dateOfBirth: string;
+  dateOfBirth?: string;
 
   @ApiProperty({ example: 'StrongPassword@123', description: 'Account password (min 8 characters)' })
   @IsString()
@@ -71,9 +73,11 @@ export class UpdateRegistrationStep1Dto {
   @Matches(/^[6-9]\d{9}$/, { message: 'Phone number must be a valid 10-digit Indian mobile number' })
   phoneNumber: string;
 
-  @ApiProperty({ example: '1990-01-15' })
+  @ApiPropertyOptional({ example: '1990-01-15', description: 'Required for agent passport verification' })
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  @IsOptional()
   @IsDateString()
-  dateOfBirth: string;
+  dateOfBirth?: string;
 
   @ApiPropertyOptional({
     example: 'StrongPassword@123',
