@@ -356,3 +356,37 @@ export class VerifyAgentDto {
   @IsNotEmpty()
   rejectionReason?: string;
 }
+
+export class ForgotPasswordDto {
+  @ApiProperty({
+    example: '9876543210',
+    description: 'Email address or 10-digit Indian mobile number',
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'Email or mobile number is required' })
+  identifier: string;
+}
+
+export class ResetPasswordDto {
+  @ApiProperty({
+    example: '9876543210',
+    description: 'Email address or 10-digit Indian mobile number used for forgot password',
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'Email or mobile number is required' })
+  identifier: string;
+
+  @ApiProperty({ example: '1234' })
+  @IsString()
+  @Length(4, 6)
+  otp: string;
+
+  @ApiProperty({
+    example: 'StrongPassword@123',
+    description: 'New password (min 8 characters)',
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'Password is required' })
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  password: string;
+}

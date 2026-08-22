@@ -15,11 +15,13 @@ import {
 import {
   CompleteAgentRegistrationDto,
   CompleteUserRegistrationDto,
+  ForgotPasswordDto,
   LoginSendOtpDto,
   LoginVerifyOtpDto,
   PasswordLoginDto,
   RegisterInitDto,
   RegisterVerifyOtpDto,
+  ResetPasswordDto,
   UpdateRegistrationStep1Dto,
   VerifyAadhaarDto,
   VerifyPanDto,
@@ -252,6 +254,35 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify login OTP and receive JWT' })
   async loginVerifyOtp(@Body() dto: LoginVerifyOtpDto) {
     const result = await this.registrationService.loginVerifyOtp(dto);
+    return new DataResponse(result);
+  }
+
+  @Public()
+  @Version('1')
+  @Post('forgot-password')
+  @ApiOperation({
+    summary: 'Request password reset OTP',
+    description:
+      'Sends an OTP to the mobile number linked to the account identified by email or phone.',
+  })
+  @ApiResponse({ status: 200, description: 'OTP sent successfully' })
+  @ApiResponse({ status: 401, description: 'No account found' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    const result = await this.registrationService.forgotPassword(dto);
+    return new DataResponse(result);
+  }
+
+  @Public()
+  @Version('1')
+  @Post('reset-password')
+  @ApiOperation({
+    summary: 'Reset password with OTP',
+    description: 'Verifies the OTP and sets a new password for the account.',
+  })
+  @ApiResponse({ status: 200, description: 'Password reset successfully' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired OTP' })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    const result = await this.registrationService.resetPassword(dto);
     return new DataResponse(result);
   }
 }

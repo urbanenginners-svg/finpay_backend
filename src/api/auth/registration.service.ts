@@ -19,11 +19,13 @@ import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
 import {
   CompleteAgentRegistrationDto,
   CompleteUserRegistrationDto,
+  ForgotPasswordDto,
   LoginSendOtpDto,
   LoginVerifyOtpDto,
   PasswordLoginDto,
   RegisterInitDto,
   RegisterVerifyOtpDto,
+  ResetPasswordDto,
   UpdateRegistrationStep1Dto,
   VerifyAadhaarDto,
   VerifyPanDto,
@@ -729,6 +731,87 @@ export class RegistrationService {
     }
 
     return this.buildAuthResponse(user, role);
+  }
+
+  private resolveIdentifierFilter(identifier: string) {
+    const trimmed = identifier.trim();
+    const isEmail = trimmed.includes('@');
+
+    if (!isEmail && !/^[6-9]\d{9}$/.test(trimmed)) {
+      throw new BadRequestException('Enter a valid email or 10-digit mobile number');
+    }
+
+    return isEmail
+      ? { email: trimmed.toLowerCase(), deletedAt: null }
+      : { phoneNumber: trimmed, deletedAt: null };
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const filter = this.resolveIdentifierFilter(dto.identifier);
+    const user = await this.userModel.findOne(filter);
+
+    if (!user) {
+      throw new UnauthorizedException('No account found with this email or mobile number');
+    }
+
+    if (!this.canLogin(user.registrationStatus)) {
+      throw new BadRequestException(
+        'Registration is incomplete. Please complete signup first.',
+      );
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Your account is inactive. Please contact support.');
+    }
+
+    if (!user.phoneNumber) {
+      throw new BadRequestException(
+        'No mobile number is linked to this account. Please contact support.',
+      );
+    }
+
+    const otp = this.generateOtp();
+    user.otp = otp;
+    user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    await this.smsService.sendOtpSms({
+      phoneNumber: user.phoneNumber,
+      name: this.displayNameForSms(user),
+      otp,
+    });
+
+    return this.buildOtpSendResponse(user.phoneNumber, otp);
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const filter = this.resolveIdentifierFilter(dto.identifier);
+    const user = await this.userModel.findOne(filter).select('+otp');
+
+    if (!user) {
+      throw new UnauthorizedException('No account found with this email or mobile number');
+    }
+
+    if (!this.canLogin(user.registrationStatus)) {
+      throw new BadRequestException('Please complete registration before resetting password.');
+    }
+
+    if (!user.otp || user.otp !== dto.otp) {
+      throw new UnauthorizedException('Invalid OTP');
+    }
+
+    if (user.otpExpiresAt && user.otpExpiresAt < new Date()) {
+      throw new UnauthorizedException('OTP expired');
+    }
+
+    user.password = await bcrypt.hash(dto.password, 10);
+    user.otp = undefined;
+    user.otpExpiresAt = undefined;
+    await user.save();
+
+    return {
+      message: 'Password reset successfully. You can now sign in with your new password.',
+    };
   }
 
   async verifyAgent(userId: string, dto: VerifyAgentDto, adminUserId: string) {
