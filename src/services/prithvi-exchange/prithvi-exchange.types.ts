@@ -125,8 +125,10 @@ export type GetAgentChargesParams = {
   currencyCode: string;
   currencyAmount: number;
   inrAmount: number;
-  /** Defaults to `global` when omitted. */
-  scope?: string;
+  /** Purpose config `code` after the user selects a purpose. */
+  purposeCode: string;
+  /** Defaults to `PRITHVI_AGENT_ID` when omitted. */
+  agentId?: string;
 };
 
 export type PrithviChargeCalculationType = 'FIXED' | 'PERCENTAGE';
@@ -196,7 +198,7 @@ export type PrithviAgentChargesResult = {
   currencyCode: string;
   currencyAmount: number;
   inrAmount: number;
-  scope: string;
+  purposeCode: string;
   items: PrithviChargeLine[];
   /** Absolute GST (INR) from the GST line item. */
   gst: number;

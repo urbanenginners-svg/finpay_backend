@@ -116,6 +116,15 @@ export class InitiateForexRequestDto {
   @IsEnum(PrithviOrderType)
   orderType: PrithviOrderType;
 
+  @ApiPropertyOptional({
+    example: 'S0302',
+    description:
+      'Purpose config `code`. Used to overlay provider charges; not forwarded to Prithvi initiate.',
+  })
+  @IsOptional()
+  @IsString()
+  purposeCode?: string;
+
   @ApiProperty({ type: [ForexOrderDetailDto] })
   @IsArray()
   @ArrayMinSize(1)

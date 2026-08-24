@@ -83,13 +83,13 @@ export class GetAgentChargesQueryDto {
   @Min(0.01)
   inrAmount: number;
 
-  @ApiPropertyOptional({
-    example: 'global',
-    description: 'Charge scope. Defaults to global.',
+  @ApiProperty({
+    example: 'S0302',
+    description:
+      'Purpose config `code` from GET /remittance/purposes/:code/config after the user selects a purpose.',
   })
-  @IsOptional()
   @IsString()
-  scope?: string;
+  purposeCode: string;
 }
 
 export class RemittanceRateResponseDto {

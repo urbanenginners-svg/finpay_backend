@@ -68,14 +68,14 @@ export function GetAgentChargesSwagger() {
     ApiOperation({
       summary: 'Get charges for order/product/amount',
       description:
-        'Proxies Prithvi GET /charges. Returns charge line items (FIXED or PERCENTAGE) with calculated totals. Use `items[].chargeType` as the UI label. Also returns mapped absolute amounts (gst, serviceCharge, deliveryCharge, nostroCharge) for initiate/complete.',
+        'Proxies Prithvi GET /agents/charges. Sends configured `agentId` and selected purpose `code`. Returns charge line items (FIXED or PERCENTAGE) with calculated totals. Use `items[].chargeType` as the UI label. Also returns mapped absolute amounts (gst, serviceCharge, deliveryCharge, nostroCharge) for initiate/complete.',
     }),
     ApiQuery({ name: 'orderType', enum: PrithviOrderType, required: true }),
     ApiQuery({ name: 'productType', enum: PrithviProductType, required: true }),
     ApiQuery({ name: 'currencyCode', required: true, example: 'USD' }),
     ApiQuery({ name: 'currencyAmount', required: true, example: 10000 }),
     ApiQuery({ name: 'inrAmount', required: true, example: 952500 }),
-    ApiQuery({ name: 'scope', required: false, example: 'global' }),
+    ApiQuery({ name: 'purposeCode', required: true, example: 'S0302' }),
     ApiResponse({
       status: 200,
       description: 'Charges retrieved successfully',

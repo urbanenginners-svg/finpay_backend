@@ -96,14 +96,14 @@ export class RemittanceService {
       currencyCode: query.currencyCode,
       currencyAmount: query.currencyAmount,
       inrAmount: query.inrAmount,
-      scope: query.scope,
+      purposeCode: query.purposeCode,
     });
   }
 
   async initiateForex(dto: InitiateForexRequestDto, userId: string) {
     const orderDetails = await Promise.all(
       dto.orderDetails.map((order) =>
-        this.overlayInitiateCharges(dto.orderType, order),
+        this.overlayInitiateCharges(dto.orderType, order, dto.purposeCode),
       ),
     );
     const payload: InitiateForexRequestDto = { ...dto, orderDetails };
@@ -432,7 +432,14 @@ export class RemittanceService {
   private async overlayInitiateCharges(
     orderType: PrithviOrderType,
     order: ForexOrderDetailDto,
+    purposeCode?: string,
   ): Promise<ForexOrderDetailDto> {
+    const resolvedPurposeCode = purposeCode?.trim();
+    if (!resolvedPurposeCode) {
+      throw new BadRequestException(
+        'Purpose is required to load provider charges for this order.',
+      );
+    }
     return this.prithviForex.withProviderCharges(
       {
         orderType,
@@ -440,7 +447,7 @@ export class RemittanceService {
         currencyCode: order.currency,
         currencyAmount: order.currencyAmount,
         inrAmount: order.amountInINR,
-        scope: 'global',
+        purposeCode: resolvedPurposeCode,
       },
       order,
     );

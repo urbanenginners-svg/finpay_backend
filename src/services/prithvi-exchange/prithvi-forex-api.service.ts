@@ -276,8 +276,8 @@ export class PrithviForexApiService {
   }
 
   /**
-   * Charge schedule for the selected order/product/amount context.
-   * Proxies Prithvi GET /charges (FIXED / PERCENTAGE line items with totals).
+   * Charge schedule for the selected order/product/amount/purpose context.
+   * Proxies Prithvi GET /agents/charges (FIXED / PERCENTAGE line items with totals).
    */
   async getAgentCharges(
     params: GetAgentChargesParams,
@@ -286,7 +286,21 @@ export class PrithviForexApiService {
       return this.dryRunAgentCharges(params);
     }
 
-    const scope = (params.scope ?? 'global').trim() || 'global';
+    const purposeCode = params.purposeCode?.trim();
+    if (!purposeCode) {
+      throw new BadRequestException(
+        'Purpose is required to load charges. Please select a purpose and try again.',
+      );
+    }
+
+    const agentId =
+      params.agentId?.trim() || this.prithvi.getConfiguredAgentId();
+    if (!agentId) {
+      throw new InternalServerErrorException(
+        'Prithvi Exchange provider is not configured correctly.',
+      );
+    }
+
     const raw = await this.requestJson<unknown>({
       method: 'GET',
       callType: PrithviApiCallType.AGENT_CHARGES,
@@ -298,19 +312,20 @@ export class PrithviForexApiService {
         currency_code: String(params.currencyCode).toUpperCase(),
         currency_amount: params.currencyAmount,
         inr_amount: params.inrAmount,
-        scope,
+        agentId,
+        code: purposeCode,
       },
       clientErrorMessage:
-        'Unable to load charges. Please check order, product, currency, and amount and try again.',
+        'Unable to load charges. Please check order, product, currency, purpose, and amount and try again.',
       serverErrorMessage:
         'Unable to load charges right now. Please try again later.',
     });
 
-    return this.normalizeAgentCharges(unwrapChargeLines(raw), params, scope);
+    return this.normalizeAgentCharges(unwrapChargeLines(raw), params);
   }
 
   /**
-   * Replace client gst/serviceCharge/etc with provider GET /charges amounts.
+   * Replace client gst/serviceCharge/etc with provider GET /agents/charges amounts.
    * Prithvi rejects initiate/complete when submitted GST or service fee drift.
    */
   async withProviderCharges<
@@ -662,7 +677,6 @@ export class PrithviForexApiService {
   private normalizeAgentCharges(
     raw: PrithviChargeLineRaw[] | null | undefined,
     params: GetAgentChargesParams,
-    scope: string,
   ): PrithviAgentChargesResult {
     const allLines = Array.isArray(raw) ? raw : [];
     const inRangeLines = allLines.filter((line) => {
@@ -708,7 +722,7 @@ export class PrithviForexApiService {
       currencyCode: String(params.currencyCode).toUpperCase(),
       currencyAmount: params.currencyAmount,
       inrAmount: params.inrAmount,
-      scope,
+      purposeCode: params.purposeCode,
       items,
       gst,
       serviceCharge,
@@ -724,9 +738,8 @@ export class PrithviForexApiService {
   private dryRunAgentCharges(
     params: GetAgentChargesParams,
   ): PrithviAgentChargesResult {
-    const scope = (params.scope ?? 'global').trim() || 'global';
     this.logger.warn(
-      `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run charges. orderType=${params.orderType} productType=${params.productType} currency=${params.currencyCode} amount=${params.currencyAmount}`,
+      `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run charges. orderType=${params.orderType} productType=${params.productType} currency=${params.currencyCode} amount=${params.currencyAmount} purpose=${params.purposeCode}`,
     );
 
     const currencyCode = String(params.currencyCode).toUpperCase();
@@ -737,7 +750,6 @@ export class PrithviForexApiService {
     const raw: PrithviChargeLineRaw[] = [
       {
         component: 'BASE',
-        source_scope: scope,
         charge_type: 'Service Charge',
         charge_code: 'SERVICE_CHARGE',
         order_type: orderType,
@@ -745,6 +757,7 @@ export class PrithviForexApiService {
         calculation_type: 'FIXED',
         calculation_value: '175.000000',
         currency_code: currencyCode,
+        purpose_code: params.purposeCode,
         charge_name: 'Service Charge',
         prithiviCharge: 175,
         partnerCharge: 0,
@@ -752,7 +765,6 @@ export class PrithviForexApiService {
       },
       {
         component: 'BASE',
-        source_scope: scope,
         charge_type: 'GST',
         charge_code: 'GST',
         order_type: orderType,
@@ -762,6 +774,7 @@ export class PrithviForexApiService {
         additional_charge: null,
         max_cap: null,
         currency_code: currencyCode,
+        purpose_code: params.purposeCode,
         charge_name: 'GST',
         prithiviCharge: gstBase,
         partnerCharge: 0,
@@ -769,7 +782,7 @@ export class PrithviForexApiService {
       },
     ];
 
-    return this.normalizeAgentCharges(raw, params, scope);
+    return this.normalizeAgentCharges(raw, params);
   }
 
   private parseUploadDocumentResponse(
