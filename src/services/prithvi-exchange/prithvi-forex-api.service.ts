@@ -313,7 +313,7 @@ export class PrithviForexApiService {
         currency_amount: params.currencyAmount,
         inr_amount: params.inrAmount,
         agentId,
-        code: purposeCode,
+        purpose_code: purposeCode,
       },
       clientErrorMessage:
         'Unable to load charges. Please check order, product, currency, purpose, and amount and try again.',
