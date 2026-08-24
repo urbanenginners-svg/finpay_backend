@@ -177,7 +177,13 @@ function resolveChargeFieldKey(
   if (label.includes('delivery') || code.includes('DELIVERY')) {
     return 'deliveryCharge';
   }
-  if (code.includes('SERVICE') || label.includes('service')) {
+  if (
+    code.includes('SERVICE') ||
+    code === 'PURPOSE' ||
+    code.includes('PURPOSE') ||
+    label.includes('service') ||
+    label.includes('purpose')
+  ) {
     return 'serviceCharge';
   }
   if (label.includes('nostro') || code.includes('NOSTRO')) {
