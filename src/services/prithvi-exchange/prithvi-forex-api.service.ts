@@ -796,7 +796,9 @@ export class PrithviForexApiService {
     documentType: string,
   ): UploadForexOrderDocumentResult {
     // Live Prithvi shape:
-    // { success: true, data: { forexOrder: { [documentType]: "path/..." } }, message }
+    // { success: true, data: { forexOrder: { accountStatement: "path/..." } }, message }
+    // Request uses snake_case documentType (account_statement); response keys are camelCase
+    // (accountStatement) and sometimes lowercase (accountstatement).
     const root =
       raw && typeof raw === 'object'
         ? (raw as Record<string, unknown>)
@@ -818,16 +820,60 @@ export class PrithviForexApiService {
       return { documentType, prithviPath: '', forexOrder: undefined };
     }
 
-    const prithviPath =
-      typeof forexOrder[documentType] === 'string'
-        ? String(forexOrder[documentType]).trim()
-        : '';
+    const prithviPath = this.resolveDocumentPathFromOrder(
+      forexOrder,
+      documentType,
+    );
 
     return {
       documentType,
       prithviPath,
       forexOrder,
     };
+  }
+
+  /**
+   * Resolve storage path for a documentType from Prithvi forexOrder fields.
+   * Tries snake_case, camelCase, and case-insensitive key matches; skips URL/expiry fields.
+   */
+  private resolveDocumentPathFromOrder(
+    forexOrder: Record<string, unknown>,
+    documentType: string,
+  ): string {
+    const asPath = (value: unknown): string => {
+      if (typeof value !== 'string') return '';
+      const trimmed = value.trim();
+      if (!trimmed) return '';
+      // Prefer relative storage keys over signed URLs.
+      if (/^https?:\/\//i.test(trimmed)) return '';
+      return trimmed;
+    };
+
+    for (const key of this.documentPathKeyCandidates(documentType)) {
+      const path = asPath(forexOrder[key]);
+      if (path) return path;
+    }
+
+    const target = documentType.replace(/_/g, '').toLowerCase();
+    for (const [key, value] of Object.entries(forexOrder)) {
+      const keyNorm = key.replace(/_/g, '').toLowerCase();
+      if (keyNorm !== target) continue;
+      // Skip companion fields like accountStatementUrl / accountStatementExpiresAt
+      if (/url$|expiresat$/i.test(keyNorm)) continue;
+      const path = asPath(value);
+      if (path) return path;
+    }
+
+    return '';
+  }
+
+  private documentPathKeyCandidates(documentType: string): string[] {
+    const snake = documentType;
+    const camel = documentType.replace(/_([a-zA-Z])/g, (_, c: string) =>
+      c.toUpperCase(),
+    );
+    const lowerNoUnderscore = documentType.replace(/_/g, '').toLowerCase();
+    return [...new Set([snake, camel, lowerNoUnderscore])];
   }
 
   private dryRunUploadDocument(
