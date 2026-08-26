@@ -154,15 +154,14 @@ function resolveLineTotalCharge(
 }
 
 /**
- * Map a charge line onto initiate/complete fields.
- * `charge_code` SERVICE_CHARGE is the service fee Prithvi validates, even when
- * `charge_type` is a display label like "Nostro Charge".
+ * Map a charge line onto initiate/complete fields from `items`.
+ * SERVICE_CHARGE / TRANSACTION_CHARGE / PURPOSE component → serviceCharge.
  */
 function resolveChargeFieldKey(
-  item: Pick<PrithviChargeLineRaw, 'charge_type' | 'charge_code' | 'charge_name'> &
-    Partial<PrithviChargeLine>,
+  item: Partial<PrithviChargeLineRaw> & Partial<PrithviChargeLine>,
 ): 'gst' | 'serviceCharge' | 'deliveryCharge' | 'nostroCharge' | null {
   const code = String(item.chargeCode ?? item.charge_code ?? '').toUpperCase();
+  const component = String(item.component ?? '').toUpperCase();
   const label = [
     item.chargeType,
     item.charge_type,
@@ -179,10 +178,13 @@ function resolveChargeFieldKey(
   }
   if (
     code.includes('SERVICE') ||
+    code.includes('TRANSACTION') ||
     code === 'PURPOSE' ||
     code.includes('PURPOSE') ||
+    component === 'PURPOSE' ||
     label.includes('service') ||
-    label.includes('purpose')
+    label.includes('purpose') ||
+    label.includes('transaction')
   ) {
     return 'serviceCharge';
   }
@@ -704,15 +706,13 @@ export class PrithviForexApiService {
     let nostroCharge = 0;
     let prithiviCharge = 0;
 
-    for (let i = 0; i < items.length; i += 1) {
-      const key = resolveChargeFieldKey(lines[i]);
-      const item = items[i];
-      const isPercentage = String(item?.calculationType ?? '').toUpperCase() === 'PERCENTAGE';
-      const amount =
-        isPercentage && (item?.prithiviCharge ?? 0) > 0
-          ? item.prithiviCharge
-          : (item?.totalCharge ?? 0);
-      if (isPercentage && (item?.prithiviCharge ?? 0) > 0) {
+    for (const item of items) {
+      const key = resolveChargeFieldKey(item);
+      // Always use items[].totalCharge for gst/service/nostro/delivery amounts.
+      const amount = item.totalCharge ?? 0;
+      const isPercentage =
+        String(item.calculationType ?? '').toUpperCase() === 'PERCENTAGE';
+      if (isPercentage && (item.prithiviCharge ?? 0) > 0) {
         prithiviCharge += item.prithiviCharge;
       }
       if (!key || !(amount > 0)) continue;
