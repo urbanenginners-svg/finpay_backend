@@ -220,34 +220,14 @@ export class PrivateLimitedDocumentsDto {
   bankCancelCheque?: string;
 }
 
-export class CompleteUserRegistrationDto {
-  @ApiProperty({ example: 'ABCDE1234F' })
-  @IsString()
-  @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, { message: 'PAN must be in valid format (e.g. ABCDE1234F)' })
-  panCardNumber: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  panVerificationRef?: string;
-}
+export class CompleteUserRegistrationDto {}
 
 /** Text fields for multipart agent registration (document files are uploaded separately). */
 export class CompleteAgentRegistrationDto {
-  @ApiProperty({ example: 'ABCDE1234F' })
-  @IsString()
-  @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, { message: 'PAN must be in valid format (e.g. ABCDE1234F)' })
-  panCardNumber: string;
-
   @ApiProperty({ example: 'PA1079341954215' })
   @IsString()
   @IsNotEmpty()
   passportFileNumber: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  panVerificationRef?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

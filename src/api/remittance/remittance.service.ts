@@ -23,6 +23,7 @@ import { FileResourceEnum } from 'src/utils/enums/file-resource.enum';
 import { FilesService } from 'src/api/files/files.service';
 import {
   CompleteForexRequestDto,
+  CompleteForexOrderDto,
   ForexOrderDetailDto,
   GetAgentChargesQueryDto,
   GetForexOrdersDashboardQueryDto,
@@ -557,6 +558,7 @@ export class RemittanceService {
               snapshot?.preferredPaymentMode ?? payload.preferredPaymentMode,
             startDate: payload.startDate ?? null,
             endDate: payload.endDate ?? null,
+            ...this.remitterPersistFields(payload),
             providerUpdatedAt:
               snapshot?.updatedAt ??
               snapshot?.updated_at ??
@@ -609,6 +611,7 @@ export class RemittanceService {
               sellingRate: payload.sellingRate,
               gst: payload.gst,
               serviceCharge: payload.serviceCharge,
+              ...this.remitterPersistFields(payload),
             });
           }
         }),
@@ -627,6 +630,32 @@ export class RemittanceService {
       return this.prithviService;
     }
     throw new BadRequestException(`Unknown remittance provider: ${provider}`);
+  }
+
+  private remitterPersistFields(payload: CompleteForexOrderDto) {
+    const remitter = payload.remitterDetails;
+    if (!remitter) {
+      return {};
+    }
+
+    const travelerName = [remitter.firstName, remitter.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    return {
+      travelerName: travelerName || payload.travelerName,
+      phoneNumber: remitter.phoneNumber,
+      email: remitter.email,
+      panNumber: remitter.panNumber.toUpperCase(),
+      pincode: remitter.pincode,
+      remitterFirstName: remitter.firstName,
+      remitterLastName: remitter.lastName ?? null,
+      remitterDateOfBirth: remitter.dateOfBirth,
+      remitterAddress: remitter.address,
+      remitterCity: remitter.city,
+      remitterState: remitter.state,
+    };
   }
 
   private assertProviderActive(provider: RemittanceProvider): void {

@@ -370,7 +370,10 @@ export class RegistrationService {
 
     user.otp = undefined;
     user.otpExpiresAt = undefined;
-    user.registrationStatus = RegistrationStatusEnum.STEP1_COMPLETE;
+    user.registrationStatus =
+      user.userType === UserTypeEnum.USER
+        ? RegistrationStatusEnum.VERIFIED
+        : RegistrationStatusEnum.STEP1_COMPLETE;
     await user.save();
 
     const populatedUser = await this.userModel
@@ -446,7 +449,7 @@ export class RegistrationService {
     });
   }
 
-  async completeUserRegistration(userId: string, dto: CompleteUserRegistrationDto) {
+  async completeUserRegistration(userId: string, _dto: CompleteUserRegistrationDto) {
     const user = await this.userModel
       .findOne({ _id: userId, deletedAt: null })
       .populate('role');
@@ -465,16 +468,6 @@ export class RegistrationService {
 
     this.assertRegistrationStep(user, RegistrationStatusEnum.STEP1_COMPLETE);
 
-    const panCardNumber = dto.panCardNumber.toUpperCase();
-    const panResult = await this.verifyPanForUser(user, panCardNumber);
-
-    if (!panResult.verified) {
-      throw new BadRequestException(panResult.message);
-    }
-
-    user.panCardNumber = panCardNumber;
-    user.panVerificationStatus = PanVerificationStatusEnum.VERIFIED;
-    user.panVerificationRef = dto.panVerificationRef ?? panResult.verificationId;
     user.registrationStatus = RegistrationStatusEnum.VERIFIED;
     await user.save();
 
@@ -511,13 +504,6 @@ export class RegistrationService {
     }
 
     this.assertRegistrationStep(user, RegistrationStatusEnum.STEP1_COMPLETE);
-
-    const panCardNumber = dto.panCardNumber.toUpperCase();
-    const panResult = await this.verifyPanForUser(user, panCardNumber);
-
-    if (!panResult.verified) {
-      throw new BadRequestException(panResult.message);
-    }
 
     const passportResult = await this.verifyPassportForUser(user, dto.passportFileNumber);
 
@@ -575,11 +561,8 @@ export class RegistrationService {
       };
     }
 
-    user.panCardNumber = panCardNumber;
     user.passportFileNumber = dto.passportFileNumber;
     user.passportNumber = passportResult.passportNumber;
-    user.panVerificationStatus = PanVerificationStatusEnum.VERIFIED;
-    user.panVerificationRef = dto.panVerificationRef ?? panResult.verificationId;
     user.passportVerificationStatus = PassportVerificationStatusEnum.VERIFIED;
     user.passportVerificationRef =
       dto.passportVerificationRef ?? passportResult.verificationId;

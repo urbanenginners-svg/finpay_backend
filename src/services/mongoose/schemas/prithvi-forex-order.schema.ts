@@ -132,6 +132,30 @@ export class PrithviForexOrder {
   @Prop({ required: false, type: String, default: null })
   pincode?: string | null;
 
+  @ApiPropertyOptional({ description: 'Remitter first name (from user profile at booking).' })
+  @Prop({ required: false, type: String, default: null })
+  remitterFirstName?: string | null;
+
+  @ApiPropertyOptional({ description: 'Remitter last name (from user profile at booking).' })
+  @Prop({ required: false, type: String, default: null })
+  remitterLastName?: string | null;
+
+  @ApiPropertyOptional({ description: 'Remitter date of birth (YYYY-MM-DD).' })
+  @Prop({ required: false, type: String, default: null })
+  remitterDateOfBirth?: string | null;
+
+  @ApiPropertyOptional({ description: 'Remitter residential address.' })
+  @Prop({ required: false, type: String, default: null })
+  remitterAddress?: string | null;
+
+  @ApiPropertyOptional({ description: 'Remitter city.' })
+  @Prop({ required: false, type: String, default: null })
+  remitterCity?: string | null;
+
+  @ApiPropertyOptional({ description: 'Remitter state (Indian state name).' })
+  @Prop({ required: false, type: String, default: null })
+  remitterState?: string | null;
+
   @ApiPropertyOptional()
   @Prop({ required: false, type: String, default: null })
   sourceOfFunds?: string | null;

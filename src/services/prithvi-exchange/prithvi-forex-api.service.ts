@@ -663,7 +663,8 @@ export class PrithviForexApiService {
         key === 'fieldValues' ||
         key === 'documents' ||
         key === 'confirmations' ||
-        key === 'purposeAnswers'
+        key === 'purposeAnswers' ||
+        key === 'remitterDetails'
       ) {
         continue;
       }

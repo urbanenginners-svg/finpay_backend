@@ -23,6 +23,67 @@ import {
   PrithviOrderType,
   PrithviProductType,
 } from 'src/services/prithvi-exchange';
+import { IndianStateEnum } from 'src/utils/enums/indian-state.enum';
+
+export class RemitterDetailsDto {
+  @ApiProperty({ example: 'Jane' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(60)
+  firstName: string;
+
+  @ApiPropertyOptional({ example: 'Doe' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  lastName?: string;
+
+  @ApiProperty({ example: '9876543210' })
+  @IsString()
+  @Matches(/^[6-9]\d{9}$/, {
+    message: 'phoneNumber must be a valid 10-digit Indian mobile number',
+  })
+  phoneNumber: string;
+
+  @ApiProperty({ example: 'jane.doe@example.com' })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ example: 'ABCDE1234F' })
+  @IsString()
+  @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/i, {
+    message: 'panNumber must be a valid PAN format',
+  })
+  panNumber: string;
+
+  @ApiProperty({ example: '1990-01-15' })
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'dateOfBirth must be YYYY-MM-DD',
+  })
+  dateOfBirth: string;
+
+  @ApiProperty({ example: '123 MG Road, Koramangala' })
+  @IsString()
+  @MinLength(5)
+  @MaxLength(200)
+  address: string;
+
+  @ApiProperty({ example: 'Bengaluru' })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(80)
+  city: string;
+
+  @ApiProperty({ enum: IndianStateEnum, example: IndianStateEnum.KARNATAKA })
+  @IsEnum(IndianStateEnum)
+  state: IndianStateEnum;
+
+  @ApiProperty({ example: '560001' })
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'pincode must be a 6-digit Indian PIN' })
+  pincode: string;
+}
 
 export class ForexOrderDetailDto {
   @ApiProperty({ example: 'USD' })
@@ -462,6 +523,15 @@ export class CompleteForexOrderDto {
   @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
   currencyDeclarationConfirm?: boolean;
+
+  /**
+   * Remitter KYC collected at booking. Stored locally only — not forwarded to Prithvi.
+   */
+  @ApiPropertyOptional({ type: RemitterDetailsDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RemitterDetailsDto)
+  remitterDetails?: RemitterDetailsDto;
 }
 
 export class CompleteForexRequestDto {
