@@ -505,6 +505,8 @@ export class RegistrationService {
 
     this.assertRegistrationStep(user, RegistrationStatusEnum.STEP1_COMPLETE);
 
+    user.dateOfBirth = new Date(dto.dateOfBirth);
+
     const passportResult = await this.verifyPassportForUser(user, dto.passportFileNumber);
 
     if (!passportResult.verified) {

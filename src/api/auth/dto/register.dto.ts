@@ -229,6 +229,10 @@ export class CompleteAgentRegistrationDto {
   @IsNotEmpty()
   passportFileNumber: string;
 
+  @ApiProperty({ example: '1990-01-15', description: 'Date of birth (YYYY-MM-DD) for passport verification' })
+  @IsDateString()
+  dateOfBirth: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
