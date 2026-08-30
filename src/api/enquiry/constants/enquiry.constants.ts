@@ -25,11 +25,7 @@ export const REMITTANCE_PURPOSES = [
   'Family Support / Maintenance',
 ] as const;
 
-export const REMITTANCE_TYPES = [
-  'Wire Transfer',
-  'Online Transfer',
-  'Demand Draft',
-] as const;
+export const REMITTANCE_TYPES = ['Wire Transfer'] as const;
 
 export const FOREX_SERVICE_TYPES = ['exchange', 'travel-card'] as const;
 
