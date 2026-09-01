@@ -40,6 +40,7 @@ import {
   CreatePaymentLinkSwagger,
   GetAgentChargesSwagger,
   GetForexOrdersDashboardSwagger,
+  GetForexOrderDetailSwagger,
   GetPurposeConfigSwagger,
   GetPurposesSwagger,
   GetRemittanceProvidersSwagger,
@@ -182,6 +183,21 @@ export class RemittanceController {
       meta: result.meta,
       message: 'Forex orders retrieved successfully.',
     };
+  }
+
+  @ApiBearerAuth()
+  @Version('1')
+  @Get('forex/orders/:orderId')
+  @GetForexOrderDetailSwagger()
+  async getForexOrderDetail(
+    @GetUser('_id') userId: string,
+    @Param('orderId') orderId: string,
+  ) {
+    const data = await this.remittanceService.getForexOrderDetail(
+      orderId,
+      userId,
+    );
+    return new DataResponse(data, 'Forex order retrieved successfully.');
   }
 
   @Public()

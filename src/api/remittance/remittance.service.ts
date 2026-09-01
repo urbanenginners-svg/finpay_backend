@@ -332,6 +332,74 @@ export class RemittanceService {
     };
   }
 
+  /** User: full detail for a single owned forex order. */
+  async getForexOrderDetail(orderId: string, userId: string) {
+    const trimmedOrderId = orderId?.trim();
+    if (!trimmedOrderId) {
+      throw new BadRequestException('Order id is required');
+    }
+
+    const detail = await this.forexOrders.findDetailForUser(
+      trimmedOrderId,
+      String(userId),
+    );
+    if (!detail) {
+      throw new NotFoundException('Forex order not found for this account');
+    }
+
+    return detail;
+  }
+
+  /** Admin: full detail for a single forex order with booking owner profile. */
+  async getAdminForexOrderDetail(orderId: string) {
+    const trimmedOrderId = orderId?.trim();
+    if (!trimmedOrderId) {
+      throw new BadRequestException('Order id is required');
+    }
+
+    const detail = await this.forexOrders.findDetailForAdmin(trimmedOrderId);
+    if (!detail) {
+      throw new NotFoundException('Forex order not found');
+    }
+
+    const userId = detail.createdByUserId;
+    const user = userId
+      ? await this.userModel
+          .findById(userId)
+          .select('_id firstName lastName email phoneNumber')
+          .lean()
+          .exec()
+      : null;
+
+    const userProfile = user
+      ? {
+          id: String(user._id),
+          firstName: user.firstName ?? '',
+          lastName: user.lastName ?? '',
+          email: user.email ?? null,
+          phoneNumber: user.phoneNumber ?? null,
+          displayName:
+            [user.firstName, user.lastName].filter(Boolean).join(' ') ||
+            user.email ||
+            String(user._id),
+        }
+      : userId
+        ? {
+            id: userId,
+            firstName: '',
+            lastName: '',
+            email: null,
+            phoneNumber: null,
+            displayName: userId,
+          }
+        : null;
+
+    return {
+      ...detail,
+      user: userProfile,
+    };
+  }
+
   /** Admin: manually pull latest order status from the provider. */
   async syncForexOrdersNow() {
     return this.prithviForex.syncOrdersFromProvider();

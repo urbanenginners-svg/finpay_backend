@@ -9,6 +9,7 @@ import {
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import type {
   PrithviForexDashboardOrder,
+  PrithviForexOrderRecord,
   PrithviForexOrdersDashboardResult,
 } from './prithvi-exchange.types';
 
@@ -144,6 +145,117 @@ function asDate(value: string | Date | null | undefined): Date | null {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toIsoString(value: Date | string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  if (value instanceof Date) return value.toISOString();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
+type ForexOrderLeanRow = {
+  prithviOrderId: string;
+  forexRequestId?: string;
+  createdByUserId?: string;
+  orderCode?: string | null;
+  orderType?: string | null;
+  currency?: string | null;
+  product?: string | null;
+  status: string;
+  statusLabel?: string | null;
+  paymentStatus?: string | null;
+  currencyAmount?: string | null;
+  amountInINR?: string | null;
+  sellingRate?: string | null;
+  agentSellingRate?: string | null;
+  gst?: string | null;
+  serviceCharge?: string | null;
+  totalAmount?: string | null;
+  paidAmount?: string | null;
+  pendingAmount?: string | null;
+  travelerName?: string | null;
+  phoneNumber?: string | null;
+  email?: string | null;
+  panNumber?: string | null;
+  purpose?: string | null;
+  travelingCountries?: string[];
+  deliveryAddress?: string | null;
+  pincode?: string | null;
+  sourceOfFunds?: string | null;
+  preferredDeliveryMode?: string | null;
+  preferredPaymentMode?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  remitterFirstName?: string | null;
+  remitterLastName?: string | null;
+  remitterDateOfBirth?: string | null;
+  remitterAddress?: string | null;
+  remitterCity?: string | null;
+  remitterState?: string | null;
+  documents?: Record<string, string>;
+  localDocumentFileIds?: Record<string, string>;
+  providerCreatedAt?: Date | null;
+  providerUpdatedAt?: Date | null;
+  initiatedAt?: Date | null;
+  completedAt?: Date | null;
+  lastSyncedAt?: Date | null;
+  isDryRun?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+function mapRowToDetail(row: ForexOrderLeanRow): PrithviForexOrderRecord {
+  return {
+    id: row.prithviOrderId,
+    forexRequestId: row.forexRequestId ?? undefined,
+    createdByUserId: row.createdByUserId ?? undefined,
+    orderCode: row.orderCode ?? undefined,
+    orderType: row.orderType ?? undefined,
+    currency: row.currency ?? undefined,
+    product: row.product ?? undefined,
+    status: row.status,
+    statusLabel: row.statusLabel ?? undefined,
+    paymentStatus: row.paymentStatus ?? undefined,
+    currencyAmount: row.currencyAmount ?? undefined,
+    amountInINR: row.amountInINR ?? undefined,
+    sellingRate: row.sellingRate ?? undefined,
+    agentSellingRate: row.agentSellingRate ?? undefined,
+    gst: row.gst ?? undefined,
+    serviceCharge: row.serviceCharge ?? undefined,
+    totalAmount: row.totalAmount ?? undefined,
+    paidAmount: row.paidAmount ?? undefined,
+    pendingAmount: row.pendingAmount ?? undefined,
+    travelerName: row.travelerName ?? undefined,
+    phoneNumber: row.phoneNumber ?? undefined,
+    email: row.email ?? undefined,
+    panNumber: row.panNumber ?? undefined,
+    purpose: row.purpose ?? undefined,
+    travelingCountries: row.travelingCountries ?? undefined,
+    deliveryAddress: row.deliveryAddress ?? undefined,
+    pincode: row.pincode ?? undefined,
+    sourceOfFunds: row.sourceOfFunds ?? undefined,
+    preferredDeliveryMode: row.preferredDeliveryMode ?? undefined,
+    preferredPaymentMode: row.preferredPaymentMode ?? undefined,
+    startDate: row.startDate ?? undefined,
+    endDate: row.endDate ?? undefined,
+    remitterFirstName: row.remitterFirstName ?? undefined,
+    remitterLastName: row.remitterLastName ?? undefined,
+    remitterDateOfBirth: row.remitterDateOfBirth ?? undefined,
+    remitterAddress: row.remitterAddress ?? undefined,
+    remitterCity: row.remitterCity ?? undefined,
+    remitterState: row.remitterState ?? undefined,
+    documents: row.documents ?? undefined,
+    localDocumentFileIds: row.localDocumentFileIds ?? undefined,
+    initiatedAt: toIsoString(row.initiatedAt),
+    completedAt: toIsoString(row.completedAt),
+    lastSyncedAt: toIsoString(row.lastSyncedAt),
+    providerUpdatedAt: toIsoString(row.providerUpdatedAt),
+    isDryRun: row.isDryRun ?? undefined,
+    createdAt:
+      toIsoString(row.providerCreatedAt) ?? toIsoString(row.createdAt),
+    updatedAt: toIsoString(row.updatedAt),
+  };
 }
 
 @Injectable()
@@ -401,6 +513,32 @@ export class PrithviForexOrderService {
         createdByUserId: String(createdByUserId),
       })
       .exec();
+  }
+
+  async findDetailForUser(
+    prithviOrderId: string,
+    createdByUserId: string,
+  ): Promise<PrithviForexOrderRecord | null> {
+    const row = await this.model
+      .findOne({
+        prithviOrderId,
+        createdByUserId: String(createdByUserId),
+      })
+      .lean()
+      .exec();
+
+    return row ? mapRowToDetail(row as ForexOrderLeanRow) : null;
+  }
+
+  async findDetailForAdmin(
+    prithviOrderId: string,
+  ): Promise<PrithviForexOrderRecord | null> {
+    const row = await this.model
+      .findOne({ prithviOrderId })
+      .lean()
+      .exec();
+
+    return row ? mapRowToDetail(row as ForexOrderLeanRow) : null;
   }
 
   async setUploadedDocument(input: {

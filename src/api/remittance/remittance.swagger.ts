@@ -209,6 +209,21 @@ export function GetForexOrdersDashboardSwagger() {
   );
 }
 
+export function GetForexOrderDetailSwagger() {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Get forex order detail',
+      description:
+        'Returns the full booking record for a single order owned by the authenticated user.',
+    }),
+    ApiParam({ name: 'orderId', description: 'Prithvi order id' }),
+    ApiResponse({ status: 200, description: 'Order retrieved' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+    ApiResponse({ status: 404, description: 'Order not found' }),
+  );
+}
+
 export function GetPurposesSwagger() {
   return applyDecorators(
     ApiOperation({

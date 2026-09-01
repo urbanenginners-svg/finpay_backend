@@ -145,6 +145,19 @@ export class AdminForexOrdersController {
   }
 
   @Version('1')
+  @Get(':orderId')
+  @ApiOperation({
+    summary: 'Get forex order detail',
+    description:
+      'Returns the full booking record for a single order, including owner profile.',
+  })
+  @CheckActionPolicy(PermissionEnum.READ, resource.User)
+  async getOrderDetail(@Param('orderId') orderId: string) {
+    const data = await this.remittanceService.getAdminForexOrderDetail(orderId);
+    return new DataResponse(data, 'Forex order retrieved successfully.');
+  }
+
+  @Version('1')
   @Patch(':orderId/status')
   @ApiOperation({
     summary: 'Set local forex order status',

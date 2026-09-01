@@ -455,6 +455,42 @@ export type PrithviForexDashboardOrder = {
   updatedAt?: string;
 };
 
+/** Full order detail for a single forex booking (dashboard detail view). */
+export type PrithviForexOrderRecord = PrithviForexDashboardOrder & {
+  phoneNumber?: string;
+  email?: string;
+  panNumber?: string;
+  sellingRate?: string | number;
+  agentSellingRate?: string | number;
+  gst?: string | number;
+  serviceCharge?: string | number;
+  paidAmount?: string | number;
+  pendingAmount?: string | number;
+  purpose?: string;
+  travelingCountries?: string[];
+  deliveryAddress?: string;
+  pincode?: string;
+  sourceOfFunds?: string;
+  preferredDeliveryMode?: string;
+  preferredPaymentMode?: string;
+  startDate?: string;
+  endDate?: string;
+  remitterFirstName?: string;
+  remitterLastName?: string;
+  remitterDateOfBirth?: string;
+  remitterAddress?: string;
+  remitterCity?: string;
+  remitterState?: string;
+  documents?: Record<string, string>;
+  localDocumentFileIds?: Record<string, string>;
+  initiatedAt?: string;
+  completedAt?: string;
+  lastSyncedAt?: string;
+  providerUpdatedAt?: string;
+  isDryRun?: boolean;
+  createdByUserId?: string;
+};
+
 export type SyncForexOrdersFromProviderResult = {
   pagesFetched: number;
   rowsSeen: number;
