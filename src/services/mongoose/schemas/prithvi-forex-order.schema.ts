@@ -2,15 +2,35 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { HydratedDocument } from 'mongoose';
 
+import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
+
 export type PrithviForexOrderDocument = HydratedDocument<PrithviForexOrder>;
 
 /**
- * Local copy of a Prithvi forex line order.
- * Created on book (initiate/complete), refreshed every 30 minutes from the Prithvi
- * orders dashboard, and served by GET /remittance/forex/orders/dashboard.
+ * Finpay forex order (vendor-agnostic collection).
+ * Created on book (initiate/complete), refreshed periodically from the active
+ * vendor dashboard, and served by GET /remittance/forex/orders/dashboard.
+ *
+ * Users only see Finpay; `vendor` records which fulfillment partner processed the
+ * order (e.g. prithvi) so multiple vendors can share this collection.
  */
-@Schema({ collection: 'prithvi_forex_orders', timestamps: true })
+@Schema({ collection: 'forex_orders', timestamps: true })
 export class PrithviForexOrder {
+  @ApiProperty({
+    description:
+      'Fulfillment vendor that processed this order behind Finpay (internal; not shown to end users).',
+    enum: RemittanceProvider,
+    example: RemittanceProvider.PRITHVI,
+  })
+  @Prop({
+    required: true,
+    type: String,
+    enum: Object.values(RemittanceProvider),
+    default: RemittanceProvider.PRITHVI,
+    index: true,
+  })
+  vendor: RemittanceProvider;
+
   @ApiProperty({
     description: 'Prithvi order line id (unique).',
     example: '56a3d0a4-4278-462a-8c8a-9bdc68b8bb3b',
@@ -243,6 +263,7 @@ export class PrithviForexOrder {
 export const PrithviForexOrderSchema =
   SchemaFactory.createForClass(PrithviForexOrder);
 
+PrithviForexOrderSchema.index({ vendor: 1, createdByUserId: 1, providerCreatedAt: -1 });
 PrithviForexOrderSchema.index({ createdByUserId: 1, providerCreatedAt: -1 });
 PrithviForexOrderSchema.index({ createdByUserId: 1, status: 1 });
 PrithviForexOrderSchema.index({ createdByUserId: 1, product: 1 });

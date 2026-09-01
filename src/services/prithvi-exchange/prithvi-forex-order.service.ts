@@ -6,6 +6,7 @@ import {
   PrithviForexOrder,
   PrithviForexOrderDocument,
 } from 'src/services/mongoose/schemas/prithvi-forex-order.schema';
+import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import type {
   PrithviForexDashboardOrder,
   PrithviForexOrdersDashboardResult,
@@ -161,6 +162,7 @@ export class PrithviForexOrderService {
         { prithviOrderId: input.prithviOrderId },
         {
           $set: {
+            vendor: RemittanceProvider.PRITHVI,
             forexRequestId: input.forexRequestId,
             createdByUserId: String(input.createdByUserId),
             orderType: input.orderType ?? null,
@@ -196,6 +198,7 @@ export class PrithviForexOrderService {
     input: UpsertForexOrderFromCompleteInput,
   ): Promise<PrithviForexOrderDocument | null> {
     const $set: Record<string, unknown> = {
+      vendor: RemittanceProvider.PRITHVI,
       completedAt: new Date(),
       status: input.status ?? 'PENDING',
       statusLabel: input.statusLabel ?? 'Pending Approval',
@@ -295,6 +298,7 @@ export class PrithviForexOrderService {
         { prithviOrderId: input.prithviOrderId },
         {
           $set: {
+            vendor: RemittanceProvider.PRITHVI,
             ...(input.forexRequestId
               ? { forexRequestId: input.forexRequestId }
               : {}),
