@@ -477,6 +477,8 @@ export type PrithviForexDashboardOrder = {
   amountInINR?: string | number;
   totalAmount?: string | number;
   travelerName?: string;
+  swiftCopyDoc?: string;
+  swiftCopyDocUrl?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -515,6 +517,8 @@ export type PrithviForexOrderRecord = PrithviForexDashboardOrder & {
   paymentStatementReceiptLocalFileId?: string;
   paymentStatementReceiptPrithviKey?: string;
   paymentStatementReceiptUrl?: string;
+  swiftCopyDoc?: string;
+  swiftCopyDocUrl?: string;
   offlinePaymentSubmittedAt?: string;
   initiatedAt?: string;
   completedAt?: string;

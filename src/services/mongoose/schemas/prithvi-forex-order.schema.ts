@@ -275,6 +275,18 @@ export class PrithviForexOrder {
   @Prop({ required: false, type: String, default: null })
   paymentStatementReceiptUrl?: string | null;
 
+  @ApiPropertyOptional({
+    description: 'Prithvi S3 key for SWIFT copy document (synced from dashboard).',
+  })
+  @Prop({ required: false, type: String, default: null })
+  swiftCopyDoc?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Prithvi presigned URL for SWIFT copy (may expire; refreshed on sync).',
+  })
+  @Prop({ required: false, type: String, default: null })
+  swiftCopyDocUrl?: string | null;
+
   @ApiPropertyOptional()
   @Prop({ required: false, type: Date, default: null })
   offlinePaymentSubmittedAt?: Date | null;

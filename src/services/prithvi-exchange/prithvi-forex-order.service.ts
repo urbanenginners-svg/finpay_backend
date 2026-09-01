@@ -95,6 +95,8 @@ export type SyncForexOrderFromDashboardInput = {
   travelerName?: string | null;
   providerCreatedAt?: string | Date | null;
   providerUpdatedAt?: string | Date | null;
+  swiftCopyDoc?: string | null;
+  swiftCopyDocUrl?: string | null;
 };
 
 export type ListForexOrdersParams = {
@@ -201,6 +203,8 @@ type ForexOrderLeanRow = {
   paymentStatementReceiptLocalFileId?: string | null;
   paymentStatementReceiptPrithviKey?: string | null;
   paymentStatementReceiptUrl?: string | null;
+  swiftCopyDoc?: string | null;
+  swiftCopyDocUrl?: string | null;
   offlinePaymentSubmittedAt?: Date | null;
   providerCreatedAt?: Date | null;
   providerUpdatedAt?: Date | null;
@@ -262,6 +266,8 @@ function mapRowToDetail(row: ForexOrderLeanRow): PrithviForexOrderRecord {
     paymentStatementReceiptPrithviKey:
       row.paymentStatementReceiptPrithviKey ?? undefined,
     paymentStatementReceiptUrl: row.paymentStatementReceiptUrl ?? undefined,
+    swiftCopyDoc: row.swiftCopyDoc ?? undefined,
+    swiftCopyDocUrl: row.swiftCopyDocUrl ?? undefined,
     offlinePaymentSubmittedAt: toIsoString(row.offlinePaymentSubmittedAt),
     initiatedAt: toIsoString(row.initiatedAt),
     completedAt: toIsoString(row.completedAt),
@@ -444,6 +450,8 @@ export class PrithviForexOrderService {
             providerCreatedAt: asDate(input.providerCreatedAt),
             providerUpdatedAt: asDate(input.providerUpdatedAt) ?? new Date(),
             lastSyncedAt: new Date(),
+            swiftCopyDoc: input.swiftCopyDoc ?? null,
+            swiftCopyDocUrl: input.swiftCopyDocUrl ?? null,
           },
         },
       )

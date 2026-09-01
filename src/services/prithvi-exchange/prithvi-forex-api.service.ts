@@ -1209,6 +1209,8 @@ export class PrithviForexApiService {
           travelerName: row.travelerName ?? null,
           providerCreatedAt: row.createdAt ?? null,
           providerUpdatedAt: row.updatedAt ?? null,
+          swiftCopyDoc: row.swiftCopyDoc ?? null,
+          swiftCopyDocUrl: row.swiftCopyDocUrl ?? null,
         });
         if (synced.matched) rowsMatched += 1;
         if (synced.statusChanged && synced.createdByUserId) {
@@ -1693,6 +1695,8 @@ export class PrithviForexApiService {
         paymentStatus: 'PAID',
         travelerName: 'Dry Run Traveler',
         createdAt: new Date(Date.now() - 86_400_000).toISOString(),
+        swiftCopyDoc: 'dry-run/swift-copy.pdf',
+        swiftCopyDocUrl: 'https://dry-run.example.com/swift-copy.pdf',
       },
     ];
 
@@ -2049,6 +2053,8 @@ export class PrithviForexApiService {
         o.totalAmount != null ? (o.totalAmount as string | number) : undefined,
       travelerName:
         typeof o.travelerName === 'string' ? o.travelerName : undefined,
+      swiftCopyDoc: this.readProviderDocumentPath(o, 'swiftCopyDoc'),
+      swiftCopyDocUrl: this.readProviderDocumentUrl(o, 'swiftCopyDoc'),
       createdAt:
         (typeof o.createdAt === 'string' && o.createdAt) ||
         (typeof o.created_at === 'string' && o.created_at) ||
@@ -2058,6 +2064,36 @@ export class PrithviForexApiService {
         (typeof o.updated_at === 'string' && o.updated_at) ||
         undefined,
     };
+  }
+
+  private readProviderDocumentPath(
+    order: Record<string, unknown>,
+    baseKey: string,
+  ): string | undefined {
+    const snake = baseKey.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+    for (const key of [baseKey, snake]) {
+      const value = order[key];
+      if (typeof value !== 'string') continue;
+      const trimmed = value.trim();
+      if (!trimmed || /^https?:\/\//i.test(trimmed)) continue;
+      return trimmed;
+    }
+    return undefined;
+  }
+
+  private readProviderDocumentUrl(
+    order: Record<string, unknown>,
+    baseKey: string,
+  ): string | undefined {
+    const snake = baseKey.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+    for (const key of [`${baseKey}Url`, `${snake}_url`, `${snake}Url`]) {
+      const value = order[key];
+      if (typeof value !== 'string') continue;
+      const trimmed = value.trim();
+      if (!trimmed || !/^https?:\/\//i.test(trimmed)) continue;
+      return trimmed;
+    }
+    return undefined;
   }
 
   /**
