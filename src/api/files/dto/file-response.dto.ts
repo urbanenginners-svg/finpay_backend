@@ -74,6 +74,12 @@ export class PresignedUrlResponseDto {
 
   @ApiProperty({ description: 'Expiry time in seconds', example: 3600 })
   expiresIn: number;
+
+  @ApiProperty({ example: 'image/jpeg', required: false })
+  mimeType?: string;
+
+  @ApiProperty({ example: 'passport.pdf', required: false })
+  originalName?: string;
 }
 
 export class PublicUrlResponseDto {

@@ -220,7 +220,12 @@ export class FilesService {
 
   async getPresignedUrl(
     id: string,
-  ): Promise<{ presignedUrl: string; expiresIn: number }> {
+  ): Promise<{
+    presignedUrl: string;
+    expiresIn: number;
+    mimeType?: string;
+    originalName?: string;
+  }> {
     const fileDoc = await this.findOne(id);
 
     try {
@@ -233,7 +238,12 @@ export class FilesService {
         expiresIn: this.presignedUrlExpiresIn,
       });
 
-      return { presignedUrl, expiresIn: this.presignedUrlExpiresIn };
+      return {
+        presignedUrl,
+        expiresIn: this.presignedUrlExpiresIn,
+        mimeType: fileDoc.mimeType ?? undefined,
+        originalName: fileDoc.originalName ?? undefined,
+      };
     } catch (error) {
       throw new InternalServerErrorException(
         `Failed to generate presigned URL: ${error.message}`,
