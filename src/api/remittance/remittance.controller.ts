@@ -25,6 +25,7 @@ import {
   GetPurposesQueryDto,
   GetRemittanceRatesQueryDto,
   InitiateForexRequestDto,
+  SubmitForexOfflinePaymentDto,
   UploadForexOrderDocumentDto,
 } from './dto';
 import { DataResponse } from 'src/utils/response';
@@ -46,6 +47,7 @@ import {
   GetRemittanceProvidersSwagger,
   GetRemittanceRatesSwagger,
   InitiateForexRequestSwagger,
+  SubmitForexOfflinePaymentSwagger,
   UploadForexOrderDocumentSwagger,
 } from './remittance.swagger';
 
@@ -135,6 +137,39 @@ export class RemittanceController {
       userId,
     );
     return new DataResponse(data, 'Payment link generated successfully.');
+  }
+
+  @ApiBearerAuth()
+  @Version('1')
+  @Post('forex/orders/:orderId/offline-payment')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerBehindProxyGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @SubmitForexOfflinePaymentSwagger()
+  @UseInterceptors(
+    FileInterceptor('document', {
+      storage: memoryStorage(),
+      fileFilter: imageFileFilter,
+      limits: { fileSize: MAX_FILE_SIZE_BYTES },
+    }),
+  )
+  async submitOfflinePayment(
+    @GetUser('_id') userId: string,
+    @Param('orderId') orderId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: SubmitForexOfflinePaymentDto,
+  ) {
+    const data = await this.remittanceService.submitOfflinePayment(
+      orderId,
+      dto.paymentMode,
+      dto.utrNumber,
+      file,
+      userId,
+    );
+    return new DataResponse(
+      data,
+      'Offline payment details submitted successfully.',
+    );
   }
 
   @ApiBearerAuth()

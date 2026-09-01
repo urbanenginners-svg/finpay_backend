@@ -612,3 +612,21 @@ export class UploadForexOrderDocumentDto {
   @MaxLength(80)
   documentType: string;
 }
+
+export enum ForexOfflinePaymentMode {
+  IMPS = 'IMPS',
+  NEFT = 'NEFT',
+  RTGS = 'RTGS',
+}
+
+export class SubmitForexOfflinePaymentDto {
+  @ApiProperty({ enum: ForexOfflinePaymentMode, example: ForexOfflinePaymentMode.NEFT })
+  @IsEnum(ForexOfflinePaymentMode)
+  paymentMode: ForexOfflinePaymentMode;
+
+  @ApiProperty({ example: 'HDFCN26083112345' })
+  @IsString()
+  @MinLength(6)
+  @MaxLength(64)
+  utrNumber: string;
+}

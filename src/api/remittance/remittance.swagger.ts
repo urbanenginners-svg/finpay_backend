@@ -144,6 +144,48 @@ export function CreatePaymentLinkSwagger() {
   );
 }
 
+export function SubmitForexOfflinePaymentSwagger() {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiConsumes('multipart/form-data'),
+    ApiOperation({
+      summary: 'Submit offline bank transfer payment',
+      description:
+        'Stores payment receipt in Finpay S3, registers offline payment with Prithvi PATCH /orders/:orderId/offline-payment, then uploads receipt via POST /orders/:orderId/upload-payment-receipt.',
+    }),
+    ApiParam({
+      name: 'orderId',
+      description: 'Prithvi order line id',
+    }),
+    ApiBody({
+      schema: {
+        type: 'object',
+        required: ['document', 'paymentMode', 'utrNumber'],
+        properties: {
+          document: {
+            type: 'string',
+            format: 'binary',
+            description: 'Payment statement receipt (pdf/jpg/png)',
+          },
+          paymentMode: {
+            type: 'string',
+            enum: ['IMPS', 'NEFT', 'RTGS'],
+            example: 'NEFT',
+          },
+          utrNumber: {
+            type: 'string',
+            example: 'HDFCN26083112345',
+          },
+        },
+      },
+    }),
+    ApiResponse({ status: 200, description: 'Offline payment submitted' }),
+    ApiResponse({ status: 400, description: 'Validation or provider client error' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+    ApiResponse({ status: 404, description: 'Order not found for this account' }),
+  );
+}
+
 export function UploadForexOrderDocumentSwagger() {
   return applyDecorators(
     ApiBearerAuth(),

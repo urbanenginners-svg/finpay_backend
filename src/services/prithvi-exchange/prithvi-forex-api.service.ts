@@ -45,6 +45,9 @@ import {
   UploadForexOrderDocumentResult,
   CreatePaymentLinkParams,
   CreatePaymentLinkResult,
+  SetOrderOfflinePaymentParams,
+  UploadPaymentReceiptParams,
+  UploadPaymentReceiptResult,
 } from './prithvi-exchange.types';
 
 const SENSITIVE_KEYS = new Set([
@@ -257,7 +260,7 @@ function normalizeChargeLine(
 }
 
 type JsonRequestOptions = {
-  method: 'GET' | 'POST';
+  method: 'GET' | 'POST' | 'PATCH';
   callType: PrithviApiCallType;
   path: string;
   body?: Record<string, unknown> | null;
@@ -464,6 +467,209 @@ export class PrithviForexApiService {
     });
 
     return this.normalizePaymentLinkResult(data);
+  }
+
+  /**
+   * PATCH /orders/:orderId/offline-payment — mark order for offline bank transfer.
+   */
+  async setOrderOfflinePayment(
+    params: SetOrderOfflinePaymentParams,
+  ): Promise<void> {
+    const orderId = params.orderId?.trim();
+    const paymentMode = params.paymentMode?.trim().toUpperCase();
+    const utrNumber = params.utrNumber?.trim();
+    if (!orderId) {
+      throw new BadRequestException('Order id is required');
+    }
+    if (!paymentMode) {
+      throw new BadRequestException('paymentMode is required');
+    }
+    if (!utrNumber) {
+      throw new BadRequestException('utrNumber is required');
+    }
+
+    if (!this.isActive) {
+      this.logger.warn(
+        `PRITHVI_ACTIVE_MODE is not "true"; skipping live offline-payment. orderId=${orderId}`,
+      );
+      return;
+    }
+
+    const path = PRITHVI_API_PATHS.ORDER_OFFLINE_PAYMENT.replace(
+      ':orderId',
+      encodeURIComponent(orderId),
+    );
+
+    await this.requestJson<unknown>({
+      method: 'PATCH',
+      callType: PrithviApiCallType.ORDER_OFFLINE_PAYMENT,
+      path,
+      body: {
+        offlinePayment: true,
+        paymentMode,
+        utrNumber,
+      },
+      clientErrorMessage:
+        'Unable to register offline payment details. Please check payment mode and UTR and try again.',
+      serverErrorMessage:
+        'Unable to register offline payment with provider right now. Please try again later.',
+    });
+  }
+
+  /**
+   * POST /orders/:orderId/upload-payment-receipt (multipart: document).
+   */
+  async uploadPaymentReceipt(
+    params: UploadPaymentReceiptParams,
+  ): Promise<UploadPaymentReceiptResult> {
+    const orderId = params.orderId?.trim();
+    if (!orderId) {
+      throw new BadRequestException('Order id is required');
+    }
+    if (!params.buffer?.length) {
+      throw new BadRequestException('Payment receipt file is required');
+    }
+
+    if (!this.isActive) {
+      return this.dryRunUploadPaymentReceipt(orderId);
+    }
+
+    const path = PRITHVI_API_PATHS.ORDER_UPLOAD_PAYMENT_RECEIPT.replace(
+      ':orderId',
+      encodeURIComponent(orderId),
+    );
+    const url = this.buildUrl(path);
+    const startedAt = Date.now();
+    let httpStatus: number | null = null;
+    let responseBody: Record<string, unknown> | null = null;
+    let requestHeaders: Record<string, unknown> | null = null;
+    let success = false;
+    let errorMessage: string | null = null;
+
+    const buildForm = () => {
+      const form = new FormData();
+      form.append('document', params.buffer, {
+        filename: params.filename || 'payment-receipt.pdf',
+        contentType: params.mimeType || 'application/octet-stream',
+        knownLength: params.buffer.length,
+      });
+      return form;
+    };
+
+    const buildHeaders = (token: string, form: FormData) => ({
+      ...form.getHeaders(),
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    });
+
+    try {
+      let token = await this.prithvi.getValidAccessToken();
+      let form = buildForm();
+      requestHeaders = this.sanitizeHeaders(buildHeaders(token, form));
+      let response = await axios.request({
+        method: 'POST',
+        url,
+        data: form,
+        headers: buildHeaders(token, form),
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+        validateStatus: () => true,
+      });
+
+      if (this.isAuthTokenRejected(response.status, response.data)) {
+        token = await this.prithvi.getValidAccessToken({ forceRefresh: true });
+        form = buildForm();
+        requestHeaders = this.sanitizeHeaders(buildHeaders(token, form));
+        response = await axios.request({
+          method: 'POST',
+          url,
+          data: form,
+          headers: buildHeaders(token, form),
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
+          validateStatus: () => true,
+        });
+      }
+
+      httpStatus = response.status;
+      responseBody = this.sanitizeObject(
+        (response.data ?? {}) as Record<string, unknown>,
+      );
+
+      if (response.status >= 400 && response.status < 500) {
+        errorMessage = `HTTP ${response.status}: ${JSON.stringify(response.data)}`;
+        const providerMessage = this.extractProviderMessage(response.data);
+        throw new BadRequestException(
+          providerMessage ??
+            'Unable to upload payment receipt. Please check the file and try again.',
+        );
+      }
+
+      if (response.status < 200 || response.status >= 300) {
+        errorMessage = `HTTP ${response.status}: ${JSON.stringify(response.data)}`;
+        throw new InternalServerErrorException(
+          'Unable to upload payment receipt to provider right now. Please try again later.',
+        );
+      }
+
+      const envelope =
+        response.data && typeof response.data === 'object'
+          ? (response.data as Record<string, unknown>)
+          : null;
+      if (envelope && 'success' in envelope && envelope.success === false) {
+        const providerMessage = this.extractProviderMessage(response.data);
+        throw new BadRequestException(
+          providerMessage ??
+            'Unable to upload payment receipt. Please check the file and try again.',
+        );
+      }
+
+      success = true;
+      return this.parseUploadPaymentReceiptResponse(response.data);
+    } catch (err) {
+      if (
+        err instanceof BadRequestException ||
+        err instanceof InternalServerErrorException
+      ) {
+        throw err;
+      }
+      errorMessage = isAxiosError(err)
+        ? `Network error: ${err.message}`
+        : err instanceof Error
+          ? err.message
+          : String(err);
+      this.logger.error(
+        `Prithvi order upload-payment-receipt failed: ${errorMessage}`,
+      );
+      throw new InternalServerErrorException(
+        'Unable to upload payment receipt to provider right now. Please try again later.',
+      );
+    } finally {
+      void this.apiLog
+        .create({
+          callType: PrithviApiCallType.ORDER_UPLOAD_PAYMENT_RECEIPT,
+          method: 'POST',
+          url,
+          requestBody: {
+            filename: params.filename,
+            mimeType: params.mimeType,
+            size: params.buffer.length,
+          },
+          requestParams: null,
+          requestHeaders,
+          httpStatus,
+          responseBody,
+          success,
+          errorMessage,
+          durationMs: Date.now() - startedAt,
+          isDryRun: false,
+        })
+        .catch((e: unknown) =>
+          this.logger.error(
+            `Prithvi API log save failed: ${e instanceof Error ? e.message : String(e)}`,
+          ),
+        );
+    }
   }
 
   /**
@@ -892,6 +1098,74 @@ export class PrithviForexApiService {
         id: orderId,
         [documentType]: prithviPath,
       },
+    };
+  }
+
+  private dryRunUploadPaymentReceipt(orderId: string): UploadPaymentReceiptResult {
+    const s3Key = `dry-run/${orderId}/paymentStatementReceipt.pdf`;
+    this.logger.warn(
+      `PRITHVI_ACTIVE_MODE is not "true"; returning dry-run payment receipt upload. orderId=${orderId}`,
+    );
+    return {
+      s3Key,
+      receiptUrl: `https://dry-run.example.com/${s3Key}`,
+      paymentDetails: {
+        offlinePayment: true,
+        paymentStatementReceipt: s3Key,
+      },
+    };
+  }
+
+  private parseUploadPaymentReceiptResponse(
+    raw: unknown,
+  ): UploadPaymentReceiptResult {
+    const envelope =
+      raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    const data =
+      envelope.data && typeof envelope.data === 'object'
+        ? (envelope.data as Record<string, unknown>)
+        : envelope;
+
+    const s3Key =
+      typeof data.s3Key === 'string' ? data.s3Key : '';
+    const receiptUrl =
+      typeof data.receiptUrl === 'string' ? data.receiptUrl : undefined;
+
+    const paymentDetailsRaw =
+      data.paymentDetails && typeof data.paymentDetails === 'object'
+        ? (data.paymentDetails as Record<string, unknown>)
+        : undefined;
+
+    const paymentDetails = paymentDetailsRaw
+      ? {
+          offlinePayment:
+            paymentDetailsRaw.offlinePayment === true ||
+            paymentDetailsRaw.offlinePayment === 'true',
+          paymentMode:
+            typeof paymentDetailsRaw.paymentMode === 'string'
+              ? paymentDetailsRaw.paymentMode
+              : undefined,
+          utrNumber:
+            typeof paymentDetailsRaw.utrNumber === 'string'
+              ? paymentDetailsRaw.utrNumber
+              : undefined,
+          paymentStatementReceipt:
+            typeof paymentDetailsRaw.paymentStatementReceipt === 'string'
+              ? paymentDetailsRaw.paymentStatementReceipt
+              : undefined,
+        }
+      : undefined;
+
+    if (!s3Key) {
+      throw new BadRequestException(
+        'Provider did not return a receipt key for the payment statement.',
+      );
+    }
+
+    return {
+      s3Key,
+      receiptUrl,
+      paymentDetails,
     };
   }
 

@@ -249,6 +249,36 @@ export class PrithviForexOrder {
   @Prop({ required: false, type: Date, default: null })
   lastSyncedAt?: Date | null;
 
+  @ApiPropertyOptional({
+    description: 'User submitted offline bank transfer for this order.',
+  })
+  @Prop({ required: false, type: Boolean, default: false })
+  offlinePayment?: boolean;
+
+  @ApiPropertyOptional({ example: 'NEFT' })
+  @Prop({ required: false, type: String, default: null })
+  offlinePaymentMode?: string | null;
+
+  @ApiPropertyOptional({ example: 'HDFCN26083112345' })
+  @Prop({ required: false, type: String, default: null })
+  offlineUtrNumber?: string | null;
+
+  @ApiPropertyOptional({ description: 'Finpay S3 file id for payment receipt.' })
+  @Prop({ required: false, type: String, default: null })
+  paymentStatementReceiptLocalFileId?: string | null;
+
+  @ApiPropertyOptional({ description: 'Prithvi S3 key for payment receipt.' })
+  @Prop({ required: false, type: String, default: null })
+  paymentStatementReceiptPrithviKey?: string | null;
+
+  @ApiPropertyOptional({ description: 'Prithvi receipt URL (may expire).' })
+  @Prop({ required: false, type: String, default: null })
+  paymentStatementReceiptUrl?: string | null;
+
+  @ApiPropertyOptional()
+  @Prop({ required: false, type: Date, default: null })
+  offlinePaymentSubmittedAt?: Date | null;
+
   @ApiProperty({ example: false })
   @Prop({ required: true, type: Boolean, default: false })
   isDryRun: boolean;

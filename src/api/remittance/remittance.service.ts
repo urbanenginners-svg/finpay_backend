@@ -178,7 +178,129 @@ export class RemittanceService {
       throw new BadRequestException('This order is already paid.');
     }
 
+    if (owned.offlinePayment && owned.offlineUtrNumber) {
+      throw new BadRequestException(
+        'Offline payment has already been submitted for this order.',
+      );
+    }
+
     return this.prithviForex.createPaymentLink({ orderId: trimmedOrderId });
+  }
+
+  /**
+   * Submit offline bank transfer: store receipt in Finpay S3, register with Prithvi,
+   * then upload payment receipt to Prithvi.
+   */
+  async submitOfflinePayment(
+    orderId: string,
+    paymentMode: string,
+    utrNumber: string,
+    file: Express.Multer.File,
+    userId: string,
+  ) {
+    const trimmedOrderId = orderId?.trim();
+    if (!trimmedOrderId) {
+      throw new BadRequestException('Order id is required');
+    }
+
+    const normalizedMode = paymentMode?.trim().toUpperCase();
+    const trimmedUtr = utrNumber?.trim();
+    if (!normalizedMode || !['IMPS', 'NEFT', 'RTGS'].includes(normalizedMode)) {
+      throw new BadRequestException('paymentMode must be IMPS, NEFT, or RTGS');
+    }
+    if (!trimmedUtr) {
+      throw new BadRequestException('UTR number is required');
+    }
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Payment statement receipt is required');
+    }
+
+    const owned = await this.forexOrders.findOwnedByUser(
+      trimmedOrderId,
+      String(userId),
+    );
+    if (!owned) {
+      throw new NotFoundException('Forex order not found for this account');
+    }
+
+    const status = String(owned.status ?? '')
+      .trim()
+      .toUpperCase();
+    if (status !== 'DOCUMENTS_APPROVED_AWAITING_FUNDS') {
+      throw new BadRequestException(
+        'Offline payment is available only after your documents are approved and the order is awaiting funds.',
+      );
+    }
+
+    const paymentStatus = String(owned.paymentStatus ?? '')
+      .trim()
+      .toUpperCase();
+    if (paymentStatus === 'PAID') {
+      throw new BadRequestException('This order is already paid.');
+    }
+
+    if (owned.offlinePayment && owned.offlineUtrNumber) {
+      throw new BadRequestException(
+        'Offline payment has already been submitted for this order.',
+      );
+    }
+
+    let localFileId: string | null = null;
+    try {
+      const localFile = await this.filesService.uploadSingle(
+        file,
+        {
+          type: FileResourceEnum.DOCUMENT,
+          referenceId: `${trimmedOrderId}:payment-receipt`,
+        },
+        String(userId),
+      );
+      localFileId = String(localFile._id);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to store payment receipt in Finpay S3: ${detail}`,
+      );
+      throw new InternalServerErrorException(
+        'Unable to store payment receipt. Please try again.',
+      );
+    }
+
+    await this.prithviForex.setOrderOfflinePayment({
+      orderId: trimmedOrderId,
+      paymentMode: normalizedMode,
+      utrNumber: trimmedUtr,
+    });
+
+    const receiptResult = await this.prithviForex.uploadPaymentReceipt({
+      orderId: trimmedOrderId,
+      buffer: file.buffer,
+      filename: file.originalname,
+      mimeType: file.mimetype,
+    });
+
+    const prithviKey =
+      receiptResult.paymentDetails?.paymentStatementReceipt ??
+      receiptResult.s3Key;
+
+    await this.forexOrders.applyOfflinePayment({
+      prithviOrderId: trimmedOrderId,
+      offlinePaymentMode: normalizedMode,
+      offlineUtrNumber: trimmedUtr,
+      paymentStatementReceiptLocalFileId: localFileId!,
+      paymentStatementReceiptPrithviKey: prithviKey,
+      paymentStatementReceiptUrl: receiptResult.receiptUrl ?? null,
+    });
+
+    return {
+      id: trimmedOrderId,
+      offlinePayment: true,
+      offlinePaymentMode: normalizedMode,
+      offlineUtrNumber: trimmedUtr,
+      paymentStatementReceiptLocalFileId: localFileId,
+      paymentStatementReceiptPrithviKey: prithviKey,
+      paymentStatementReceiptUrl: receiptResult.receiptUrl ?? null,
+    };
   }
 
   /**

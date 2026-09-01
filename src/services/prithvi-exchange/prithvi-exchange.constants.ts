@@ -13,6 +13,8 @@ export const PRITHVI_API_PATHS = {
   FOREX_ORDERS_DASHBOARD: '/forex/orders/dashboard',
   ORDER_UPLOAD_DOCUMENT: '/orders/:orderId/upload-document',
   ORDER_PAYMENT_LINK: '/orders/:orderId/payment-link',
+  ORDER_OFFLINE_PAYMENT: '/orders/:orderId/offline-payment',
+  ORDER_UPLOAD_PAYMENT_RECEIPT: '/orders/:orderId/upload-payment-receipt',
   PURPOSE_LIST: '/purpose',
   PURPOSE_CONFIG: '/purpose/:code/config',
 } as const;

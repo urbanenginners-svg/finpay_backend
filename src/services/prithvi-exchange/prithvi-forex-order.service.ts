@@ -195,6 +195,13 @@ type ForexOrderLeanRow = {
   remitterState?: string | null;
   documents?: Record<string, string>;
   localDocumentFileIds?: Record<string, string>;
+  offlinePayment?: boolean;
+  offlinePaymentMode?: string | null;
+  offlineUtrNumber?: string | null;
+  paymentStatementReceiptLocalFileId?: string | null;
+  paymentStatementReceiptPrithviKey?: string | null;
+  paymentStatementReceiptUrl?: string | null;
+  offlinePaymentSubmittedAt?: Date | null;
   providerCreatedAt?: Date | null;
   providerUpdatedAt?: Date | null;
   initiatedAt?: Date | null;
@@ -247,6 +254,15 @@ function mapRowToDetail(row: ForexOrderLeanRow): PrithviForexOrderRecord {
     remitterState: row.remitterState ?? undefined,
     documents: row.documents ?? undefined,
     localDocumentFileIds: row.localDocumentFileIds ?? undefined,
+    offlinePayment: row.offlinePayment ?? undefined,
+    offlinePaymentMode: row.offlinePaymentMode ?? undefined,
+    offlineUtrNumber: row.offlineUtrNumber ?? undefined,
+    paymentStatementReceiptLocalFileId:
+      row.paymentStatementReceiptLocalFileId ?? undefined,
+    paymentStatementReceiptPrithviKey:
+      row.paymentStatementReceiptPrithviKey ?? undefined,
+    paymentStatementReceiptUrl: row.paymentStatementReceiptUrl ?? undefined,
+    offlinePaymentSubmittedAt: toIsoString(row.offlinePaymentSubmittedAt),
     initiatedAt: toIsoString(row.initiatedAt),
     completedAt: toIsoString(row.completedAt),
     lastSyncedAt: toIsoString(row.lastSyncedAt),
@@ -539,6 +555,35 @@ export class PrithviForexOrderService {
       .exec();
 
     return row ? mapRowToDetail(row as ForexOrderLeanRow) : null;
+  }
+
+  async applyOfflinePayment(input: {
+    prithviOrderId: string;
+    offlinePaymentMode: string;
+    offlineUtrNumber: string;
+    paymentStatementReceiptLocalFileId: string;
+    paymentStatementReceiptPrithviKey?: string | null;
+    paymentStatementReceiptUrl?: string | null;
+  }): Promise<PrithviForexOrderDocument | null> {
+    return this.model
+      .findOneAndUpdate(
+        { prithviOrderId: input.prithviOrderId },
+        {
+          $set: {
+            offlinePayment: true,
+            offlinePaymentMode: input.offlinePaymentMode,
+            offlineUtrNumber: input.offlineUtrNumber,
+            paymentStatementReceiptLocalFileId:
+              input.paymentStatementReceiptLocalFileId,
+            paymentStatementReceiptPrithviKey:
+              input.paymentStatementReceiptPrithviKey ?? null,
+            paymentStatementReceiptUrl: input.paymentStatementReceiptUrl ?? null,
+            offlinePaymentSubmittedAt: new Date(),
+          },
+        },
+        { new: true },
+      )
+      .exec();
   }
 
   async setUploadedDocument(input: {

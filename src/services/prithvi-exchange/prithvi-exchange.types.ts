@@ -12,6 +12,8 @@ export enum PrithviApiCallType {
   FOREX_ORDERS_DASHBOARD = 'forex_orders_dashboard',
   ORDER_UPLOAD_DOCUMENT = 'order_upload_document',
   ORDER_PAYMENT_LINK = 'order_payment_link',
+  ORDER_OFFLINE_PAYMENT = 'order_offline_payment',
+  ORDER_UPLOAD_PAYMENT_RECEIPT = 'order_upload_payment_receipt',
   PURPOSE_LIST = 'purpose_list',
   PURPOSE_CONFIG = 'purpose_config',
 }
@@ -374,6 +376,30 @@ export type CreatePaymentLinkResult = {
   token: string;
 };
 
+export type SetOrderOfflinePaymentParams = {
+  orderId: string;
+  paymentMode: string;
+  utrNumber: string;
+};
+
+export type UploadPaymentReceiptParams = {
+  orderId: string;
+  buffer: Buffer;
+  filename: string;
+  mimeType: string;
+};
+
+export type UploadPaymentReceiptResult = {
+  s3Key: string;
+  receiptUrl?: string;
+  paymentDetails?: {
+    offlinePayment?: boolean;
+    paymentMode?: string;
+    utrNumber?: string;
+    paymentStatementReceipt?: string;
+  };
+};
+
 export type CompleteForexRequestParams = {
   forexRequestId: string;
   orders: CompleteForexOrderPayload[];
@@ -483,6 +509,13 @@ export type PrithviForexOrderRecord = PrithviForexDashboardOrder & {
   remitterState?: string;
   documents?: Record<string, string>;
   localDocumentFileIds?: Record<string, string>;
+  offlinePayment?: boolean;
+  offlinePaymentMode?: string;
+  offlineUtrNumber?: string;
+  paymentStatementReceiptLocalFileId?: string;
+  paymentStatementReceiptPrithviKey?: string;
+  paymentStatementReceiptUrl?: string;
+  offlinePaymentSubmittedAt?: string;
   initiatedAt?: string;
   completedAt?: string;
   lastSyncedAt?: string;
