@@ -91,8 +91,8 @@ export class ForexOrderNotificationService {
   }
 
   /**
-   * Finpay order detail deep link. User opens this → our app creates the Prithvi
-   * payment link and redirects them to Prithvi. Never send the raw Prithvi URL in mail/SMS.
+   * Finpay order detail deep link. User reviews the order on the detail page
+   * and clicks Pay now to open the Prithvi payment gateway.
    */
   private buildFinpayPayUrl(prithviOrderId: string): string {
     const configured =
@@ -101,9 +101,9 @@ export class ForexOrderNotificationService {
 
     try {
       const origin = new URL(configured).origin;
-      return `${origin}/dashboard/forex/orders/${encodeURIComponent(prithviOrderId)}?pay=1`;
+      return `${origin}/dashboard/forex/orders/${encodeURIComponent(prithviOrderId)}`;
     } catch {
-      return `https://finpayremit.com/dashboard/forex/orders/${encodeURIComponent(prithviOrderId)}?pay=1`;
+      return `https://finpayremit.com/dashboard/forex/orders/${encodeURIComponent(prithviOrderId)}`;
     }
   }
 
