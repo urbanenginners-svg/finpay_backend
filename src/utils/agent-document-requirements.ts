@@ -134,3 +134,14 @@ export function getRequiredDocumentKeys(agentType: AgentTypeEnum): string[] {
     .filter((field) => field.required)
     .map((field) => field.key);
 }
+
+const AGENT_TYPE_LABELS: Record<AgentTypeEnum, string> = {
+  [AgentTypeEnum.INDIVIDUAL]: 'Individual Agent',
+  [AgentTypeEnum.PROPRIETORSHIP]: 'Proprietorship Firm',
+  [AgentTypeEnum.PARTNERSHIP]: 'Partnership Firm',
+  [AgentTypeEnum.PRIVATE_LIMITED]: 'Private Limited Company',
+};
+
+export function getAgentTypeLabel(agentType?: AgentTypeEnum): string {
+  return agentType ? AGENT_TYPE_LABELS[agentType] : '—';
+}

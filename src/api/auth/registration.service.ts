@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -37,8 +38,12 @@ import { PanVerificationService } from './pan-verification.service';
 import { PassportVerificationService } from './passport-verification.service';
 import { FilesService } from '../files/files.service';
 import { SmsService } from 'src/services/sms/sms.service';
+import { HostingerService } from 'src/services/email/hostinger.service';
+import { AppConfigService } from 'src/services/env/env.service';
+import { AgentTypeEnum } from 'src/utils/enums/agent-type.enum';
 import {
   AGENT_DOCUMENT_FIELDS,
+  getAgentTypeLabel,
   getRequiredDocumentKeys,
 } from 'src/utils/agent-document-requirements';
 
@@ -50,6 +55,8 @@ interface RegistrationTokenPayload {
 
 @Injectable()
 export class RegistrationService {
+  private readonly logger = new Logger(RegistrationService.name);
+
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Role.name) private roleModel: Model<Role>,
@@ -59,6 +66,8 @@ export class RegistrationService {
     private passportVerificationService: PassportVerificationService,
     private filesService: FilesService,
     private readonly smsService: SmsService,
+    private readonly hostingerService: HostingerService,
+    private readonly config: AppConfigService,
   ) {}
 
   private roleSlugForUserType(userType: UserTypeEnum): RoleSlugEnum {
@@ -515,6 +524,15 @@ export class RegistrationService {
     user.registrationStatus = RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION;
     await user.save();
 
+    this.sendAgentRegistrationEmails(user, dto.agentType, linkedDocuments).catch(
+      (error) => {
+        const detail = error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `Failed to send agent registration emails for ${user._id}: ${detail}`,
+        );
+      },
+    );
+
     return {
       message:
         'Agent registration submitted successfully. Your account is pending admin verification.',
@@ -522,6 +540,70 @@ export class RegistrationService {
       userId: user._id,
       userType: user.userType,
     };
+  }
+
+  private resolveFrontendUrl(): string {
+    const configured = this.config.get('FRONTEND_URL')?.trim();
+    if (configured) {
+      return configured.replace(/\/$/, '');
+    }
+
+    const nodeEnv = this.config.get('NODE_ENV');
+    return nodeEnv === 'production'
+      ? 'https://finpayremit.com'
+      : 'http://localhost:5173';
+  }
+
+  private async sendAgentRegistrationEmails(
+    user: UserDocument,
+    agentType: AgentTypeEnum,
+    documents: AgentRegistrationDocuments,
+  ): Promise<void> {
+    const fullName = this.displayNameForSms(user);
+    const agentTypeLabel = getAgentTypeLabel(agentType);
+    const submittedAt = new Date().toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Asia/Kolkata',
+    });
+    const requiredKeys = getRequiredDocumentKeys(agentType);
+    const documentsUploaded = Object.values(documents).filter(Boolean).length;
+    const requiredDocumentsUploaded = requiredKeys.filter(
+      (key) => Boolean(documents[key as keyof AgentRegistrationDocuments]),
+    ).length;
+    const reviewUrl = `${this.resolveFrontendUrl()}/admin/agents/${encodeURIComponent(user._id)}`;
+
+    if (user.email?.trim()) {
+      await this.hostingerService.sendAgentRegistrationConfirmation({
+        to: user.email.trim(),
+        fullName,
+        agentTypeLabel,
+        userId: user._id,
+        submittedAt,
+      });
+    } else {
+      this.logger.warn(
+        `Skipping agent confirmation email; no email on user ${user._id}`,
+      );
+    }
+
+    const adminEmail =
+      this.config.get('NEW_AGENT_REGISTRATION_EMAIL')?.trim()
+      || 'new_agent_registration@gmail.com';
+
+    await this.hostingerService.sendAgentRegistrationAdminNotification({
+      to: adminEmail,
+      userId: user._id,
+      fullName,
+      email: user.email ?? '—',
+      phoneNumber: user.phoneNumber,
+      agentTypeLabel,
+      submittedAt,
+      documentsUploaded,
+      requiredDocumentsUploaded,
+      totalRequiredDocuments: requiredKeys.length,
+      reviewUrl,
+    });
   }
 
   async loginWithPassword(dto: PasswordLoginDto) {

@@ -169,6 +169,16 @@ export class EnvironmentVariables {
   @IsString()
   ENQUIRY_ADMIN_EMAIL: string;
 
+  /** Admin email for new partner agent registration alerts. */
+  @IsOptional()
+  @IsString()
+  NEW_AGENT_REGISTRATION_EMAIL: string;
+
+  /** Public frontend base URL for links in transactional emails. */
+  @IsOptional()
+  @IsString()
+  FRONTEND_URL: string;
+
   /** Hostinger / SMTP host (e.g. smtp.hostinger.com). */
   @IsOptional()
   @IsString()

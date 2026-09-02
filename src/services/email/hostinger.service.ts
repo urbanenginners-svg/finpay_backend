@@ -35,6 +35,28 @@ export type SendEnquiryAdminNotificationParams = {
   fxRateUsed?: number;
 };
 
+export type SendAgentRegistrationConfirmationParams = {
+  to: string;
+  fullName: string;
+  agentTypeLabel: string;
+  userId: string;
+  submittedAt: string;
+};
+
+export type SendAgentRegistrationAdminNotificationParams = {
+  to: string;
+  userId: string;
+  fullName: string;
+  email: string;
+  phoneNumber?: string;
+  agentTypeLabel: string;
+  submittedAt: string;
+  documentsUploaded: number;
+  requiredDocumentsUploaded: number;
+  totalRequiredDocuments: number;
+  reviewUrl: string;
+};
+
 @Injectable()
 export class HostingerService {
   private readonly logger = new Logger(HostingerService.name);
@@ -167,6 +189,26 @@ export class HostingerService {
     });
   }
 
+  async sendAgentRegistrationConfirmation(
+    params: SendAgentRegistrationConfirmationParams,
+  ): Promise<void> {
+    const subject = 'Welcome to FinPay — Agent registration received';
+    const text = this.buildAgentRegistrationConfirmationText(params);
+    const html = this.buildAgentRegistrationConfirmationHtml(params);
+
+    await this.sendMail({ to: params.to, subject, text, html });
+  }
+
+  async sendAgentRegistrationAdminNotification(
+    params: SendAgentRegistrationAdminNotificationParams,
+  ): Promise<void> {
+    const subject = `New agent registration — ${params.agentTypeLabel} — ${params.fullName}`;
+    const text = this.buildAgentRegistrationAdminNotificationText(params);
+    const html = this.buildAgentRegistrationAdminNotificationHtml(params);
+
+    await this.sendMail({ to: params.to, subject, text, html });
+  }
+
   private async sendMail(options: {
     to: string;
     subject: string;
@@ -249,6 +291,176 @@ export class HostingerService {
     });
 
     return this.transporter;
+  }
+
+  private buildAgentRegistrationConfirmationText(
+    params: SendAgentRegistrationConfirmationParams,
+  ): string {
+    return [
+      `Dear ${params.fullName},`,
+      '',
+      'Thank you for signing up as a FinPay partner agent.',
+      '',
+      'We have received your registration and documents. Our team is reviewing your application.',
+      '',
+      `Agent type: ${params.agentTypeLabel}`,
+      `Reference ID: ${params.userId}`,
+      `Submitted: ${params.submittedAt}`,
+      '',
+      'What happens next?',
+      '• Our compliance team will verify your documents',
+      '• You will receive an email once your account is approved',
+      '• After approval, you can sign in and start partnering with FinPay',
+      '',
+      'Best regards,',
+      'FinPay Team',
+    ].join('\n');
+  }
+
+  private buildAgentRegistrationConfirmationHtml(
+    params: SendAgentRegistrationConfirmationParams,
+  ): string {
+    const content = `
+      <p style="margin: 0 0 16px; font-size: 16px; color: #111827;">
+        Dear ${this.escapeHtml(params.fullName)},
+      </p>
+      <p style="margin: 0 0 16px; color: #374151;">
+        Thank you for signing up as a <strong>FinPay partner agent</strong>.
+        We have received your registration and documents.
+      </p>
+      <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 12px; padding: 20px; margin: 0 0 24px;">
+        <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #5b21b6; text-transform: uppercase; letter-spacing: 0.04em;">
+          Registration summary
+        </p>
+        <p style="margin: 0 0 6px; color: #374151;"><strong>Agent type:</strong> ${this.escapeHtml(params.agentTypeLabel)}</p>
+        <p style="margin: 0 0 6px; color: #374151;"><strong>Reference ID:</strong> ${this.escapeHtml(params.userId)}</p>
+        <p style="margin: 0; color: #374151;"><strong>Submitted:</strong> ${this.escapeHtml(params.submittedAt)}</p>
+      </div>
+      <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 20px; margin: 0 0 24px;">
+        <p style="margin: 0 0 12px; font-size: 14px; font-weight: 700; color: #9a3412;">
+          Pending admin verification
+        </p>
+        <ul style="margin: 0; padding-left: 20px; color: #374151;">
+          <li style="margin-bottom: 8px;">Our compliance team will verify your documents</li>
+          <li style="margin-bottom: 8px;">You will receive an email once your account is approved</li>
+          <li>After approval, you can sign in and start partnering with FinPay</li>
+        </ul>
+      </div>
+      <p style="margin: 0; color: #6b7280; font-size: 14px;">
+        Best regards,<br />
+        <strong style="color: #5b21b6;">FinPay Team</strong>
+      </p>`;
+
+    return this.buildFinPayEmailShell({
+      badge: 'Partner Agent',
+      title: 'Registration received',
+      subtitle: 'Your application is under review',
+      content,
+    });
+  }
+
+  private buildAgentRegistrationAdminNotificationText(
+    params: SendAgentRegistrationAdminNotificationParams,
+  ): string {
+    return [
+      'A new partner agent registration has been submitted.',
+      '',
+      'Agent Details',
+      `User ID: ${params.userId}`,
+      `Name: ${params.fullName}`,
+      `Email: ${params.email}`,
+      `Phone: ${params.phoneNumber ?? '—'}`,
+      `Agent Type: ${params.agentTypeLabel}`,
+      `Submitted At: ${params.submittedAt}`,
+      `Documents: ${params.requiredDocumentsUploaded}/${params.totalRequiredDocuments} required uploaded (${params.documentsUploaded} total)`,
+      '',
+      `Review in admin: ${params.reviewUrl}`,
+    ].join('\n');
+  }
+
+  private buildAgentRegistrationAdminNotificationHtml(
+    params: SendAgentRegistrationAdminNotificationParams,
+  ): string {
+    const summaryRows: [string, string][] = [
+      ['User ID', params.userId],
+      ['Name', params.fullName],
+      ['Email', params.email],
+      ['Phone', params.phoneNumber ?? '—'],
+      ['Agent Type', params.agentTypeLabel],
+      ['Submitted At', params.submittedAt],
+      [
+        'Documents',
+        `${params.requiredDocumentsUploaded}/${params.totalRequiredDocuments} required uploaded (${params.documentsUploaded} total)`,
+      ],
+      ['Status', 'Pending admin verification'],
+    ];
+
+    const content = `
+      <p style="margin: 0 0 16px; color: #374151;">
+        A new partner agent has completed registration and is waiting for your review.
+      </p>
+      ${this.buildDetailsSectionHtml('Registration Summary', summaryRows)}
+      <p style="margin: 24px 0 0;">
+        <a
+          href="${this.escapeHtml(params.reviewUrl)}"
+          style="display: inline-block; background: #5b21b6; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 12px; font-weight: 600; font-size: 14px;"
+        >
+          Review agent in admin
+        </a>
+      </p>
+      <p style="margin: 16px 0 0; font-size: 13px; color: #6b7280; word-break: break-all;">
+        Or open: <a href="${this.escapeHtml(params.reviewUrl)}" style="color: #5b21b6;">${this.escapeHtml(params.reviewUrl)}</a>
+      </p>`;
+
+    return this.buildFinPayEmailShell({
+      badge: 'Admin Alert',
+      title: 'New agent registration',
+      subtitle: params.fullName,
+      content,
+    });
+  }
+
+  private buildFinPayEmailShell(params: {
+    badge: string;
+    title: string;
+    subtitle?: string;
+    content: string;
+  }): string {
+    return `
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${this.escapeHtml(params.title)}</title>
+  </head>
+  <body style="margin: 0; padding: 0; background: #f5f3ff; font-family: Inter, Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+    <div style="max-width: 640px; margin: 0 auto; padding: 32px 16px;">
+      <div style="background: linear-gradient(135deg, #5b21b6 0%, #6d28d9 100%); border-radius: 16px 16px 0 0; padding: 28px 32px; text-align: center;">
+        <div style="color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.03em; font-family: 'Space Grotesk', Inter, Arial, sans-serif;">
+          FinPay
+        </div>
+        <div style="display: inline-block; margin-top: 14px; background: #f97316; color: #ffffff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 6px 14px; border-radius: 999px;">
+          ${this.escapeHtml(params.badge)}
+        </div>
+        <h1 style="margin: 18px 0 0; color: #ffffff; font-size: 22px; font-weight: 700; line-height: 1.3;">
+          ${this.escapeHtml(params.title)}
+        </h1>
+        ${
+          params.subtitle
+            ? `<p style="margin: 8px 0 0; color: #ede9fe; font-size: 14px;">${this.escapeHtml(params.subtitle)}</p>`
+            : ''
+        }
+      </div>
+      <div style="background: #ffffff; border: 1px solid #ede9fe; border-top: none; border-radius: 0 0 16px 16px; padding: 32px; box-shadow: 0 10px 30px rgba(91, 33, 182, 0.08);">
+        ${params.content}
+      </div>
+      <p style="text-align: center; color: #9ca3af; font-size: 12px; margin: 24px 0 0;">
+        © FinPay · Secure remittance &amp; forex services
+      </p>
+    </div>
+  </body>
+</html>`.trim();
   }
 
   private buildEnquiryConfirmationText(
