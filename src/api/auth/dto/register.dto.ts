@@ -15,6 +15,7 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
+import { AgentTypeEnum } from 'src/utils/enums/agent-type.enum';
 
 export class RegisterInitDto {
   @ApiProperty({ enum: UserTypeEnum })
@@ -170,107 +171,140 @@ export class VerifyPassportDto {
   dob: string;
 }
 
-export class PrivateLimitedDocumentsDto {
-  @ApiPropertyOptional({
-    example: 'file::123e4567-e89b-12d3-a456-426614174020',
-    description: 'File ID from POST /files/upload',
-  })
+export class AgentRegistrationDocumentsDto {
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
   @IsOptional()
   @IsString()
-  moaAoa?: string;
+  panCard?: string;
 
-  @ApiPropertyOptional({
-    example: 'file::123e4567-e89b-12d3-a456-426614174021',
-    description: 'File ID from POST /files/upload',
-  })
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
   @IsOptional()
   @IsString()
-  certificateOfIncorporation?: string;
+  idProof?: string;
 
-  @ApiPropertyOptional({
-    example: 'file::123e4567-e89b-12d3-a456-426614174022',
-    description: 'File ID from POST /files/upload',
-  })
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  photograph?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  bankAccountProof?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  businessAddressProof?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  proprietorPanCard?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  proprietorIdProof?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  proprietorPhotograph?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
   @IsOptional()
   @IsString()
   gstCertificate?: string;
 
-  @ApiPropertyOptional({
-    example: 'file::123e4567-e89b-12d3-a456-426614174023',
-    description: 'File ID from POST /files/upload',
-  })
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
   @IsOptional()
   @IsString()
-  addressProof?: string;
+  firmBankAccountProof?: string;
 
-  @ApiPropertyOptional({
-    example: 'file::123e4567-e89b-12d3-a456-426614174024',
-    description: 'File ID from POST /files/upload',
-  })
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  firmPanCard?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  authorisedPartnerIdProof?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  authorisedPartnerPhotograph?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  partnershipDeed?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  authorisationLetter?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  certificateOfIncorporation?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
   @IsOptional()
   @IsString()
   companyPanCard?: string;
 
-  @ApiPropertyOptional({
-    example: 'file::123e4567-e89b-12d3-a456-426614174025',
-    description: 'File ID from POST /files/upload',
-  })
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
   @IsOptional()
   @IsString()
-  bankCancelCheque?: string;
+  moaAoa?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  companyBankAccountProof?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  directorPanCard?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  directorIdProof?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  directorPhotograph?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  boardResolution?: string;
+
+  @ApiPropertyOptional({ description: 'File ID from POST /files/upload' })
+  @IsOptional()
+  @IsString()
+  beneficialOwnerDetails?: string;
 }
 
 export class CompleteUserRegistrationDto {}
 
-/** Text fields for multipart agent registration (document files are uploaded separately). */
+/** Document files are uploaded separately via POST /files/upload. */
 export class CompleteAgentRegistrationDto {
-  @ApiProperty({ example: 'PA1079341954215' })
-  @IsString()
-  @IsNotEmpty()
-  passportFileNumber: string;
+  @ApiProperty({ enum: AgentTypeEnum })
+  @IsEnum(AgentTypeEnum)
+  agentType: AgentTypeEnum;
 
-  @ApiProperty({ example: '1990-01-15', description: 'Date of birth (YYYY-MM-DD) for passport verification' })
-  @IsDateString()
-  dateOfBirth: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  passportVerificationRef?: string;
-
-  @ApiProperty({
-    example: 'file::123e4567-e89b-12d3-a456-426614174010',
-    description: 'File ID from POST /files/upload',
-  })
-  @IsString()
-  @IsNotEmpty()
-  udhyamAadhaarCertificate: string;
-
-  @ApiProperty({
-    example: 'file::123e4567-e89b-12d3-a456-426614174011',
-    description: 'File ID from POST /files/upload',
-  })
-  @IsString()
-  @IsNotEmpty()
-  bankCancelCheque: string;
-
-  @ApiProperty({
-    example: 'file::123e4567-e89b-12d3-a456-426614174012',
-    description: 'File ID from POST /files/upload',
-  })
-  @IsString()
-  @IsNotEmpty()
-  gstCertificate: string;
-
-  @ApiProperty()
-  @IsBoolean()
-  isPrivateLimited: boolean;
-
-  @ApiPropertyOptional({ type: PrivateLimitedDocumentsDto })
-  @ValidateIf((o) => o.isPrivateLimited === true)
+  @ApiProperty({ type: AgentRegistrationDocumentsDto })
   @ValidateNested()
-  @Type(() => PrivateLimitedDocumentsDto)
-  privateLimitedDocuments?: PrivateLimitedDocumentsDto;
+  @Type(() => AgentRegistrationDocumentsDto)
+  documents: AgentRegistrationDocumentsDto;
 }
 
 export class PasswordLoginDto {

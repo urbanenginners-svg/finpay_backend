@@ -8,49 +8,99 @@ import { AadhaarVerificationStatusEnum } from "src/utils/enums/aadhaar-verificat
 import { PanVerificationStatusEnum } from "src/utils/enums/pan-verification-status.enum";
 import { PassportVerificationStatusEnum } from "src/utils/enums/passport-verification-status.enum";
 import { UserTypeEnum } from "src/utils/enums/user-type.enum";
+import { AgentTypeEnum } from "src/utils/enums/agent-type.enum";
 
 export type UserDocument = HydratedDocument<User>;
 
 @Schema({ _id: false })
-export class PrivateLimitedDocuments {
+export class AgentRegistrationDocuments {
   @Prop({ type: String, ref: 'File' })
-  moaAoa?: string;
+  panCard?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  idProof?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  photograph?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  bankAccountProof?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  businessAddressProof?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  proprietorPanCard?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  proprietorIdProof?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  proprietorPhotograph?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  gstCertificate?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  firmBankAccountProof?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  firmPanCard?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  authorisedPartnerIdProof?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  authorisedPartnerPhotograph?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  partnershipDeed?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  authorisationLetter?: string;
 
   @Prop({ type: String, ref: 'File' })
   certificateOfIncorporation?: string;
 
   @Prop({ type: String, ref: 'File' })
-  gstCertificate?: string;
-
-  @Prop({ type: String, ref: 'File' })
-  addressProof?: string;
-
-  @Prop({ type: String, ref: 'File' })
   companyPanCard?: string;
 
   @Prop({ type: String, ref: 'File' })
-  bankCancelCheque?: string;
+  moaAoa?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  companyBankAccountProof?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  directorPanCard?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  directorIdProof?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  directorPhotograph?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  boardResolution?: string;
+
+  @Prop({ type: String, ref: 'File' })
+  beneficialOwnerDetails?: string;
 }
 
-export const PrivateLimitedDocumentsSchema =
-  SchemaFactory.createForClass(PrivateLimitedDocuments);
+export const AgentRegistrationDocumentsSchema =
+  SchemaFactory.createForClass(AgentRegistrationDocuments);
 
 @Schema({ _id: false })
 export class AgentDocuments {
-  @Prop({ type: String, ref: 'File' })
-  udhyamAadhaarCertificate?: string;
+  @Prop({
+    required: true,
+    type: String,
+    enum: Object.values(AgentTypeEnum),
+  })
+  agentType: AgentTypeEnum;
 
-  @Prop({ type: String, ref: 'File' })
-  bankCancelCheque?: string;
-
-  @Prop({ type: String, ref: 'File' })
-  gstCertificate?: string;
-
-  @Prop({ type: Boolean, default: false })
-  isPrivateLimited?: boolean;
-
-  @Prop({ type: PrivateLimitedDocumentsSchema })
-  privateLimitedDocuments?: PrivateLimitedDocuments;
+  @Prop({ type: AgentRegistrationDocumentsSchema, required: true })
+  documents: AgentRegistrationDocuments;
 }
 
 export const AgentDocumentsSchema = SchemaFactory.createForClass(AgentDocuments);

@@ -9,14 +9,14 @@ import { JwtService } from '@nestjs/jwt';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 
-import { User, UserDocument, PrivateLimitedDocuments } from 'src/services/mongoose/schemas/user.schema';
+import { User, UserDocument, AgentRegistrationDocuments } from 'src/services/mongoose/schemas/user.schema';
 import { Role } from 'src/services/mongoose/schemas/role.schema';
 import { RoleSlugEnum } from 'src/utils/enums/role-slug.enum';
 import { RegistrationStatusEnum } from 'src/utils/enums/registration-status.enum';
 import { PanVerificationStatusEnum } from 'src/utils/enums/pan-verification-status.enum';
-import { PassportVerificationStatusEnum } from 'src/utils/enums/passport-verification-status.enum';
 import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
 import {
+  AgentRegistrationDocumentsDto,
   CompleteAgentRegistrationDto,
   CompleteUserRegistrationDto,
   ForgotPasswordDto,
@@ -37,6 +37,10 @@ import { PanVerificationService } from './pan-verification.service';
 import { PassportVerificationService } from './passport-verification.service';
 import { FilesService } from '../files/files.service';
 import { SmsService } from 'src/services/sms/sms.service';
+import {
+  AGENT_DOCUMENT_FIELDS,
+  getRequiredDocumentKeys,
+} from 'src/utils/agent-document-requirements';
 
 interface RegistrationTokenPayload {
   sub: string;
@@ -411,27 +415,6 @@ export class RegistrationService {
     return [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
   }
 
-  private async verifyPassportForUser(
-    user: Pick<User, 'firstName' | 'lastName' | 'dateOfBirth'>,
-    passportFileNumber: string,
-  ) {
-    const dob = user.dateOfBirth?.toISOString().slice(0, 10);
-    if (!dob) {
-      throw new BadRequestException('Date of birth is required for passport verification');
-    }
-
-    const name = this.buildApplicantName(user);
-    if (!name) {
-      throw new BadRequestException('Applicant name is required for passport verification');
-    }
-
-    return this.passportVerificationService.verify({
-      fileNumber: passportFileNumber,
-      name,
-      dob,
-    });
-  }
-
   private async verifyPanForUser(
     user: Pick<User, 'firstName' | 'lastName'>,
     panCardNumber: string,
@@ -475,12 +458,6 @@ export class RegistrationService {
   }
 
   async completeAgentRegistration(userId: string, dto: CompleteAgentRegistrationDto) {
-    if (dto.isPrivateLimited && !dto.privateLimitedDocuments) {
-      throw new BadRequestException(
-        'Private limited company documents are required when isPrivateLimited is true',
-      );
-    }
-
     const user = await this.userModel
       .findOne({ _id: userId, deletedAt: null })
       .populate('role');
@@ -505,75 +482,35 @@ export class RegistrationService {
 
     this.assertRegistrationStep(user, RegistrationStatusEnum.STEP1_COMPLETE);
 
-    user.dateOfBirth = new Date(dto.dateOfBirth);
-
-    const passportResult = await this.verifyPassportForUser(user, dto.passportFileNumber);
-
-    if (!passportResult.verified) {
-      throw new BadRequestException(passportResult.message);
+    if (!dto.documents) {
+      throw new BadRequestException('Agent documents are required');
     }
 
-    const udhyamAadhaarCertificate = await this.linkAgentDocument(
-      dto.udhyamAadhaarCertificate,
-      userId,
-      'Udhyam Aadhaar certificate',
-    );
-    const bankCancelCheque = await this.linkAgentDocument(
-      dto.bankCancelCheque,
-      userId,
-      'Bank cancel cheque',
-    );
-    const gstCertificate = await this.linkAgentDocument(
-      dto.gstCertificate,
-      userId,
-      'GST certificate',
+    const requiredKeys = getRequiredDocumentKeys(dto.agentType);
+    const fieldLabels = Object.fromEntries(
+      AGENT_DOCUMENT_FIELDS[dto.agentType].map((field) => [field.key, field.label]),
     );
 
-    let privateLimitedDocuments: PrivateLimitedDocuments | undefined;
-
-    if (dto.isPrivateLimited && dto.privateLimitedDocuments) {
-      const docs = dto.privateLimitedDocuments;
-      privateLimitedDocuments = {
-        moaAoa: await this.linkAgentDocument(docs.moaAoa, userId, 'MOA & AOA'),
-        certificateOfIncorporation: await this.linkAgentDocument(
-          docs.certificateOfIncorporation,
-          userId,
-          'Certificate of incorporation',
-        ),
-        gstCertificate: await this.linkAgentDocument(
-          docs.gstCertificate,
-          userId,
-          'Private limited GST certificate',
-        ),
-        addressProof: await this.linkAgentDocument(
-          docs.addressProof,
-          userId,
-          'Company address proof',
-        ),
-        companyPanCard: await this.linkAgentDocument(
-          docs.companyPanCard,
-          userId,
-          'Company PAN card',
-        ),
-        bankCancelCheque: await this.linkAgentDocument(
-          docs.bankCancelCheque,
-          userId,
-          'Private limited bank cancel cheque',
-        ),
-      };
+    for (const key of requiredKeys) {
+      const fileId = dto.documents[key as keyof AgentRegistrationDocumentsDto];
+      if (!fileId) {
+        throw new BadRequestException(`${fieldLabels[key] ?? key} is required`);
+      }
     }
 
-    user.passportFileNumber = dto.passportFileNumber;
-    user.passportNumber = passportResult.passportNumber;
-    user.passportVerificationStatus = PassportVerificationStatusEnum.VERIFIED;
-    user.passportVerificationRef =
-      dto.passportVerificationRef ?? passportResult.verificationId;
+    const linkedDocuments: AgentRegistrationDocuments = {};
+
+    for (const field of AGENT_DOCUMENT_FIELDS[dto.agentType]) {
+      const fileId = dto.documents[field.key as keyof AgentRegistrationDocumentsDto];
+      if (fileId) {
+        linkedDocuments[field.key as keyof AgentRegistrationDocuments] =
+          await this.linkAgentDocument(fileId, userId, field.label);
+      }
+    }
+
     user.agentDocuments = {
-      udhyamAadhaarCertificate,
-      bankCancelCheque,
-      gstCertificate,
-      isPrivateLimited: dto.isPrivateLimited,
-      ...(privateLimitedDocuments ? { privateLimitedDocuments } : {}),
+      agentType: dto.agentType,
+      documents: linkedDocuments,
     };
     user.registrationStatus = RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION;
     await user.save();
