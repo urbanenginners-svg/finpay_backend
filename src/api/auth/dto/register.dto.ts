@@ -5,6 +5,7 @@ import {
   IsEmail,
   IsEnum,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
   Length,
@@ -309,12 +310,14 @@ export class CompleteAgentRegistrationDto {
 
 export class ResubmitAgentDocumentsDto {
   @ApiProperty({
-    description: 'File IDs for each document key requested by admin',
-    type: AgentRegistrationDocumentsDto,
+    description: 'Map of document key to file ID for each item requested by admin',
+    example: {
+      panCard: 'file::123e4567-e89b-12d3-a456-426614174010',
+      additional_shop_certificate_1710000000: 'file::123e4567-e89b-12d3-a456-426614174011',
+    },
   })
-  @ValidateNested()
-  @Type(() => AgentRegistrationDocumentsDto)
-  documents: AgentRegistrationDocumentsDto;
+  @IsObject()
+  documents: Record<string, string>;
 }
 
 export class PasswordLoginDto {

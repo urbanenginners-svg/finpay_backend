@@ -10,7 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 
-import { User, UserDocument, AgentRegistrationDocuments } from 'src/services/mongoose/schemas/user.schema';
+import { User, UserDocument, AgentRegistrationDocuments, AdditionalAgentDocument } from 'src/services/mongoose/schemas/user.schema';
 import { Role } from 'src/services/mongoose/schemas/role.schema';
 import { RoleSlugEnum } from 'src/utils/enums/role-slug.enum';
 import { RegistrationStatusEnum } from 'src/utils/enums/registration-status.enum';
@@ -700,20 +700,39 @@ export class RegistrationService {
     const linkedDocuments: AgentRegistrationDocuments = {
       ...(user.agentDocuments.documents ?? {}),
     };
+    const existingAdditional = [...(user.agentDocuments.additionalDocuments ?? [])];
+    const additionalByKey = new Map(
+      existingAdditional.map((doc) => [doc.key, doc] as const),
+    );
 
     for (const item of revision.items) {
-      const fileId = dto.documents[item.key as keyof AgentRegistrationDocumentsDto];
-      if (!fileId) {
+      const fileId = dto.documents?.[item.key];
+      if (!fileId?.trim()) {
         throw new BadRequestException(`${item.label} is required`);
       }
 
-      linkedDocuments[item.key as keyof AgentRegistrationDocuments] =
-        await this.linkAgentDocument(fileId, userId, item.label);
+      const linkedFileId = await this.linkAgentDocument(fileId.trim(), userId, item.label);
+
+      if (item.requestType === 'additional') {
+        additionalByKey.set(item.key, {
+          key: item.key,
+          label: item.label,
+          fileId: linkedFileId,
+          adminNote: item.adminNote,
+        });
+      } else {
+        linkedDocuments[item.key as keyof AgentRegistrationDocuments] = linkedFileId;
+      }
     }
+
+    const additionalDocuments: AdditionalAgentDocument[] = Array.from(
+      additionalByKey.values(),
+    );
 
     user.agentDocuments = {
       agentType: user.agentDocuments.agentType,
       documents: linkedDocuments,
+      additionalDocuments,
     };
     user.agentDocumentRevisionRequest = undefined;
     user.registrationStatus = RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION;

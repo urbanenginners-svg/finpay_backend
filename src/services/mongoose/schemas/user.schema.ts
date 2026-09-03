@@ -91,6 +91,24 @@ export const AgentRegistrationDocumentsSchema =
   SchemaFactory.createForClass(AgentRegistrationDocuments);
 
 @Schema({ _id: false })
+export class AdditionalAgentDocument {
+  @Prop({ required: true, type: String })
+  key: string;
+
+  @Prop({ required: true, type: String })
+  label: string;
+
+  @Prop({ required: true, type: String, ref: 'File' })
+  fileId: string;
+
+  @Prop({ required: false, type: String })
+  adminNote?: string;
+}
+
+export const AdditionalAgentDocumentSchema =
+  SchemaFactory.createForClass(AdditionalAgentDocument);
+
+@Schema({ _id: false })
 export class AgentDocuments {
   @Prop({
     required: true,
@@ -101,6 +119,10 @@ export class AgentDocuments {
 
   @Prop({ type: AgentRegistrationDocumentsSchema, required: true })
   documents: AgentRegistrationDocuments;
+
+  /** Extra documents requested by admin (dynamic keys not in the standard form). */
+  @Prop({ type: [AdditionalAgentDocumentSchema], default: [] })
+  additionalDocuments?: AdditionalAgentDocument[];
 }
 
 export const AgentDocumentsSchema = SchemaFactory.createForClass(AgentDocuments);
