@@ -15,6 +15,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { RegistrationService } from '../auth/registration.service';
 import { CreateUserDto, GetUsersQueryDto, UpdateUserDto } from './dto';
+import { RequestAgentDocumentUpdateDto } from './dto/request-agent-document-update.dto';
 import { VerifyAgentDto } from '../auth/dto/register.dto';
 import {
   CreateUserSwagger,
@@ -94,6 +95,26 @@ export class AdminController {
     @GetUser('sub') requestUserId: string,
   ) {
     const result = await this.registrationService.verifyAgent(id, dto, requestUserId);
+    return new DataResponse(result);
+  }
+
+  /**
+   * PUT /admin/users/:id/request-agent-documents
+   * Ask a pending agent to re-upload or submit additional documents
+   */
+  @Version('1')
+  @Put(':id/request-agent-documents')
+  @CheckActionPolicy(PermissionEnum.UPDATE, resource.User)
+  async requestAgentDocuments(
+    @Param('id') id: string,
+    @Body() dto: RequestAgentDocumentUpdateDto,
+    @GetUser('sub') requestUserId: string,
+  ) {
+    const result = await this.registrationService.requestAgentDocumentUpdate(
+      id,
+      dto,
+      requestUserId,
+    );
     return new DataResponse(result);
   }
 

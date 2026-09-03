@@ -307,6 +307,16 @@ export class CompleteAgentRegistrationDto {
   documents: AgentRegistrationDocumentsDto;
 }
 
+export class ResubmitAgentDocumentsDto {
+  @ApiProperty({
+    description: 'File IDs for each document key requested by admin',
+    type: AgentRegistrationDocumentsDto,
+  })
+  @ValidateNested()
+  @Type(() => AgentRegistrationDocumentsDto)
+  documents: AgentRegistrationDocumentsDto;
+}
+
 export class PasswordLoginDto {
   @ApiProperty({
     example: '9876543210',

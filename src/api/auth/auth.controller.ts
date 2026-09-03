@@ -21,6 +21,7 @@ import {
   PasswordLoginDto,
   RegisterInitDto,
   RegisterVerifyOtpDto,
+  ResubmitAgentDocumentsDto,
   ResetPasswordDto,
   UpdateRegistrationStep1Dto,
   VerifyAadhaarDto,
@@ -225,6 +226,17 @@ export class AuthController {
     @Body() dto: CompleteAgentRegistrationDto,
   ) {
     const result = await this.registrationService.completeAgentRegistration(userId, dto);
+    return new DataResponse(result);
+  }
+
+  @Version('1')
+  @Post('register/agent/resubmit-documents')
+  @ApiOperation({ summary: 'Resubmit agent documents after admin revision request' })
+  async resubmitAgentDocuments(
+    @GetUser('_id') userId: string,
+    @Body() dto: ResubmitAgentDocumentsDto,
+  ) {
+    const result = await this.registrationService.resubmitAgentDocuments(userId, dto);
     return new DataResponse(result);
   }
 

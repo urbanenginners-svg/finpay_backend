@@ -57,6 +57,18 @@ export type SendAgentRegistrationAdminNotificationParams = {
   reviewUrl: string;
 };
 
+export type SendAgentDocumentUpdateRequestParams = {
+  to: string;
+  fullName: string;
+  message?: string;
+  uploadUrl: string;
+  items: {
+    label: string;
+    requestType: 'update' | 'additional';
+    adminNote?: string;
+  }[];
+};
+
 @Injectable()
 export class HostingerService {
   private readonly logger = new Logger(HostingerService.name);
@@ -209,6 +221,16 @@ export class HostingerService {
     await this.sendMail({ to: params.to, subject, text, html });
   }
 
+  async sendAgentDocumentUpdateRequest(
+    params: SendAgentDocumentUpdateRequestParams,
+  ): Promise<void> {
+    const subject = 'Action required — Please update your FinPay agent documents';
+    const text = this.buildAgentDocumentUpdateRequestText(params);
+    const html = this.buildAgentDocumentUpdateRequestHtml(params);
+
+    await this.sendMail({ to: params.to, subject, text, html });
+  }
+
   private async sendMail(options: {
     to: string;
     subject: string;
@@ -291,6 +313,103 @@ export class HostingerService {
     });
 
     return this.transporter;
+  }
+
+  private buildAgentDocumentUpdateRequestText(
+    params: SendAgentDocumentUpdateRequestParams,
+  ): string {
+    const lines = [
+      `Dear ${params.fullName},`,
+      '',
+      'Our team has reviewed your agent registration and needs a few document updates before we can approve your account.',
+      '',
+    ];
+
+    if (params.message?.trim()) {
+      lines.push('Message from FinPay team:', params.message.trim(), '');
+    }
+
+    lines.push('Documents requested:');
+    for (const item of params.items) {
+      const typeLabel = item.requestType === 'update' ? 'Re-upload' : 'Additional document';
+      lines.push(`• [${typeLabel}] ${item.label}`);
+      if (item.adminNote?.trim()) {
+        lines.push(`  Note: ${item.adminNote.trim()}`);
+      }
+    }
+
+    lines.push('', `Upload documents: ${params.uploadUrl}`, '', 'Best regards,', 'FinPay Team');
+    return lines.join('\n');
+  }
+
+  private buildAgentDocumentUpdateRequestHtml(
+    params: SendAgentDocumentUpdateRequestParams,
+  ): string {
+    const itemRows = params.items
+      .map((item) => {
+        const typeLabel = item.requestType === 'update' ? 'Re-upload required' : 'Additional document';
+        const typeColor = item.requestType === 'update' ? '#9a3412' : '#5b21b6';
+        const note = item.adminNote?.trim()
+          ? `<p style="margin: 8px 0 0; font-size: 13px; color: #6b7280;"><strong>Note:</strong> ${this.escapeHtml(item.adminNote.trim())}</p>`
+          : '';
+
+        return `
+          <div style="border: 1px solid #ede9fe; border-radius: 12px; padding: 16px; margin-bottom: 12px; background: #fafafa;">
+            <span style="display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: ${typeColor}; margin-bottom: 8px;">
+              ${this.escapeHtml(typeLabel)}
+            </span>
+            <p style="margin: 0; font-size: 14px; font-weight: 600; color: #111827;">
+              ${this.escapeHtml(item.label)}
+            </p>
+            ${note}
+          </div>`;
+      })
+      .join('');
+
+    const messageBlock = params.message?.trim()
+      ? `
+        <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 16px; margin: 0 0 24px;">
+          <p style="margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #9a3412; text-transform: uppercase; letter-spacing: 0.04em;">
+            Message from FinPay team
+          </p>
+          <p style="margin: 0; color: #374151; white-space: pre-wrap;">${this.escapeHtml(params.message.trim())}</p>
+        </div>`
+      : '';
+
+    const content = `
+      <p style="margin: 0 0 16px; font-size: 16px; color: #111827;">
+        Dear ${this.escapeHtml(params.fullName)},
+      </p>
+      <p style="margin: 0 0 16px; color: #374151;">
+        Our team has reviewed your agent registration and needs a few document updates before we can approve your account.
+      </p>
+      ${messageBlock}
+      <p style="margin: 0 0 12px; font-size: 13px; font-weight: 700; color: #5b21b6; text-transform: uppercase; letter-spacing: 0.04em;">
+        Documents requested
+      </p>
+      ${itemRows}
+      <p style="margin: 24px 0 0;">
+        <a
+          href="${this.escapeHtml(params.uploadUrl)}"
+          style="display: inline-block; background: #5b21b6; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 12px; font-weight: 600; font-size: 14px;"
+        >
+          Upload documents
+        </a>
+      </p>
+      <p style="margin: 16px 0 0; font-size: 13px; color: #6b7280; word-break: break-all;">
+        Or sign in and open: <a href="${this.escapeHtml(params.uploadUrl)}" style="color: #5b21b6;">${this.escapeHtml(params.uploadUrl)}</a>
+      </p>
+      <p style="margin: 24px 0 0; color: #6b7280; font-size: 14px;">
+        Best regards,<br />
+        <strong style="color: #5b21b6;">FinPay Team</strong>
+      </p>`;
+
+    return this.buildFinPayEmailShell({
+      badge: 'Action Required',
+      title: 'Document update requested',
+      subtitle: 'Please re-upload or submit the listed documents',
+      content,
+    });
   }
 
   private buildAgentRegistrationConfirmationText(

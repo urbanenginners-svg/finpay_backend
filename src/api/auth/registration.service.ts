@@ -26,6 +26,7 @@ import {
   PasswordLoginDto,
   RegisterInitDto,
   RegisterVerifyOtpDto,
+  ResubmitAgentDocumentsDto,
   ResetPasswordDto,
   UpdateRegistrationStep1Dto,
   VerifyAadhaarDto,
@@ -46,6 +47,7 @@ import {
   getAgentTypeLabel,
   getRequiredDocumentKeys,
 } from 'src/utils/agent-document-requirements';
+import { RequestAgentDocumentUpdateDto } from '../admin/dto/request-agent-document-update.dto';
 
 interface RegistrationTokenPayload {
   sub: string;
@@ -169,7 +171,8 @@ export class RegistrationService {
   private canLogin(registrationStatus?: RegistrationStatusEnum): boolean {
     return (
       registrationStatus === RegistrationStatusEnum.VERIFIED ||
-      registrationStatus === RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION
+      registrationStatus === RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION ||
+      registrationStatus === RegistrationStatusEnum.PENDING_DOCUMENT_UPDATE
     );
   }
 
@@ -603,6 +606,146 @@ export class RegistrationService {
       requiredDocumentsUploaded,
       totalRequiredDocuments: requiredKeys.length,
       reviewUrl,
+    });
+  }
+
+  async requestAgentDocumentUpdate(
+    userId: string,
+    dto: RequestAgentDocumentUpdateDto,
+    adminUserId: string,
+  ) {
+    const user = await this.userModel
+      .findOne({ _id: userId, deletedAt: null })
+      .populate('role');
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    if (user.userType !== UserTypeEnum.AGENT) {
+      throw new BadRequestException('User is not an agent');
+    }
+
+    const allowedStatuses = [
+      RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION,
+      RegistrationStatusEnum.PENDING_DOCUMENT_UPDATE,
+    ];
+
+    if (!allowedStatuses.includes(user.registrationStatus as RegistrationStatusEnum)) {
+      throw new BadRequestException(
+        'Document updates can only be requested while agent registration is pending',
+      );
+    }
+
+    user.agentDocumentRevisionRequest = {
+      requestedAt: new Date(),
+      requestedBy: adminUserId,
+      message: dto.message?.trim() || undefined,
+      items: dto.items.map((item) => ({
+        key: item.key,
+        label: item.label,
+        requestType: item.requestType,
+        adminNote: item.adminNote?.trim() || undefined,
+      })),
+    };
+    user.registrationStatus = RegistrationStatusEnum.PENDING_DOCUMENT_UPDATE;
+    user.lastUpdatedBy = adminUserId;
+    await user.save();
+
+    this.sendAgentDocumentUpdateRequestEmail(user).catch((error) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to send agent document update email for ${user._id}: ${detail}`,
+      );
+    });
+
+    return {
+      message: 'Document update request sent to the agent',
+      userId: user._id,
+      registrationStatus: user.registrationStatus,
+    };
+  }
+
+  async resubmitAgentDocuments(userId: string, dto: ResubmitAgentDocumentsDto) {
+    const user = await this.userModel
+      .findOne({ _id: userId, deletedAt: null })
+      .populate('role');
+
+    if (!user) {
+      throw new UnauthorizedException('Registration session not found');
+    }
+
+    if (user.userType !== UserTypeEnum.AGENT) {
+      throw new BadRequestException('Invalid registration type for agent documents');
+    }
+
+    if (user.registrationStatus !== RegistrationStatusEnum.PENDING_DOCUMENT_UPDATE) {
+      throw new BadRequestException('No pending document update request for this account');
+    }
+
+    const revision = user.agentDocumentRevisionRequest;
+    if (!revision?.items?.length) {
+      throw new BadRequestException('Document revision request is missing or invalid');
+    }
+
+    if (!user.agentDocuments?.agentType) {
+      throw new BadRequestException('Agent registration documents are missing');
+    }
+
+    const linkedDocuments: AgentRegistrationDocuments = {
+      ...(user.agentDocuments.documents ?? {}),
+    };
+
+    for (const item of revision.items) {
+      const fileId = dto.documents[item.key as keyof AgentRegistrationDocumentsDto];
+      if (!fileId) {
+        throw new BadRequestException(`${item.label} is required`);
+      }
+
+      linkedDocuments[item.key as keyof AgentRegistrationDocuments] =
+        await this.linkAgentDocument(fileId, userId, item.label);
+    }
+
+    user.agentDocuments = {
+      agentType: user.agentDocuments.agentType,
+      documents: linkedDocuments,
+    };
+    user.agentDocumentRevisionRequest = undefined;
+    user.registrationStatus = RegistrationStatusEnum.PENDING_ADMIN_VERIFICATION;
+    await user.save();
+
+    return {
+      message:
+        'Documents submitted successfully. Your registration is pending admin verification again.',
+      registrationStatus: user.registrationStatus,
+      userId: user._id,
+      userType: user.userType,
+    };
+  }
+
+  private async sendAgentDocumentUpdateRequestEmail(user: UserDocument): Promise<void> {
+    const revision = user.agentDocumentRevisionRequest;
+    if (!revision?.items?.length || !user.email?.trim()) {
+      if (!user.email?.trim()) {
+        this.logger.warn(
+          `Skipping document update email; no email on user ${user._id}`,
+        );
+      }
+      return;
+    }
+
+    const uploadUrl = `${this.resolveFrontendUrl()}/agent/document-update`;
+
+    await this.hostingerService.sendAgentDocumentUpdateRequest({
+      to: user.email.trim(),
+      fullName: this.displayNameForSms(user),
+      message: revision.message,
+      uploadUrl,
+      items: revision.items.map((item) => ({
+        label: item.label,
+        requestType: item.requestType,
+        adminNote: item.adminNote,
+      })),
     });
   }
 

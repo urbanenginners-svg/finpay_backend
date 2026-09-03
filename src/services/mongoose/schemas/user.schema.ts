@@ -105,6 +105,46 @@ export class AgentDocuments {
 
 export const AgentDocumentsSchema = SchemaFactory.createForClass(AgentDocuments);
 
+@Schema({ _id: false })
+export class AgentDocumentRevisionItem {
+  @Prop({ required: true, type: String })
+  key: string;
+
+  @Prop({ required: true, type: String })
+  label: string;
+
+  @Prop({
+    required: true,
+    type: String,
+    enum: ['update', 'additional'],
+  })
+  requestType: 'update' | 'additional';
+
+  @Prop({ required: false, type: String })
+  adminNote?: string;
+}
+
+export const AgentDocumentRevisionItemSchema =
+  SchemaFactory.createForClass(AgentDocumentRevisionItem);
+
+@Schema({ _id: false })
+export class AgentDocumentRevisionRequest {
+  @Prop({ required: true, type: Date })
+  requestedAt: Date;
+
+  @Prop({ required: true, type: String })
+  requestedBy: string;
+
+  @Prop({ required: false, type: String })
+  message?: string;
+
+  @Prop({ type: [AgentDocumentRevisionItemSchema], required: true })
+  items: AgentDocumentRevisionItem[];
+}
+
+export const AgentDocumentRevisionRequestSchema =
+  SchemaFactory.createForClass(AgentDocumentRevisionRequest);
+
 @Schema({ collection: "users" })
 export class User {
   @ApiProperty()
@@ -263,6 +303,10 @@ export class User {
   @ApiProperty({ required: false })
   @Prop({ required: false, type: AgentDocumentsSchema })
   agentDocuments?: AgentDocuments;
+
+  @ApiProperty({ required: false })
+  @Prop({ required: false, type: AgentDocumentRevisionRequestSchema })
+  agentDocumentRevisionRequest?: AgentDocumentRevisionRequest;
 
   @ApiProperty({
     required: false,
