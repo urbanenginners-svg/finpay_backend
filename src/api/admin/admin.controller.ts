@@ -50,7 +50,7 @@ export class AdminController {
   @CheckActionPolicy(PermissionEnum.WRITE, resource.User)
   async create(
     @Body() createUserDto: CreateUserDto,
-    @GetUser('sub') requestUserId: string,
+    @GetUser('_id') requestUserId: string,
   ) {
     const result = await this.adminService.create(createUserDto, requestUserId);
     return new DataResponse(result);
@@ -92,7 +92,7 @@ export class AdminController {
   async verifyAgent(
     @Param('id') id: string,
     @Body() dto: VerifyAgentDto,
-    @GetUser('sub') requestUserId: string,
+    @GetUser('_id') requestUserId: string,
   ) {
     const result = await this.registrationService.verifyAgent(id, dto, requestUserId);
     return new DataResponse(result);
@@ -108,7 +108,7 @@ export class AdminController {
   async requestAgentDocuments(
     @Param('id') id: string,
     @Body() dto: RequestAgentDocumentUpdateDto,
-    @GetUser('sub') requestUserId: string,
+    @GetUser('_id') requestUserId: string,
   ) {
     const result = await this.registrationService.requestAgentDocumentUpdate(
       id,
@@ -129,7 +129,7 @@ export class AdminController {
   async update(
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
-    @GetUser('sub') requestUserId: string,
+    @GetUser('_id') requestUserId: string,
   ) {
     const result = await this.adminService.update(id, updateUserDto, requestUserId);
     return new DataResponse(result);
@@ -145,7 +145,7 @@ export class AdminController {
   @CheckActionPolicy(PermissionEnum.DELETE, resource.User)
   async remove(
     @Param('id') id: string,
-    @GetUser('sub') requestUserId: string,
+    @GetUser('_id') requestUserId: string,
   ) {
     const result = await this.adminService.remove(id, requestUserId);
     return new DataResponse(result, 'User deleted successfully');

@@ -637,9 +637,14 @@ export class RegistrationService {
       );
     }
 
+    const requestedBy = adminUserId?.toString?.() ?? adminUserId;
+    if (!requestedBy) {
+      throw new BadRequestException('Admin user id is required');
+    }
+
     user.agentDocumentRevisionRequest = {
       requestedAt: new Date(),
-      requestedBy: adminUserId,
+      requestedBy,
       message: dto.message?.trim() || undefined,
       items: dto.items.map((item) => ({
         key: item.key,
@@ -649,7 +654,7 @@ export class RegistrationService {
       })),
     };
     user.registrationStatus = RegistrationStatusEnum.PENDING_DOCUMENT_UPDATE;
-    user.lastUpdatedBy = adminUserId;
+    user.lastUpdatedBy = requestedBy;
     await user.save();
 
     this.sendAgentDocumentUpdateRequestEmail(user).catch((error) => {
