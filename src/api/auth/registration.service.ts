@@ -9,6 +9,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 
 import { User, UserDocument, AgentRegistrationDocuments, AdditionalAgentDocument } from 'src/services/mongoose/schemas/user.schema';
 import { Role } from 'src/services/mongoose/schemas/role.schema';
@@ -48,6 +49,7 @@ import {
   getRequiredDocumentKeys,
 } from 'src/utils/agent-document-requirements';
 import { RequestAgentDocumentUpdateDto } from '../admin/dto/request-agent-document-update.dto';
+import { CreateAgentDto } from '../admin/dto/create-agent.dto';
 
 interface RegistrationTokenPayload {
   sub: string;
@@ -94,6 +96,13 @@ export class RegistrationService {
 
   private generateOtp(): string {
     return Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
+  private generateTemporaryPassword(length = 12): string {
+    const alphabet =
+      'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+    const bytes = randomBytes(length);
+    return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
   }
 
   private displayNameForSms(user: Pick<User, 'firstName' | 'lastName'>): string {
@@ -543,6 +552,134 @@ export class RegistrationService {
       userId: user._id,
       userType: user.userType,
     };
+  }
+
+  /**
+   * Admin creates a fully registered agent on behalf of someone who cannot self-register.
+   * Account is verified immediately; a temporary password is emailed to the agent.
+   */
+  async createAgentByAdmin(dto: CreateAgentDto, adminUserId: string) {
+    const email = dto.email.toLowerCase().trim();
+    const phoneNumber = dto.phoneNumber.trim();
+    const firstName = dto.firstName.trim();
+    const normalizedLastName = dto.lastName?.trim() || undefined;
+
+    const existingEmail = await this.userModel.findOne({ email, deletedAt: null });
+    if (existingEmail) {
+      throw new ConflictException('An account with this email already exists');
+    }
+
+    const existingPhone = await this.userModel.findOne({
+      phoneNumber,
+      deletedAt: null,
+    });
+    if (existingPhone) {
+      throw new ConflictException(
+        'An account with this phone number already exists',
+      );
+    }
+
+    if (!dto.documents) {
+      throw new BadRequestException('Agent documents are required');
+    }
+
+    const requiredKeys = getRequiredDocumentKeys(dto.agentType);
+    const fieldLabels = Object.fromEntries(
+      AGENT_DOCUMENT_FIELDS[dto.agentType].map((field) => [field.key, field.label]),
+    );
+
+    for (const key of requiredKeys) {
+      const fileId = dto.documents[key as keyof AgentRegistrationDocumentsDto];
+      if (!fileId) {
+        throw new BadRequestException(`${fieldLabels[key] ?? key} is required`);
+      }
+    }
+
+    const role = await this.getRoleForUserType(UserTypeEnum.AGENT);
+    const temporaryPassword =
+      dto.password?.trim() || this.generateTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+    const user = new this.userModel({
+      firstName,
+      lastName: normalizedLastName,
+      email,
+      phoneNumber,
+      ...(dto.dateOfBirth ? { dateOfBirth: new Date(dto.dateOfBirth) } : {}),
+      userType: UserTypeEnum.AGENT,
+      role: role._id,
+      password: hashedPassword,
+      registrationStatus: RegistrationStatusEnum.VERIFIED,
+      isActive: true,
+      createdBy: adminUserId,
+      lastUpdatedBy: adminUserId,
+    });
+
+    await user.save();
+
+    const linkedDocuments: AgentRegistrationDocuments = {};
+
+    for (const field of AGENT_DOCUMENT_FIELDS[dto.agentType]) {
+      const fileId = dto.documents[field.key as keyof AgentRegistrationDocumentsDto];
+      if (fileId) {
+        linkedDocuments[field.key as keyof AgentRegistrationDocuments] =
+          await this.linkAgentDocument(fileId, user._id, field.label);
+      }
+    }
+
+    user.agentDocuments = {
+      agentType: dto.agentType,
+      documents: linkedDocuments,
+    };
+    await user.save();
+
+    let credentialsEmailSent = false;
+    try {
+      await this.sendAgentCredentialsEmail(
+        user,
+        dto.agentType,
+        temporaryPassword,
+      );
+      credentialsEmailSent = true;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to send agent credentials email for ${user._id}: ${detail}`,
+      );
+    }
+
+    return {
+      message: credentialsEmailSent
+        ? 'Agent registered successfully. Login credentials have been emailed to the agent.'
+        : 'Agent registered successfully, but the credentials email could not be sent. Ask the agent to use forgot password, or resend credentials later.',
+      userId: user._id,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      registrationStatus: user.registrationStatus,
+      agentType: dto.agentType,
+      credentialsEmailSent,
+    };
+  }
+
+  private async sendAgentCredentialsEmail(
+    user: UserDocument,
+    agentType: AgentTypeEnum,
+    temporaryPassword: string,
+  ): Promise<void> {
+    if (!user.email?.trim()) {
+      throw new BadRequestException('Agent email is required to send credentials');
+    }
+
+    const loginUrl = `${this.resolveFrontendUrl()}/login`;
+
+    await this.hostingerService.sendAgentAccountCreatedByAdmin({
+      to: user.email.trim(),
+      fullName: this.displayNameForSms(user),
+      email: user.email.trim(),
+      temporaryPassword,
+      agentTypeLabel: getAgentTypeLabel(agentType),
+      loginUrl,
+    });
   }
 
   private resolveFrontendUrl(): string {

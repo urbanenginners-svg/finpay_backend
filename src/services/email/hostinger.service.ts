@@ -69,6 +69,15 @@ export type SendAgentDocumentUpdateRequestParams = {
   }[];
 };
 
+export type SendAgentAccountCreatedByAdminParams = {
+  to: string;
+  fullName: string;
+  email: string;
+  temporaryPassword: string;
+  agentTypeLabel: string;
+  loginUrl: string;
+};
+
 @Injectable()
 export class HostingerService {
   private readonly logger = new Logger(HostingerService.name);
@@ -227,6 +236,16 @@ export class HostingerService {
     const subject = 'Action required — Please update your FinPay agent documents';
     const text = this.buildAgentDocumentUpdateRequestText(params);
     const html = this.buildAgentDocumentUpdateRequestHtml(params);
+
+    await this.sendMail({ to: params.to, subject, text, html });
+  }
+
+  async sendAgentAccountCreatedByAdmin(
+    params: SendAgentAccountCreatedByAdminParams,
+  ): Promise<void> {
+    const subject = 'Your FinPay agent account is ready';
+    const text = this.buildAgentAccountCreatedByAdminText(params);
+    const html = this.buildAgentAccountCreatedByAdminHtml(params);
 
     await this.sendMail({ to: params.to, subject, text, html });
   }
@@ -779,6 +798,75 @@ export class HostingerService {
     }
 
     return String(value);
+  }
+
+  private buildAgentAccountCreatedByAdminText(
+    params: SendAgentAccountCreatedByAdminParams,
+  ): string {
+    return [
+      `Dear ${params.fullName},`,
+      '',
+      'A FinPay partner agent account has been created for you by our admin team.',
+      '',
+      `Agent type: ${params.agentTypeLabel}`,
+      `Login email: ${params.email}`,
+      `Temporary password: ${params.temporaryPassword}`,
+      '',
+      'Please sign in and change your password after your first login.',
+      '',
+      `Sign in: ${params.loginUrl}`,
+      '',
+      'Best regards,',
+      'FinPay Team',
+    ].join('\n');
+  }
+
+  private buildAgentAccountCreatedByAdminHtml(
+    params: SendAgentAccountCreatedByAdminParams,
+  ): string {
+    const content = `
+      <p style="margin: 0 0 16px; font-size: 16px; color: #111827;">
+        Dear ${this.escapeHtml(params.fullName)},
+      </p>
+      <p style="margin: 0 0 16px; color: #374151;">
+        A <strong>FinPay partner agent</strong> account has been created for you by our admin team.
+        You can sign in with the credentials below.
+      </p>
+      <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 12px; padding: 20px; margin: 0 0 24px;">
+        <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #5b21b6; text-transform: uppercase; letter-spacing: 0.04em;">
+          Your login details
+        </p>
+        <p style="margin: 0 0 6px; color: #374151;"><strong>Agent type:</strong> ${this.escapeHtml(params.agentTypeLabel)}</p>
+        <p style="margin: 0 0 6px; color: #374151;"><strong>Email:</strong> ${this.escapeHtml(params.email)}</p>
+        <p style="margin: 0; color: #374151;"><strong>Temporary password:</strong> <code style="font-size: 15px; background: #ede9fe; padding: 2px 8px; border-radius: 6px;">${this.escapeHtml(params.temporaryPassword)}</code></p>
+      </div>
+      <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 20px; margin: 0 0 24px;">
+        <p style="margin: 0; color: #9a3412; font-size: 14px;">
+          For your security, please change this password after your first sign-in.
+        </p>
+      </div>
+      <p style="margin: 0 0 24px;">
+        <a
+          href="${this.escapeHtml(params.loginUrl)}"
+          style="display: inline-block; background: #5b21b6; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 10px; font-weight: 600;"
+        >
+          Sign in to FinPay
+        </a>
+      </p>
+      <p style="margin: 0; color: #6b7280; font-size: 14px;">
+        Or open: <a href="${this.escapeHtml(params.loginUrl)}" style="color: #5b21b6;">${this.escapeHtml(params.loginUrl)}</a>
+      </p>
+      <p style="margin: 24px 0 0; color: #6b7280; font-size: 14px;">
+        Best regards,<br />
+        <strong style="color: #5b21b6;">FinPay Team</strong>
+      </p>`;
+
+    return this.buildFinPayEmailShell({
+      badge: 'Partner Agent',
+      title: 'Your account is ready',
+      subtitle: 'Sign in with the credentials below',
+      content,
+    });
   }
 
   private escapeHtml(value: string): string {

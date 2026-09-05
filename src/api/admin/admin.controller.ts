@@ -15,6 +15,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { RegistrationService } from '../auth/registration.service';
 import { CreateUserDto, GetUsersQueryDto, UpdateUserDto } from './dto';
+import { CreateAgentDto } from './dto/create-agent.dto';
 import { RequestAgentDocumentUpdateDto } from './dto/request-agent-document-update.dto';
 import { VerifyAgentDto } from '../auth/dto/register.dto';
 import {
@@ -53,6 +54,24 @@ export class AdminController {
     @GetUser('_id') requestUserId: string,
   ) {
     const result = await this.adminService.create(createUserDto, requestUserId);
+    return new DataResponse(result);
+  }
+
+  /**
+   * POST /admin/users/register-agent
+   * Register an agent on their behalf and email temporary login credentials
+   */
+  @Version('1')
+  @Post('register-agent')
+  @CheckActionPolicy(PermissionEnum.WRITE, resource.User)
+  async registerAgent(
+    @Body() dto: CreateAgentDto,
+    @GetUser('_id') requestUserId: string,
+  ) {
+    const result = await this.registrationService.createAgentByAdmin(
+      dto,
+      requestUserId,
+    );
     return new DataResponse(result);
   }
 
