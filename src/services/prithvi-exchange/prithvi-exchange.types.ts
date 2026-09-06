@@ -526,6 +526,7 @@ export type PrithviForexOrderRecord = PrithviForexDashboardOrder & {
   providerUpdatedAt?: string;
   isDryRun?: boolean;
   createdByUserId?: string;
+  bookingSource?: string;
 };
 
 export type SyncForexOrdersFromProviderResult = {

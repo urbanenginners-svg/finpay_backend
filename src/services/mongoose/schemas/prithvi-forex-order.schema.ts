@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { HydratedDocument } from 'mongoose';
 
+import { ForexBookingSourceEnum } from 'src/utils/enums/forex-booking-source.enum';
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 
 export type PrithviForexOrderDocument = HydratedDocument<PrithviForexOrder>;
@@ -51,6 +52,21 @@ export class PrithviForexOrder {
   })
   @Prop({ required: true, type: String, ref: 'User', index: true })
   createdByUserId: string;
+
+  @ApiPropertyOptional({
+    description:
+      'self = customer booked for themselves; agent = agent booked for a walk-in customer (no Finpay account).',
+    enum: ForexBookingSourceEnum,
+    example: ForexBookingSourceEnum.SELF,
+  })
+  @Prop({
+    required: false,
+    type: String,
+    enum: Object.values(ForexBookingSourceEnum),
+    default: ForexBookingSourceEnum.SELF,
+    index: true,
+  })
+  bookingSource?: ForexBookingSourceEnum;
 
   @ApiPropertyOptional({ example: '202607182232-6381' })
   @Prop({ required: false, type: String, default: null })
@@ -152,7 +168,10 @@ export class PrithviForexOrder {
   @Prop({ required: false, type: String, default: null })
   pincode?: string | null;
 
-  @ApiPropertyOptional({ description: 'Remitter first name (from user profile at booking).' })
+  @ApiPropertyOptional({
+    description:
+      'Remitter / customer first name (from profile for self-bookings; entered by agent for walk-in customers).',
+  })
   @Prop({ required: false, type: String, default: null })
   remitterFirstName?: string | null;
 

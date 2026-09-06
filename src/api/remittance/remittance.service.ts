@@ -18,7 +18,9 @@ import {
 import { PrithviForexOrderService } from 'src/services/prithvi-exchange/prithvi-forex-order.service';
 import { ForexOrderNotificationService } from 'src/services/prithvi-exchange/forex-order-notification.service';
 import { User, UserDocument } from 'src/services/mongoose/schemas/user.schema';
+import { ForexBookingSourceEnum } from 'src/utils/enums/forex-booking-source.enum';
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
+import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
 import { FileResourceEnum } from 'src/utils/enums/file-resource.enum';
 import { FilesService } from 'src/api/files/files.service';
 import {
@@ -35,6 +37,7 @@ import {
 
 export type GetAdminForexOrdersQuery = GetForexOrdersDashboardQueryDto & {
   createdByUserId?: string;
+  bookingSource?: ForexBookingSourceEnum | string;
   q?: string;
 };
 
@@ -108,13 +111,14 @@ export class RemittanceService {
       ),
     );
     const payload: InitiateForexRequestDto = { ...dto, orderDetails };
+    const bookingSource = await this.resolveBookingSource(userId);
 
     const data = await this.prithviForex.initiateForexRequest({
       orderType: payload.orderType,
       orderDetails: payload.orderDetails,
     });
 
-    await this.persistInitiateOrders(String(userId), payload, data);
+    await this.persistInitiateOrders(String(userId), payload, data, bookingSource);
 
     return data;
   }
@@ -129,6 +133,17 @@ export class RemittanceService {
     }
 
     const forexRequestId = id.trim();
+    const bookingSource = await this.resolveBookingSource(userId);
+
+    if (bookingSource === ForexBookingSourceEnum.AGENT) {
+      const missingRemitter = dto.orders.some((order) => !order.remitterDetails);
+      if (missingRemitter) {
+        throw new BadRequestException(
+          'Customer remitter details are required when an agent books for a walk-in customer.',
+        );
+      }
+    }
+
     const data = await this.prithviForex.completeForexRequest({
       forexRequestId,
       orders: dto.orders,
@@ -139,6 +154,7 @@ export class RemittanceService {
       forexRequestId,
       dto,
       data,
+      bookingSource,
     );
 
     return data;
@@ -407,6 +423,7 @@ export class RemittanceService {
       fromDate: query.fromDate,
       toDate: query.toDate,
       createdByUserId: query.createdByUserId,
+      bookingSource: query.bookingSource,
       q: query.q,
     });
 
@@ -416,7 +433,7 @@ export class RemittanceService {
     const users = userIds.length
       ? await this.userModel
           .find({ _id: { $in: userIds } })
-          .select('_id firstName lastName email phoneNumber')
+          .select('_id firstName lastName email phoneNumber userType')
           .lean()
           .exec()
       : [];
@@ -430,6 +447,7 @@ export class RemittanceService {
           lastName: user.lastName ?? '',
           email: user.email ?? null,
           phoneNumber: user.phoneNumber ?? null,
+          userType: user.userType ?? null,
           displayName:
             [user.firstName, user.lastName].filter(Boolean).join(' ') ||
             user.email ||
@@ -447,11 +465,24 @@ export class RemittanceService {
           lastName: '',
           email: null,
           phoneNumber: null,
+          userType: null,
           displayName: row.createdByUserId,
         },
       })),
       meta: result.meta,
     };
+  }
+
+  async getAdminForexOrdersStats(query: GetAdminForexOrdersQuery) {
+    return this.forexOrders.getAdminStats({
+      status: query.status,
+      product: query.product,
+      fromDate: query.fromDate,
+      toDate: query.toDate,
+      createdByUserId: query.createdByUserId,
+      bookingSource: query.bookingSource,
+      q: query.q,
+    });
   }
 
   /** User: full detail for a single owned forex order. */
@@ -488,7 +519,7 @@ export class RemittanceService {
     const user = userId
       ? await this.userModel
           .findById(userId)
-          .select('_id firstName lastName email phoneNumber')
+          .select('_id firstName lastName email phoneNumber userType')
           .lean()
           .exec()
       : null;
@@ -500,6 +531,7 @@ export class RemittanceService {
           lastName: user.lastName ?? '',
           email: user.email ?? null,
           phoneNumber: user.phoneNumber ?? null,
+          userType: user.userType ?? null,
           displayName:
             [user.firstName, user.lastName].filter(Boolean).join(' ') ||
             user.email ||
@@ -512,6 +544,7 @@ export class RemittanceService {
             lastName: '',
             email: null,
             phoneNumber: null,
+            userType: null,
             displayName: userId,
           }
         : null;
@@ -648,6 +681,7 @@ export class RemittanceService {
     userId: string,
     dto: InitiateForexRequestDto,
     data: Awaited<ReturnType<PrithviForexApiService['initiateForexRequest']>>,
+    bookingSource: ForexBookingSourceEnum,
   ): Promise<void> {
     try {
       const forexRequest = data.forexRequest;
@@ -658,6 +692,7 @@ export class RemittanceService {
           const detail = dto.orderDetails[index];
           return this.forexOrders.upsertFromInitiate({
             createdByUserId: userId,
+            bookingSource,
             forexRequestId: forexRequest.id,
             prithviOrderId: order.id,
             orderType: forexRequest.orderType
@@ -705,6 +740,7 @@ export class RemittanceService {
     forexRequestId: string,
     dto: CompleteForexRequestDto,
     data: Awaited<ReturnType<PrithviForexApiService['completeForexRequest']>>,
+    bookingSource: ForexBookingSourceEnum,
   ): Promise<void> {
     try {
       const responseOrders = data.orders ?? [];
@@ -718,6 +754,8 @@ export class RemittanceService {
           const updated = await this.forexOrders.upsertFromComplete({
             prithviOrderId: payload.orderId,
             forexRequestId,
+            createdByUserId: userId,
+            bookingSource,
             status: 'PENDING',
             statusLabel: 'Pending Approval',
             paymentStatus: snapshot?.paymentStatus ?? null,
@@ -761,6 +799,7 @@ export class RemittanceService {
           if (!updated) {
             await this.forexOrders.upsertFromInitiate({
               createdByUserId: userId,
+              bookingSource,
               forexRequestId,
               prithviOrderId: payload.orderId,
               orderType: null,
@@ -783,6 +822,8 @@ export class RemittanceService {
             await this.forexOrders.upsertFromComplete({
               prithviOrderId: payload.orderId,
               forexRequestId,
+              createdByUserId: userId,
+              bookingSource,
               status: 'PENDING',
               statusLabel: 'Pending Approval',
               travelerName: payload.travelerName,
@@ -813,6 +854,20 @@ export class RemittanceService {
         `Failed to persist forex complete orders locally: ${detail}`,
       );
     }
+  }
+
+  private async resolveBookingSource(
+    userId: string,
+  ): Promise<ForexBookingSourceEnum> {
+    const user = await this.userModel
+      .findById(String(userId))
+      .select('userType')
+      .lean()
+      .exec();
+
+    return user?.userType === UserTypeEnum.AGENT
+      ? ForexBookingSourceEnum.AGENT
+      : ForexBookingSourceEnum.SELF;
   }
 
   private getProviderService(provider: RemittanceProvider): PrithviExchangeService {

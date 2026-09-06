@@ -6,6 +6,7 @@ import {
   PrithviForexOrder,
   PrithviForexOrderDocument,
 } from 'src/services/mongoose/schemas/prithvi-forex-order.schema';
+import { ForexBookingSourceEnum } from 'src/utils/enums/forex-booking-source.enum';
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import type {
   PrithviForexDashboardOrder,
@@ -17,6 +18,7 @@ export type UpsertForexOrderFromInitiateInput = {
   createdByUserId: string;
   forexRequestId: string;
   prithviOrderId: string;
+  bookingSource?: ForexBookingSourceEnum | string | null;
   orderType?: string | null;
   currency?: string | null;
   product?: string | null;
@@ -40,6 +42,8 @@ export type UpsertForexOrderFromInitiateInput = {
 export type UpsertForexOrderFromCompleteInput = {
   prithviOrderId: string;
   forexRequestId?: string;
+  createdByUserId?: string;
+  bookingSource?: ForexBookingSourceEnum | string | null;
   status?: string;
   statusLabel?: string | null;
   paymentStatus?: string | null;
@@ -77,6 +81,9 @@ export type UpsertForexOrderFromCompleteInput = {
   documents?: Record<string, string>;
   localDocumentFileIds?: Record<string, string>;
   providerUpdatedAt?: string | Date | null;
+  orderType?: string | null;
+  currency?: string | null;
+  product?: string | null;
 };
 
 export type SyncForexOrderFromDashboardInput = {
@@ -117,14 +124,35 @@ export type ListAdminForexOrdersParams = {
   fromDate?: string;
   toDate?: string;
   createdByUserId?: string;
+  bookingSource?: string;
   q?: string;
 };
 
 export type AdminForexOrderRow = PrithviForexDashboardOrder & {
   createdByUserId: string;
+  bookingSource?: string;
+  remitterFirstName?: string;
+  remitterLastName?: string;
   email?: string;
   phoneNumber?: string;
   lastSyncedAt?: string;
+};
+
+export type AdminForexOrdersStatsParams = {
+  status?: string;
+  product?: string;
+  fromDate?: string;
+  toDate?: string;
+  createdByUserId?: string;
+  bookingSource?: string;
+  q?: string;
+};
+
+export type AdminForexOrdersStats = {
+  total: number;
+  byStatus: Record<string, number>;
+  byProduct: Record<string, number>;
+  byBookingSource: Record<string, number>;
 };
 
 export type SyncForexOrderFromDashboardResult = {
@@ -160,6 +188,7 @@ type ForexOrderLeanRow = {
   prithviOrderId: string;
   forexRequestId?: string;
   createdByUserId?: string;
+  bookingSource?: string | null;
   orderCode?: string | null;
   orderType?: string | null;
   currency?: string | null;
@@ -221,6 +250,7 @@ function mapRowToDetail(row: ForexOrderLeanRow): PrithviForexOrderRecord {
     id: row.prithviOrderId,
     forexRequestId: row.forexRequestId ?? undefined,
     createdByUserId: row.createdByUserId ?? undefined,
+    bookingSource: row.bookingSource ?? undefined,
     orderCode: row.orderCode ?? undefined,
     orderType: row.orderType ?? undefined,
     currency: row.currency ?? undefined,
@@ -299,6 +329,8 @@ export class PrithviForexOrderService {
             vendor: RemittanceProvider.PRITHVI,
             forexRequestId: input.forexRequestId,
             createdByUserId: String(input.createdByUserId),
+            bookingSource:
+              input.bookingSource ?? ForexBookingSourceEnum.SELF,
             orderType: input.orderType ?? null,
             currency: input.currency ?? null,
             product: input.product ?? null,
@@ -339,6 +371,9 @@ export class PrithviForexOrderService {
     };
 
     if (input.forexRequestId) $set.forexRequestId = input.forexRequestId;
+    if (input.createdByUserId != null)
+      $set.createdByUserId = String(input.createdByUserId);
+    if (input.bookingSource != null) $set.bookingSource = input.bookingSource;
     if (input.paymentStatus != null) $set.paymentStatus = input.paymentStatus;
     if (input.orderCode != null) $set.orderCode = input.orderCode;
     if (input.currencyAmount != null)
@@ -678,6 +713,9 @@ export class PrithviForexOrderService {
     const data: AdminForexOrderRow[] = rows.map((row) => ({
       id: row.prithviOrderId,
       createdByUserId: row.createdByUserId,
+      bookingSource: row.bookingSource ?? undefined,
+      remitterFirstName: row.remitterFirstName ?? undefined,
+      remitterLastName: row.remitterLastName ?? undefined,
       orderCode: row.orderCode ?? undefined,
       orderType: row.orderType ?? undefined,
       currency: row.currency ?? undefined,
@@ -702,6 +740,60 @@ export class PrithviForexOrderService {
     return { data, meta: { total, page, limit } };
   }
 
+  async getAdminStats(
+    params: AdminForexOrdersStatsParams,
+  ): Promise<AdminForexOrdersStats> {
+    const filter = this.buildAdminFilter(params);
+
+    const [total, byStatus, byProduct, byBookingSource] = await Promise.all([
+      this.model.countDocuments(filter).exec(),
+      this.model
+        .aggregate<{ _id: string; count: number }>([
+          { $match: filter },
+          { $group: { _id: '$status', count: { $sum: 1 } } },
+        ])
+        .exec(),
+      this.model
+        .aggregate<{ _id: string; count: number }>([
+          { $match: filter },
+          {
+            $group: {
+              _id: { $ifNull: ['$product', 'UNKNOWN'] },
+              count: { $sum: 1 },
+            },
+          },
+        ])
+        .exec(),
+      this.model
+        .aggregate<{ _id: string; count: number }>([
+          { $match: filter },
+          {
+            $group: {
+              _id: {
+                $ifNull: ['$bookingSource', ForexBookingSourceEnum.SELF],
+              },
+              count: { $sum: 1 },
+            },
+          },
+        ])
+        .exec(),
+    ]);
+
+    const toMap = (rows: { _id: string; count: number }[]) =>
+      Object.fromEntries(
+        rows
+          .filter((row) => row._id != null && String(row._id).trim())
+          .map((row) => [String(row._id), row.count]),
+      );
+
+    return {
+      total,
+      byStatus: toMap(byStatus),
+      byProduct: toMap(byProduct),
+      byBookingSource: toMap(byBookingSource),
+    };
+  }
+
   private buildUserFilter(
     params: ListForexOrdersParams,
   ): FilterQuery<PrithviForexOrderDocument> {
@@ -714,12 +806,16 @@ export class PrithviForexOrderService {
   }
 
   private buildAdminFilter(
-    params: ListAdminForexOrdersParams,
+    params: ListAdminForexOrdersParams | AdminForexOrdersStatsParams,
   ): FilterQuery<PrithviForexOrderDocument> {
     const filter: FilterQuery<PrithviForexOrderDocument> = {};
 
     if (params.createdByUserId) {
       filter.createdByUserId = String(params.createdByUserId);
+    }
+
+    if (params.bookingSource) {
+      filter.bookingSource = String(params.bookingSource);
     }
 
     this.applySharedFilters(filter, params);
@@ -735,6 +831,9 @@ export class PrithviForexOrderService {
         { currency: regex },
         { prithviOrderId: regex },
         { createdByUserId: regex },
+        { remitterFirstName: regex },
+        { remitterLastName: regex },
+        { panNumber: regex },
       ];
     }
 

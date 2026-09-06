@@ -29,6 +29,7 @@ import {
   PrithviForexRequestStatus,
   PrithviProductType,
 } from 'src/services/prithvi-exchange';
+import { ForexBookingSourceEnum } from 'src/utils/enums/forex-booking-source.enum';
 import { PoliciesGuard } from 'src/services/casl/casl-policies.guard';
 import { CheckActionPolicy } from 'src/services/casl/casl-policies.decorator';
 import { PermissionEnum } from 'src/utils/enums/permission.enum';
@@ -74,7 +75,7 @@ class GetAdminForexOrdersQueryDto implements GetAdminForexOrdersQuery {
   toDate?: string;
 
   @ApiPropertyOptional({
-    description: 'Filter to a specific Finpay user id',
+    description: 'Filter to a specific Finpay user id (agent or customer)',
   })
   @IsOptional()
   @IsString()
@@ -82,7 +83,17 @@ class GetAdminForexOrdersQueryDto implements GetAdminForexOrdersQuery {
   createdByUserId?: string;
 
   @ApiPropertyOptional({
-    description: 'Search order code, traveler, email, phone, or user id',
+    description:
+      'self = customer self-booking; agent = agent booked for walk-in customer',
+    enum: ForexBookingSourceEnum,
+  })
+  @IsOptional()
+  @IsEnum(ForexBookingSourceEnum)
+  bookingSource?: ForexBookingSourceEnum;
+
+  @ApiPropertyOptional({
+    description:
+      'Search order code, traveler, remitter, email, phone, PAN, or user id',
   })
   @IsOptional()
   @IsString()
@@ -116,6 +127,7 @@ export class AdminForexOrdersController {
   @ApiQuery({ name: 'fromDate', required: false })
   @ApiQuery({ name: 'toDate', required: false })
   @ApiQuery({ name: 'createdByUserId', required: false })
+  @ApiQuery({ name: 'bookingSource', required: false, enum: ForexBookingSourceEnum })
   @ApiQuery({ name: 'q', required: false })
   @CheckActionPolicy(PermissionEnum.READ, resource.User)
   async listOrders(@Query() query: GetAdminForexOrdersQueryDto) {
@@ -126,6 +138,26 @@ export class AdminForexOrdersController {
       meta: result.meta,
       message: 'Forex orders retrieved successfully.',
     };
+  }
+
+  @Version('1')
+  @Get('stats')
+  @ApiOperation({
+    summary: 'Forex booking stats',
+    description:
+      'Aggregate counts by status, product, and booking source. Accepts the same filters as the list endpoint (except pagination).',
+  })
+  @ApiQuery({ name: 'status', required: false, enum: PrithviForexRequestStatus })
+  @ApiQuery({ name: 'product', required: false, enum: PrithviProductType })
+  @ApiQuery({ name: 'fromDate', required: false })
+  @ApiQuery({ name: 'toDate', required: false })
+  @ApiQuery({ name: 'createdByUserId', required: false })
+  @ApiQuery({ name: 'bookingSource', required: false, enum: ForexBookingSourceEnum })
+  @ApiQuery({ name: 'q', required: false })
+  @CheckActionPolicy(PermissionEnum.READ, resource.User)
+  async orderStats(@Query() query: GetAdminForexOrdersQueryDto) {
+    const data = await this.remittanceService.getAdminForexOrdersStats(query);
+    return new DataResponse(data, 'Forex order stats retrieved successfully.');
   }
 
   @Version('1')
