@@ -490,6 +490,14 @@ export type PrithviForexOrderRecord = PrithviForexDashboardOrder & {
   panNumber?: string;
   sellingRate?: string | number;
   agentSellingRate?: string | number;
+  vendorRate?: number;
+  finpaySellRate?: number;
+  cardRate?: number;
+  customerSellRate?: number;
+  finpayCommissionPerUnit?: number;
+  agentCommissionPerUnit?: number;
+  finpayCommissionTotal?: number;
+  agentCommissionTotal?: number;
   gst?: string | number;
   serviceCharge?: string | number;
   paidAmount?: string | number;

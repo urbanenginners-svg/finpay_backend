@@ -126,6 +126,17 @@ export class ForexOrderDetailDto {
   @Type(() => Number)
   agentSellingRate: number;
 
+  @ApiPropertyOptional({
+    example: 28,
+    description:
+      'Customer sell rate (Z) entered by agent. Required for agent bookings; must be ≤ card rate.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  customerSellRate?: number;
+
   @ApiProperty({ example: 150.3 })
   @IsNumber()
   @Min(0)

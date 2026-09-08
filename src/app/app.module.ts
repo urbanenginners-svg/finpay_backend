@@ -21,6 +21,7 @@ import { RemittanceProviderTokenModule } from "src/services/remittance-provider-
 import { HttpFormModule } from "src/services/http";
 import { PrithviExchangeModule } from "src/services/prithvi-exchange";
 import { PrithviLeadSystemModule } from "src/services/prithvi-lead-system";
+import { AgentCardRateModule } from "src/services/agent-card-rate/agent-card-rate.module";
 import { JwtAuthGuard } from "src/services/auth/jwt-auth.guard";
 import { ApiKeyAuthGuard } from "src/services/auth/api-key-auth.guard";
 import { User, UserSchema } from "src/services/mongoose/schemas/user.schema";
@@ -56,6 +57,7 @@ import { SystemApiKey, SystemApiKeySchema } from "src/services/mongoose/schemas/
         HttpFormModule,
         PrithviExchangeModule,
         PrithviLeadSystemModule,
+        AgentCardRateModule,
     ],
     controllers: [AppController],
     providers: [

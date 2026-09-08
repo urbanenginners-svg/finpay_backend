@@ -116,6 +116,43 @@ export class PrithviForexOrder {
   @Prop({ required: false, type: String, default: null })
   agentSellingRate?: string | null;
 
+  /** Y — vendor rate snapshot at booking (agent orders only). */
+  @ApiPropertyOptional({ example: 20 })
+  @Prop({ required: false, type: Number, default: null, index: true })
+  vendorRate?: number | null;
+
+  /** X — Finpay→agent sell rate snapshot at booking. */
+  @ApiPropertyOptional({ example: 25 })
+  @Prop({ required: false, type: Number, default: null })
+  finpaySellRate?: number | null;
+
+  /** Card rate ceiling snapshot at booking. */
+  @ApiPropertyOptional({ example: 30 })
+  @Prop({ required: false, type: Number, default: null })
+  cardRate?: number | null;
+
+  /** Z — rate agent sold to customer. */
+  @ApiPropertyOptional({ example: 28 })
+  @Prop({ required: false, type: Number, default: null })
+  customerSellRate?: number | null;
+
+  @ApiPropertyOptional({ example: 5 })
+  @Prop({ required: false, type: Number, default: null })
+  finpayCommissionPerUnit?: number | null;
+
+  @ApiPropertyOptional({ example: 3 })
+  @Prop({ required: false, type: Number, default: null })
+  agentCommissionPerUnit?: number | null;
+
+  /** Denormalized total — indexed for commission list/export aggregations. */
+  @ApiPropertyOptional({ example: 5000 })
+  @Prop({ required: false, type: Number, default: null, index: true })
+  finpayCommissionTotal?: number | null;
+
+  @ApiPropertyOptional({ example: 3000 })
+  @Prop({ required: false, type: Number, default: null, index: true })
+  agentCommissionTotal?: number | null;
+
   @ApiPropertyOptional()
   @Prop({ required: false, type: String, default: null })
   gst?: string | null;
@@ -328,3 +365,14 @@ PrithviForexOrderSchema.index({ vendor: 1, createdByUserId: 1, providerCreatedAt
 PrithviForexOrderSchema.index({ createdByUserId: 1, providerCreatedAt: -1 });
 PrithviForexOrderSchema.index({ createdByUserId: 1, status: 1 });
 PrithviForexOrderSchema.index({ createdByUserId: 1, product: 1 });
+/** Agent commission ledger — hot path for agent dashboard + CSV. */
+PrithviForexOrderSchema.index({
+  bookingSource: 1,
+  createdByUserId: 1,
+  providerCreatedAt: -1,
+});
+PrithviForexOrderSchema.index({
+  bookingSource: 1,
+  providerCreatedAt: -1,
+  agentCommissionTotal: 1,
+});

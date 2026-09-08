@@ -15,6 +15,7 @@ import {
   PrithviOrderType,
   extractPrithviRate,
 } from 'src/services/prithvi-exchange';
+import { AgentCardRateService } from 'src/services/agent-card-rate/agent-card-rate.service';
 import { PrithviForexOrderService } from 'src/services/prithvi-exchange/prithvi-forex-order.service';
 import { ForexOrderNotificationService } from 'src/services/prithvi-exchange/forex-order-notification.service';
 import { User, UserDocument } from 'src/services/mongoose/schemas/user.schema';
@@ -23,6 +24,11 @@ import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
 import { FileResourceEnum } from 'src/utils/enums/file-resource.enum';
 import { FilesService } from 'src/api/files/files.service';
+import {
+  computeOrderCommissions,
+  toFiniteNumber,
+  validateCustomerSellRate,
+} from 'src/utils/agent-commission.util';
 import {
   CompleteForexRequestDto,
   CompleteForexOrderDto,
@@ -51,6 +57,7 @@ export class RemittanceService {
     private readonly forexOrders: PrithviForexOrderService,
     private readonly forexOrderNotifications: ForexOrderNotificationService,
     private readonly filesService: FilesService,
+    private readonly agentCardRates: AgentCardRateService,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
 
@@ -105,17 +112,29 @@ export class RemittanceService {
   }
 
   async initiateForex(dto: InitiateForexRequestDto, userId: string) {
+    const bookingSource = await this.resolveBookingSource(userId);
     const orderDetails = await Promise.all(
-      dto.orderDetails.map((order) =>
-        this.overlayInitiateCharges(dto.orderType, order, dto.purposeCode),
-      ),
+      dto.orderDetails.map(async (order) => {
+        const withCharges = await this.overlayInitiateCharges(
+          dto.orderType,
+          order,
+          dto.purposeCode,
+        );
+        if (bookingSource === ForexBookingSourceEnum.AGENT) {
+          return this.normalizeAgentOrderRates(String(userId), withCharges);
+        }
+        return withCharges;
+      }),
     );
     const payload: InitiateForexRequestDto = { ...dto, orderDetails };
-    const bookingSource = await this.resolveBookingSource(userId);
 
     const data = await this.prithviForex.initiateForexRequest({
       orderType: payload.orderType,
-      orderDetails: payload.orderDetails,
+      orderDetails: payload.orderDetails.map((order) => {
+        const { customerSellRate: _unused, ...prithviDetail } = order;
+        void _unused;
+        return prithviDetail;
+      }),
     });
 
     await this.persistInitiateOrders(String(userId), payload, data, bookingSource);
@@ -708,6 +727,11 @@ export class RemittanceService {
             sellingRate: order.sellingRate ?? detail?.sellingRate ?? null,
             agentSellingRate:
               order.agentSellingRate ?? detail?.agentSellingRate ?? null,
+            ...(await this.commissionPersistFields(
+              bookingSource,
+              userId,
+              detail,
+            )),
             gst: order.gst ?? detail?.gst ?? null,
             serviceCharge: order.serviceCharge ?? detail?.serviceCharge ?? null,
             totalAmount: order.totalAmount ?? order.amountInINR ?? null,
@@ -868,6 +892,118 @@ export class RemittanceService {
     return user?.userType === UserTypeEnum.AGENT
       ? ForexBookingSourceEnum.AGENT
       : ForexBookingSourceEnum.SELF;
+  }
+
+  /**
+   * Agent bookings: require customerSellRate (Z) ≤ card rate.
+   * agentSellingRate forwarded to Prithvi is set to Z.
+   * Provider sellingRate / amountInINR stay on the live Prithvi quote.
+   */
+  private async normalizeAgentOrderRates(
+    agentId: string,
+    order: ForexOrderDetailDto,
+  ): Promise<ForexOrderDetailDto> {
+    const customerSellRate = toFiniteNumber(
+      order.customerSellRate ?? order.agentSellingRate,
+      0,
+    );
+    const card = await this.agentCardRates.getOrDefault(agentId, order.currency);
+    const error = validateCustomerSellRate({
+      customerSellRate,
+      cardRate: card.cardRate,
+      finpaySellRate: card.finpaySellRate,
+    });
+    if (error) {
+      throw new BadRequestException(error);
+    }
+
+    return {
+      ...order,
+      customerSellRate,
+      agentSellingRate: customerSellRate,
+    };
+  }
+
+  private async commissionPersistFields(
+    bookingSource: ForexBookingSourceEnum,
+    agentId: string,
+    detail?: ForexOrderDetailDto | null,
+  ): Promise<{
+    vendorRate?: number | null;
+    finpaySellRate?: number | null;
+    cardRate?: number | null;
+    customerSellRate?: number | null;
+    finpayCommissionPerUnit?: number | null;
+    agentCommissionPerUnit?: number | null;
+    finpayCommissionTotal?: number | null;
+    agentCommissionTotal?: number | null;
+  }> {
+    if (bookingSource !== ForexBookingSourceEnum.AGENT || !detail) {
+      return {};
+    }
+
+    const customerSellRate = toFiniteNumber(
+      detail.customerSellRate ?? detail.agentSellingRate,
+      0,
+    );
+    const card = await this.agentCardRates.getOrDefault(
+      agentId,
+      detail.currency,
+    );
+    const commission = computeOrderCommissions({
+      vendorRate: card.vendorRate,
+      finpaySellRate: card.finpaySellRate,
+      cardRate: card.cardRate,
+      customerSellRate,
+      currencyAmount: toFiniteNumber(detail.currencyAmount, 0),
+    });
+
+    return {
+      vendorRate: commission.vendorRate,
+      finpaySellRate: commission.finpaySellRate,
+      cardRate: commission.cardRate,
+      customerSellRate: commission.customerSellRate,
+      finpayCommissionPerUnit: commission.finpayCommissionPerUnit,
+      agentCommissionPerUnit: commission.agentCommissionPerUnit,
+      finpayCommissionTotal: commission.finpayCommissionTotal,
+      agentCommissionTotal: commission.agentCommissionTotal,
+    };
+  }
+
+  async getMyCardRate(agentId: string, currency: string) {
+    return this.agentCardRates.getOrDefault(agentId, currency);
+  }
+
+  async listMyCardRates(agentId: string) {
+    return this.agentCardRates.listByAgent(agentId);
+  }
+
+  async listMyCommissions(
+    agentId: string,
+    query: {
+      pageNumber?: number;
+      pageSize?: number;
+      fromDate?: string;
+      toDate?: string;
+      currency?: string;
+    },
+  ) {
+    return this.forexOrders.listCommissions({
+      ...query,
+      createdByUserId: agentId,
+      agentBookingsOnly: true,
+    });
+  }
+
+  iterateMyCommissionsForExport(
+    agentId: string,
+    query: { fromDate?: string; toDate?: string; currency?: string },
+  ) {
+    return this.forexOrders.iterateCommissionsForExport({
+      ...query,
+      createdByUserId: agentId,
+      agentBookingsOnly: true,
+    });
   }
 
   private getProviderService(provider: RemittanceProvider): PrithviExchangeService {

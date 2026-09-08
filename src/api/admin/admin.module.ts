@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AdminController } from './admin.controller';
 import { AdminRatesController } from './admin-rates.controller';
 import { AdminForexOrdersController } from './admin-forex-orders.controller';
+import { AdminAgentCardRatesController } from './admin-agent-card-rates.controller';
 import { AdminService } from './admin.service';
 import { RemittanceModule } from '../remittance/remittance.module';
 import { User, UserSchema } from 'src/services/mongoose/schemas/user.schema';
@@ -23,7 +24,12 @@ import { AuthModule } from '../auth/auth.module';
       { name: Permission.name, schema: PermissionSchema },
     ]),
   ],
-  controllers: [AdminController, AdminRatesController, AdminForexOrdersController],
+  controllers: [
+    AdminController,
+    AdminRatesController,
+    AdminForexOrdersController,
+    AdminAgentCardRatesController,
+  ],
   providers: [AdminService, CaslAbilityFactory, PoliciesGuard],
   exports: [AdminService],
 })

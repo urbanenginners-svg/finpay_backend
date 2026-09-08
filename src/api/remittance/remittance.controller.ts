@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Query,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -16,6 +17,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { memoryStorage } from 'multer';
+import type { Response } from 'express';
 
 import { RemittanceService } from './remittance.service';
 import {
@@ -28,6 +30,7 @@ import {
   SubmitForexOfflinePaymentDto,
   UploadForexOrderDocumentDto,
 } from './dto';
+import { GetCommissionsQueryDto } from '../admin/dto/agent-card-rate.dto';
 import { DataResponse } from 'src/utils/response';
 import { Public } from 'src/utils/decorators/public-key.decorator';
 import { GetUser } from 'src/utils/decorators/get-user.decorator';
@@ -50,6 +53,14 @@ import {
   SubmitForexOfflinePaymentSwagger,
   UploadForexOrderDocumentSwagger,
 } from './remittance.swagger';
+
+function csvEscape(value: unknown): string {
+  const raw = value == null ? '' : String(value);
+  if (/[",\n\r]/.test(raw)) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+}
 
 @ApiTags('Remittance')
 @Controller('remittance')
@@ -251,5 +262,109 @@ export class RemittanceController {
   async getPurposeConfig(@Param('code') code: string) {
     const config = await this.remittanceService.getPurposeConfig(code);
     return new DataResponse(config);
+  }
+
+  /** Agent: card-rate suggestions (X / Y / card) for booking UI. */
+  @ApiBearerAuth()
+  @Version('1')
+  @Get('agent/card-rates')
+  async listMyCardRates(@GetUser('_id') userId: string) {
+    const data = await this.remittanceService.listMyCardRates(String(userId));
+    return new DataResponse(data);
+  }
+
+  @ApiBearerAuth()
+  @Version('1')
+  @Get('agent/card-rates/:currency')
+  async getMyCardRate(
+    @GetUser('_id') userId: string,
+    @Param('currency') currency: string,
+  ) {
+    const data = await this.remittanceService.getMyCardRate(
+      String(userId),
+      currency,
+    );
+    return new DataResponse(data);
+  }
+
+  @ApiBearerAuth()
+  @Version('1')
+  @Get('agent/commissions')
+  async listMyCommissions(
+    @GetUser('_id') userId: string,
+    @Query() query: GetCommissionsQueryDto,
+  ) {
+    const result = await this.remittanceService.listMyCommissions(
+      String(userId),
+      {
+        pageNumber: query.pageNumber,
+        pageSize: query.pageSize,
+        fromDate: query.fromDate,
+        toDate: query.toDate,
+        currency: query.currency,
+      },
+    );
+    return new DataResponse(result);
+  }
+
+  @ApiBearerAuth()
+  @Version('1')
+  @Get('agent/commissions/export')
+  async exportMyCommissionsCsv(
+    @GetUser('_id') userId: string,
+    @Query() query: GetCommissionsQueryDto,
+    @Res() res: Response,
+  ) {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="agent-commissions.csv"',
+    );
+
+    const header = [
+      'orderId',
+      'orderCode',
+      'currency',
+      'product',
+      'status',
+      'currencyAmount',
+      'finpaySellRate_X',
+      'cardRate',
+      'customerSellRate_Z',
+      'agentCommissionPerUnit',
+      'agentCommissionTotal',
+      'providerCreatedAt',
+    ].join(',');
+    res.write(`${header}\n`);
+
+    for await (const row of this.remittanceService.iterateMyCommissionsForExport(
+      String(userId),
+      {
+        fromDate: query.fromDate,
+        toDate: query.toDate,
+        currency: query.currency,
+      },
+    )) {
+      res.write(
+        [
+          row.id,
+          row.orderCode,
+          row.currency,
+          row.product,
+          row.status,
+          row.currencyAmount,
+          row.finpaySellRate,
+          row.cardRate,
+          row.customerSellRate,
+          row.agentCommissionPerUnit,
+          row.agentCommissionTotal,
+          row.providerCreatedAt,
+        ]
+          .map(csvEscape)
+          .join(',') + '\n',
+      );
+    }
+
+    res.end();
   }
 }

@@ -26,6 +26,14 @@ export type UpsertForexOrderFromInitiateInput = {
   amountInINR?: string | number | null;
   sellingRate?: string | number | null;
   agentSellingRate?: string | number | null;
+  vendorRate?: number | null;
+  finpaySellRate?: number | null;
+  cardRate?: number | null;
+  customerSellRate?: number | null;
+  finpayCommissionPerUnit?: number | null;
+  agentCommissionPerUnit?: number | null;
+  finpayCommissionTotal?: number | null;
+  agentCommissionTotal?: number | null;
   gst?: string | number | null;
   serviceCharge?: string | number | null;
   totalAmount?: string | number | null;
@@ -52,6 +60,14 @@ export type UpsertForexOrderFromCompleteInput = {
   amountInINR?: string | number | null;
   sellingRate?: string | number | null;
   agentSellingRate?: string | number | null;
+  vendorRate?: number | null;
+  finpaySellRate?: number | null;
+  cardRate?: number | null;
+  customerSellRate?: number | null;
+  finpayCommissionPerUnit?: number | null;
+  agentCommissionPerUnit?: number | null;
+  finpayCommissionTotal?: number | null;
+  agentCommissionTotal?: number | null;
   gst?: string | number | null;
   serviceCharge?: string | number | null;
   totalAmount?: string | number | null;
@@ -200,6 +216,14 @@ type ForexOrderLeanRow = {
   amountInINR?: string | null;
   sellingRate?: string | null;
   agentSellingRate?: string | null;
+  vendorRate?: number | null;
+  finpaySellRate?: number | null;
+  cardRate?: number | null;
+  customerSellRate?: number | null;
+  finpayCommissionPerUnit?: number | null;
+  agentCommissionPerUnit?: number | null;
+  finpayCommissionTotal?: number | null;
+  agentCommissionTotal?: number | null;
   gst?: string | null;
   serviceCharge?: string | null;
   totalAmount?: string | null;
@@ -262,6 +286,14 @@ function mapRowToDetail(row: ForexOrderLeanRow): PrithviForexOrderRecord {
     amountInINR: row.amountInINR ?? undefined,
     sellingRate: row.sellingRate ?? undefined,
     agentSellingRate: row.agentSellingRate ?? undefined,
+    vendorRate: row.vendorRate ?? undefined,
+    finpaySellRate: row.finpaySellRate ?? undefined,
+    cardRate: row.cardRate ?? undefined,
+    customerSellRate: row.customerSellRate ?? undefined,
+    finpayCommissionPerUnit: row.finpayCommissionPerUnit ?? undefined,
+    agentCommissionPerUnit: row.agentCommissionPerUnit ?? undefined,
+    finpayCommissionTotal: row.finpayCommissionTotal ?? undefined,
+    agentCommissionTotal: row.agentCommissionTotal ?? undefined,
     gst: row.gst ?? undefined,
     serviceCharge: row.serviceCharge ?? undefined,
     totalAmount: row.totalAmount ?? undefined,
@@ -338,6 +370,14 @@ export class PrithviForexOrderService {
             amountInINR: asString(input.amountInINR),
             sellingRate: asString(input.sellingRate),
             agentSellingRate: asString(input.agentSellingRate),
+            vendorRate: input.vendorRate ?? null,
+            finpaySellRate: input.finpaySellRate ?? null,
+            cardRate: input.cardRate ?? null,
+            customerSellRate: input.customerSellRate ?? null,
+            finpayCommissionPerUnit: input.finpayCommissionPerUnit ?? null,
+            agentCommissionPerUnit: input.agentCommissionPerUnit ?? null,
+            finpayCommissionTotal: input.finpayCommissionTotal ?? null,
+            agentCommissionTotal: input.agentCommissionTotal ?? null,
             gst: asString(input.gst),
             serviceCharge: asString(input.serviceCharge),
             totalAmount: asString(input.totalAmount ?? input.amountInINR),
@@ -382,6 +422,19 @@ export class PrithviForexOrderService {
     if (input.sellingRate != null) $set.sellingRate = asString(input.sellingRate);
     if (input.agentSellingRate != null)
       $set.agentSellingRate = asString(input.agentSellingRate);
+    if (input.vendorRate != null) $set.vendorRate = input.vendorRate;
+    if (input.finpaySellRate != null) $set.finpaySellRate = input.finpaySellRate;
+    if (input.cardRate != null) $set.cardRate = input.cardRate;
+    if (input.customerSellRate != null)
+      $set.customerSellRate = input.customerSellRate;
+    if (input.finpayCommissionPerUnit != null)
+      $set.finpayCommissionPerUnit = input.finpayCommissionPerUnit;
+    if (input.agentCommissionPerUnit != null)
+      $set.agentCommissionPerUnit = input.agentCommissionPerUnit;
+    if (input.finpayCommissionTotal != null)
+      $set.finpayCommissionTotal = input.finpayCommissionTotal;
+    if (input.agentCommissionTotal != null)
+      $set.agentCommissionTotal = input.agentCommissionTotal;
     if (input.gst != null) $set.gst = asString(input.gst);
     if (input.serviceCharge != null)
       $set.serviceCharge = asString(input.serviceCharge);
@@ -794,6 +847,168 @@ export class PrithviForexOrderService {
     };
   }
 
+  /**
+   * Paginated commission ledger. Reads denormalized totals from orders —
+   * never recomputes from live card rates (audit-safe + index-friendly).
+   */
+  async listCommissions(
+    params: ListCommissionParams,
+  ): Promise<CommissionLedgerResult> {
+    const page = Math.max(1, params.pageNumber ?? 1);
+    const limit = Math.min(200, Math.max(1, params.pageSize ?? 50));
+    const skip = (page - 1) * limit;
+
+    const filter: FilterQuery<PrithviForexOrderDocument> = {
+      agentCommissionTotal: { $ne: null },
+    };
+
+    if (params.agentBookingsOnly !== false) {
+      filter.bookingSource = ForexBookingSourceEnum.AGENT;
+    }
+    if (params.createdByUserId) {
+      filter.createdByUserId = String(params.createdByUserId);
+    }
+    if (params.currency?.trim()) {
+      filter.currency = params.currency.trim().toUpperCase();
+    }
+    if (params.fromDate || params.toDate) {
+      const range: { $gte?: Date; $lte?: Date } = {};
+      if (params.fromDate) {
+        range.$gte = new Date(`${params.fromDate}T00:00:00.000Z`);
+      }
+      if (params.toDate) {
+        range.$lte = new Date(`${params.toDate}T23:59:59.999Z`);
+      }
+      filter.providerCreatedAt = range;
+    }
+
+    const [rows, total, sums] = await Promise.all([
+      this.model
+        .find(filter)
+        .select(
+          'prithviOrderId orderCode createdByUserId currency product status currencyAmount vendorRate finpaySellRate cardRate customerSellRate finpayCommissionPerUnit agentCommissionPerUnit finpayCommissionTotal agentCommissionTotal providerCreatedAt createdAt',
+        )
+        .sort({ providerCreatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      this.model.countDocuments(filter).exec(),
+      this.model
+        .aggregate<{
+          finpayCommissionSum: number;
+          agentCommissionSum: number;
+        }>([
+          { $match: filter },
+          {
+            $group: {
+              _id: null,
+              finpayCommissionSum: {
+                $sum: { $ifNull: ['$finpayCommissionTotal', 0] },
+              },
+              agentCommissionSum: {
+                $sum: { $ifNull: ['$agentCommissionTotal', 0] },
+              },
+            },
+          },
+        ])
+        .exec(),
+    ]);
+
+    const sumRow = sums[0];
+
+    return {
+      data: rows.map((row) => ({
+        id: row.prithviOrderId,
+        orderCode: row.orderCode ?? null,
+        createdByUserId: String(row.createdByUserId),
+        currency: row.currency ?? null,
+        product: row.product ?? null,
+        status: row.status,
+        currencyAmount: row.currencyAmount ?? null,
+        vendorRate: row.vendorRate ?? null,
+        finpaySellRate: row.finpaySellRate ?? null,
+        cardRate: row.cardRate ?? null,
+        customerSellRate: row.customerSellRate ?? null,
+        finpayCommissionPerUnit: row.finpayCommissionPerUnit ?? null,
+        agentCommissionPerUnit: row.agentCommissionPerUnit ?? null,
+        finpayCommissionTotal: row.finpayCommissionTotal ?? null,
+        agentCommissionTotal: row.agentCommissionTotal ?? null,
+        providerCreatedAt: toIsoString(row.providerCreatedAt),
+        createdAt: toIsoString(row.createdAt),
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        finpayCommissionSum: sumRow?.finpayCommissionSum ?? 0,
+        agentCommissionSum: sumRow?.agentCommissionSum ?? 0,
+      },
+    };
+  }
+
+  /** Cursor stream for CSV export — caller must not buffer all rows. */
+  async *iterateCommissionsForExport(
+    params: Omit<ListCommissionParams, 'pageNumber' | 'pageSize'>,
+    maxRows = 50_000,
+  ): AsyncGenerator<CommissionLedgerRow> {
+    const filter: FilterQuery<PrithviForexOrderDocument> = {
+      agentCommissionTotal: { $ne: null },
+    };
+
+    if (params.agentBookingsOnly !== false) {
+      filter.bookingSource = ForexBookingSourceEnum.AGENT;
+    }
+    if (params.createdByUserId) {
+      filter.createdByUserId = String(params.createdByUserId);
+    }
+    if (params.currency?.trim()) {
+      filter.currency = params.currency.trim().toUpperCase();
+    }
+    if (params.fromDate || params.toDate) {
+      const range: { $gte?: Date; $lte?: Date } = {};
+      if (params.fromDate) {
+        range.$gte = new Date(`${params.fromDate}T00:00:00.000Z`);
+      }
+      if (params.toDate) {
+        range.$lte = new Date(`${params.toDate}T23:59:59.999Z`);
+      }
+      filter.providerCreatedAt = range;
+    }
+
+    const cursor = this.model
+      .find(filter)
+      .select(
+        'prithviOrderId orderCode createdByUserId currency product status currencyAmount vendorRate finpaySellRate cardRate customerSellRate finpayCommissionPerUnit agentCommissionPerUnit finpayCommissionTotal agentCommissionTotal providerCreatedAt createdAt',
+      )
+      .sort({ providerCreatedAt: -1 })
+      .limit(maxRows)
+      .lean()
+      .cursor();
+
+    for await (const row of cursor) {
+      yield {
+        id: row.prithviOrderId,
+        orderCode: row.orderCode ?? null,
+        createdByUserId: String(row.createdByUserId),
+        currency: row.currency ?? null,
+        product: row.product ?? null,
+        status: row.status,
+        currencyAmount: row.currencyAmount ?? null,
+        vendorRate: row.vendorRate ?? null,
+        finpaySellRate: row.finpaySellRate ?? null,
+        cardRate: row.cardRate ?? null,
+        customerSellRate: row.customerSellRate ?? null,
+        finpayCommissionPerUnit: row.finpayCommissionPerUnit ?? null,
+        agentCommissionPerUnit: row.agentCommissionPerUnit ?? null,
+        finpayCommissionTotal: row.finpayCommissionTotal ?? null,
+        agentCommissionTotal: row.agentCommissionTotal ?? null,
+        providerCreatedAt: toIsoString(row.providerCreatedAt),
+        createdAt: toIsoString(row.createdAt),
+      };
+    }
+  }
+
   private buildUserFilter(
     params: ListForexOrdersParams,
   ): FilterQuery<PrithviForexOrderDocument> {
@@ -867,3 +1082,45 @@ export class PrithviForexOrderService {
     }
   }
 }
+
+export type ListCommissionParams = {
+  pageNumber?: number;
+  pageSize?: number;
+  fromDate?: string;
+  toDate?: string;
+  currency?: string;
+  createdByUserId?: string;
+  /** When true, only agent-booked orders with commission snapshots. */
+  agentBookingsOnly?: boolean;
+};
+
+export type CommissionLedgerRow = {
+  id: string;
+  orderCode?: string | null;
+  createdByUserId: string;
+  currency?: string | null;
+  product?: string | null;
+  status: string;
+  currencyAmount?: string | null;
+  vendorRate?: number | null;
+  finpaySellRate?: number | null;
+  cardRate?: number | null;
+  customerSellRate?: number | null;
+  finpayCommissionPerUnit?: number | null;
+  agentCommissionPerUnit?: number | null;
+  finpayCommissionTotal?: number | null;
+  agentCommissionTotal?: number | null;
+  providerCreatedAt?: string;
+  createdAt?: string;
+};
+
+export type CommissionLedgerResult = {
+  data: CommissionLedgerRow[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    finpayCommissionSum: number;
+    agentCommissionSum: number;
+  };
+};
