@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -15,6 +16,7 @@ import type { Response } from 'express';
 
 import { AgentCardRateService } from 'src/services/agent-card-rate/agent-card-rate.service';
 import { PrithviForexOrderService } from 'src/services/prithvi-exchange/prithvi-forex-order.service';
+import { RemittanceService } from '../remittance/remittance.service';
 import { PoliciesGuard } from 'src/services/casl/casl-policies.guard';
 import { CheckActionPolicy } from 'src/services/casl/casl-policies.decorator';
 import { PermissionEnum } from 'src/utils/enums/permission.enum';
@@ -43,6 +45,7 @@ export class AdminAgentCardRatesController {
   constructor(
     private readonly cardRates: AgentCardRateService,
     private readonly forexOrders: PrithviForexOrderService,
+    private readonly remittanceService: RemittanceService,
   ) {}
 
   @Version('1')
@@ -61,11 +64,20 @@ export class AdminAgentCardRatesController {
     @Body() dto: UpsertAgentCardRateDto,
     @GetUser('_id') adminId: string,
   ) {
+    const liveTtRate = await this.remittanceService.getLiveTtBuyRate(
+      dto.currency,
+    );
+    const finpaySellRate = dto.finpaySellRate ?? 0;
+    if (liveTtRate > 0 && finpaySellRate > 0 && finpaySellRate < liveTtRate) {
+      throw new BadRequestException(
+        'Finpay sell rate (X) cannot be below the live TT rate (Y).',
+      );
+    }
     const data = await this.cardRates.upsertRate({
       agentId,
       currency: dto.currency,
-      vendorRate: dto.vendorRate ?? 0,
-      finpaySellRate: dto.finpaySellRate ?? 0,
+      vendorRate: liveTtRate,
+      finpaySellRate,
       cardRate: dto.cardRate ?? 0,
       updatedByAdminId: String(adminId),
     });
@@ -82,12 +94,31 @@ export class AdminAgentCardRatesController {
   ) {
     const data = await this.cardRates.bulkUpsert(
       agentId,
-      dto.rates.map((rate) => ({
-        currency: rate.currency,
-        vendorRate: rate.vendorRate ?? 0,
-        finpaySellRate: rate.finpaySellRate ?? 0,
-        cardRate: rate.cardRate ?? 0,
-      })),
+      await Promise.all(
+        dto.rates.map(async (rate) => {
+          const liveTtRate = await this.remittanceService.getLiveTtBuyRate(
+            rate.currency,
+          );
+          const finpaySellRate = rate.finpaySellRate ?? 0;
+          if (
+            liveTtRate > 0 &&
+            finpaySellRate > 0 &&
+            finpaySellRate < liveTtRate
+          ) {
+            throw new BadRequestException(
+              `${rate.currency}: Finpay sell rate (X) cannot be below the live TT rate (Y).`,
+            );
+          }
+          return {
+            currency: rate.currency,
+            vendorRate: liveTtRate,
+            finpaySellRate,
+            cardRate: rate.cardRate ?? 0,
+          };
+        }),
+      ),
+      String(adminId),
+    );
       String(adminId),
     );
     return new DataResponse(data, 'Card rates saved.');

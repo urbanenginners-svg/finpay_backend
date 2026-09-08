@@ -1,7 +1,9 @@
 /**
  * Pure commission helpers — kept allocation-free and branch-light for hot paths.
  *
- * y = vendorRate, x = finpaySellRate, z = customerSellRate
+ * y = live TT buy rate from Prithvi (vendor cost)
+ * x = finpaySellRate
+ * z = customerSellRate
  * Finpay commission / unit = x - y
  * Agent commission / unit  = z - x
  */

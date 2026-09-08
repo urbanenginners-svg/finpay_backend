@@ -7,11 +7,14 @@ export type AgentCardRateDocument = HydratedDocument<AgentCardRate>;
 /**
  * Per-agent, per-currency commercial rates set by admin.
  *
- * y = vendorRate      — Finpay cost from third-party vendor
+ * y = live TT buy rate from Prithvi (not entered by admin; snapshotted on each order)
  * x = finpaySellRate — Finpay sell price to the agent
  * cardRate           — ceiling: agent must not sell to customer above this
  *
- * Defaults are 0 until admin configures them.
+ * vendorRate on this collection is a last-seen live TT snapshot at save time only.
+ * Order commissions always use the live TT cache at booking.
+ *
+ * Defaults are 0 until admin configures X and card rate.
  */
 @Schema({ collection: 'agent_card_rates', timestamps: true })
 export class AgentCardRate {

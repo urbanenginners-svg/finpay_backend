@@ -20,17 +20,6 @@ export class UpsertAgentCardRateDto {
   currency: string;
 
   @ApiPropertyOptional({
-    example: 20,
-    description: 'Y — vendor / third-party rate (INR per unit). Default 0.',
-    default: 0,
-  })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Type(() => Number)
-  vendorRate?: number;
-
-  @ApiPropertyOptional({
     example: 25,
     description: 'X — Finpay sell rate to agent (INR per unit). Default 0.',
     default: 0,

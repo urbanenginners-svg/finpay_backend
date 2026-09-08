@@ -13,6 +13,7 @@ import {
   PrithviForexApiService,
   PrithviForexRequestStatus,
   PrithviOrderType,
+  PrithviProductType,
   extractPrithviRate,
 } from 'src/services/prithvi-exchange';
 import { AgentCardRateService } from 'src/services/agent-card-rate/agent-card-rate.service';
@@ -950,8 +951,9 @@ export class RemittanceService {
       agentId,
       detail.currency,
     );
+    const vendorRate = await this.getLiveTtBuyRate(detail.currency);
     const commission = computeOrderCommissions({
-      vendorRate: card.vendorRate,
+      vendorRate,
       finpaySellRate: card.finpaySellRate,
       cardRate: card.cardRate,
       customerSellRate,
@@ -970,12 +972,45 @@ export class RemittanceService {
     };
   }
 
+  /** Y — live TT buy rate from cached Prithvi agent rates. */
+  async getLiveTtBuyRate(currency: string): Promise<number> {
+    const code = String(currency ?? '')
+      .trim()
+      .toUpperCase();
+    if (!code) return 0;
+
+    const rates = await this.prithviService.getAgentRates({
+      orderType: PrithviOrderType.BUY,
+      productType: PrithviProductType.TT,
+    });
+    const entry = rates.currencies.find(
+      (row) => String(row.currencyCode).toUpperCase() === code,
+    );
+    if (!entry) return 0;
+    return extractPrithviRate(
+      entry,
+      PrithviOrderType.BUY,
+      PrithviProductType.TT,
+    ) ?? 0;
+  }
+
   async getMyCardRate(agentId: string, currency: string) {
-    return this.agentCardRates.getOrDefault(agentId, currency);
+    const rate = await this.agentCardRates.getOrDefault(agentId, currency);
+    return {
+      finpaySellRate: rate.finpaySellRate,
+      cardRate: rate.cardRate,
+    };
   }
 
   async listMyCardRates(agentId: string) {
-    return this.agentCardRates.listByAgent(agentId);
+    const rows = await this.agentCardRates.listByAgent(agentId);
+    return rows.map((row) => ({
+      id: row.id,
+      currency: row.currency,
+      finpaySellRate: row.finpaySellRate,
+      cardRate: row.cardRate,
+      updatedAt: row.updatedAt,
+    }));
   }
 
   async listMyCommissions(
