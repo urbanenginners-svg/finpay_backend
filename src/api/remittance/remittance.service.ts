@@ -896,7 +896,7 @@ export class RemittanceService {
   }
 
   /**
-   * Agent bookings: require customerSellRate (Z) ≤ card rate.
+   * Agent bookings: require X < customerSellRate (Z) ≤ card rate.
    * agentSellingRate forwarded to Prithvi is set to Z.
    * Provider sellingRate / amountInINR stay on the live Prithvi quote.
    */

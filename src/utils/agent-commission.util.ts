@@ -84,6 +84,9 @@ export function validateCustomerSellRate(params: {
   if (!(x > 0)) {
     return 'Finpay sell rate (X) is not configured for this currency. Contact Finpay admin.';
   }
+  if (z <= x) {
+    return `Customer sell rate must be greater than Finpay rate to you (₹${x}).`;
+  }
   if (z > card) {
     return `Customer sell rate cannot exceed card rate (₹${card}).`;
   }
