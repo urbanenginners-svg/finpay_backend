@@ -119,8 +119,6 @@ export class AdminAgentCardRatesController {
       ),
       String(adminId),
     );
-      String(adminId),
-    );
     return new DataResponse(data, 'Card rates saved.');
   }
 
@@ -139,14 +137,13 @@ export class AdminAgentCardRatesController {
   @Get('commissions')
   @CheckActionPolicy(PermissionEnum.READ, resource.User)
   async listCommissions(@Query() query: GetCommissionsQueryDto) {
-    const result = await this.forexOrders.listCommissions({
+    const result = await this.remittanceService.listAdminCommissions({
       pageNumber: query.pageNumber,
       pageSize: query.pageSize,
       fromDate: query.fromDate,
       toDate: query.toDate,
       currency: query.currency,
-      createdByUserId: query.agentId,
-      agentBookingsOnly: true,
+      agentId: query.agentId,
     });
     return new DataResponse(result);
   }

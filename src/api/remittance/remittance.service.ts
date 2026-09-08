@@ -1013,6 +1013,71 @@ export class RemittanceService {
     }));
   }
 
+  async listAdminCommissions(query: {
+    pageNumber?: number;
+    pageSize?: number;
+    fromDate?: string;
+    toDate?: string;
+    currency?: string;
+    agentId?: string;
+  }) {
+    const result = await this.forexOrders.listCommissions({
+      pageNumber: query.pageNumber,
+      pageSize: query.pageSize,
+      fromDate: query.fromDate,
+      toDate: query.toDate,
+      currency: query.currency,
+      createdByUserId: query.agentId,
+      agentBookingsOnly: true,
+    });
+
+    const userIds = [
+      ...new Set(result.data.map((row) => row.createdByUserId).filter(Boolean)),
+    ];
+    const users = userIds.length
+      ? await this.userModel
+          .find({ _id: { $in: userIds } })
+          .select('_id firstName lastName email phoneNumber')
+          .lean()
+          .exec()
+      : [];
+
+    const userById = new Map(
+      users.map((user) => {
+        const displayName =
+          [user.firstName, user.lastName].filter(Boolean).join(' ') ||
+          user.email ||
+          String(user._id);
+        return [
+          String(user._id),
+          {
+            id: String(user._id),
+            firstName: user.firstName ?? '',
+            lastName: user.lastName ?? '',
+            email: user.email ?? null,
+            phoneNumber: user.phoneNumber ?? null,
+            displayName,
+          },
+        ] as const;
+      }),
+    );
+
+    return {
+      data: result.data.map((row) => ({
+        ...row,
+        agent: userById.get(row.createdByUserId) ?? {
+          id: row.createdByUserId,
+          firstName: '',
+          lastName: '',
+          email: null,
+          phoneNumber: null,
+          displayName: row.createdByUserId,
+        },
+      })),
+      meta: result.meta,
+    };
+  }
+
   async listMyCommissions(
     agentId: string,
     query: {
