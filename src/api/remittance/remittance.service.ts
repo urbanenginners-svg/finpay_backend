@@ -31,6 +31,10 @@ import {
   validateCustomerSellRate,
 } from 'src/utils/agent-commission.util';
 import {
+  isAgentForexBooking,
+  isForexOrderPayable,
+} from 'src/utils/forex-payment.util';
+import {
   CompleteForexRequestDto,
   CompleteForexOrderDto,
   ForexOrderDetailDto,
@@ -198,27 +202,17 @@ export class RemittanceService {
       throw new NotFoundException('Forex order not found for this account');
     }
 
-    const status = String(owned.status ?? '')
-      .trim()
-      .toUpperCase();
-    if (status !== 'DOCUMENTS_APPROVED_AWAITING_FUNDS') {
-      throw new BadRequestException(
-        'Payment is available only after your documents are approved and the order is awaiting funds. We will notify you by email and SMS.',
-      );
-    }
-
-    const paymentStatus = String(owned.paymentStatus ?? '')
-      .trim()
-      .toUpperCase();
-    if (paymentStatus === 'PAID') {
-      throw new BadRequestException('This order is already paid.');
-    }
-
-    if (owned.offlinePayment && owned.offlineUtrNumber) {
-      throw new BadRequestException(
-        'Offline payment has already been submitted for this order.',
-      );
-    }
+    this.assertOrderPayable(
+      {
+        status: owned.status,
+        paymentStatus: owned.paymentStatus,
+        bookingSource:
+          owned.bookingSource ?? (await this.resolveBookingSource(userId)),
+        offlinePayment: owned.offlinePayment,
+        offlineUtrNumber: owned.offlineUtrNumber,
+      },
+      'online',
+    );
 
     return this.prithviForex.createPaymentLink({ orderId: trimmedOrderId });
   }
@@ -259,27 +253,17 @@ export class RemittanceService {
       throw new NotFoundException('Forex order not found for this account');
     }
 
-    const status = String(owned.status ?? '')
-      .trim()
-      .toUpperCase();
-    if (status !== 'DOCUMENTS_APPROVED_AWAITING_FUNDS') {
-      throw new BadRequestException(
-        'Offline payment is available only after your documents are approved and the order is awaiting funds.',
-      );
-    }
-
-    const paymentStatus = String(owned.paymentStatus ?? '')
-      .trim()
-      .toUpperCase();
-    if (paymentStatus === 'PAID') {
-      throw new BadRequestException('This order is already paid.');
-    }
-
-    if (owned.offlinePayment && owned.offlineUtrNumber) {
-      throw new BadRequestException(
-        'Offline payment has already been submitted for this order.',
-      );
-    }
+    this.assertOrderPayable(
+      {
+        status: owned.status,
+        paymentStatus: owned.paymentStatus,
+        bookingSource:
+          owned.bookingSource ?? (await this.resolveBookingSource(userId)),
+        offlinePayment: owned.offlinePayment,
+        offlineUtrNumber: owned.offlineUtrNumber,
+      },
+      'offline',
+    );
 
     let localFileId: string | null = null;
     try {
@@ -671,6 +655,55 @@ export class RemittanceService {
     return this.getProviderService(provider).getStoredTokenStatus({
       introspect: query.introspect,
     });
+  }
+
+  private assertOrderPayable(
+    owned: {
+      status?: string | null;
+      paymentStatus?: string | null;
+      bookingSource?: string | null;
+      offlinePayment?: boolean;
+      offlineUtrNumber?: string | null;
+    },
+    kind: 'online' | 'offline',
+  ) {
+    const paymentStatus = String(owned.paymentStatus ?? '')
+      .trim()
+      .toUpperCase();
+    if (paymentStatus === 'PAID') {
+      throw new BadRequestException('This order is already paid.');
+    }
+
+    if (owned.offlinePayment && owned.offlineUtrNumber) {
+      throw new BadRequestException(
+        'Offline payment has already been submitted for this order.',
+      );
+    }
+
+    if (
+      isForexOrderPayable({
+        status: owned.status,
+        paymentStatus: owned.paymentStatus,
+        bookingSource: owned.bookingSource,
+      })
+    ) {
+      return;
+    }
+
+    const agentBooking = isAgentForexBooking(owned.bookingSource);
+    if (kind === 'offline') {
+      throw new BadRequestException(
+        agentBooking
+          ? 'Offline payment is available once this booking is pending.'
+          : 'Offline payment is available only after your documents are approved and the order is awaiting funds.',
+      );
+    }
+
+    throw new BadRequestException(
+      agentBooking
+        ? 'Payment is available once this booking is pending.'
+        : 'Payment is available only after your documents are approved and the order is awaiting funds. We will notify you by email and SMS.',
+    );
   }
 
   private async overlayInitiateCharges(

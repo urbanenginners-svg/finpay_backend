@@ -194,7 +194,7 @@ export class AdminForexOrdersController {
   @ApiOperation({
     summary: 'Set local forex order status',
     description:
-      'Updates status in Finpay MongoDB without calling the provider. Set DOCUMENTS_APPROVED_AWAITING_FUNDS to unlock payment for the user. Sends email/SMS when status changes (payment notify on that status).',
+      'Updates status in Finpay MongoDB without calling the provider. Set DOCUMENTS_APPROVED_AWAITING_FUNDS to unlock payment for customer bookings. Agent bookings can pay from PENDING. Sends email/SMS when status changes (payment notify on that status).',
   })
   @CheckActionPolicy(PermissionEnum.UPDATE, resource.User)
   async updateOrderStatus(
