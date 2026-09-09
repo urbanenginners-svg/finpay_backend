@@ -40,7 +40,11 @@ import { PanVerificationService } from './pan-verification.service';
 import { PassportVerificationService } from './passport-verification.service';
 import { FilesService } from '../files/files.service';
 import { SmsService } from 'src/services/sms/sms.service';
-import { HostingerService } from 'src/services/email/hostinger.service';
+import { SMS_TEMPLATE_KEYS } from 'src/services/sms/mappings/sms-template.registry';
+import {
+  HostingerService,
+  type AgentReviewAction,
+} from 'src/services/email/hostinger.service';
 import { AppConfigService } from 'src/services/env/env.service';
 import { AgentTypeEnum } from 'src/utils/enums/agent-type.enum';
 import {
@@ -794,12 +798,7 @@ export class RegistrationService {
     user.lastUpdatedBy = requestedBy;
     await user.save();
 
-    this.sendAgentDocumentUpdateRequestEmail(user).catch((error) => {
-      const detail = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Failed to send agent document update email for ${user._id}: ${detail}`,
-      );
-    });
+    this.notifyAgentReviewAction(user, 'documents_requested');
 
     return {
       message: 'Document update request sent to the agent',
@@ -884,30 +883,171 @@ export class RegistrationService {
     };
   }
 
-  private async sendAgentDocumentUpdateRequestEmail(user: UserDocument): Promise<void> {
-    const revision = user.agentDocumentRevisionRequest;
-    if (!revision?.items?.length || !user.email?.trim()) {
-      if (!user.email?.trim()) {
-        this.logger.warn(
-          `Skipping document update email; no email on user ${user._id}`,
-        );
-      }
+  private notifyAgentReviewAction(
+    user: UserDocument,
+    action: AgentReviewAction,
+  ): void {
+    this.sendAgentReviewNotifications(user, action).catch((error) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to send ${action} notifications for agent ${user._id}: ${detail}`,
+      );
+    });
+  }
+
+  private async sendAgentReviewNotifications(
+    user: UserDocument,
+    action: AgentReviewAction,
+  ): Promise<void> {
+    await Promise.allSettled([
+      this.sendAgentDecisionEmail(user, action),
+      this.sendAdminDecisionEmail(user, action),
+      this.sendAgentDecisionSms(user, action),
+    ]);
+  }
+
+  private agentTypeLabelFor(user: UserDocument): string {
+    return getAgentTypeLabel(user.agentDocuments?.agentType);
+  }
+
+  private documentRequestItems(user: UserDocument) {
+    return (user.agentDocumentRevisionRequest?.items ?? []).map((item) => ({
+      label: item.label,
+      requestType: item.requestType,
+      adminNote: item.adminNote,
+    }));
+  }
+
+  private async sendAgentDecisionEmail(
+    user: UserDocument,
+    action: AgentReviewAction,
+  ): Promise<void> {
+    if (!user.email?.trim()) {
+      this.logger.warn(
+        `Skipping agent ${action} email; no email on user ${user._id}`,
+      );
       return;
     }
 
-    const uploadUrl = `${this.resolveFrontendUrl()}/agent/document-update`;
+    const to = user.email.trim();
+    const fullName = this.displayNameForSms(user);
+    const agentTypeLabel = this.agentTypeLabelFor(user);
 
-    await this.hostingerService.sendAgentDocumentUpdateRequest({
-      to: user.email.trim(),
-      fullName: this.displayNameForSms(user),
-      message: revision.message,
-      uploadUrl,
-      items: revision.items.map((item) => ({
-        label: item.label,
-        requestType: item.requestType,
-        adminNote: item.adminNote,
-      })),
+    try {
+      if (action === 'approved') {
+        await this.hostingerService.sendAgentApproved({
+          to,
+          fullName,
+          agentTypeLabel,
+          userId: user._id,
+          loginUrl: `${this.resolveFrontendUrl()}/login`,
+        });
+        return;
+      }
+
+      if (action === 'rejected') {
+        await this.hostingerService.sendAgentRejected({
+          to,
+          fullName,
+          agentTypeLabel,
+          userId: user._id,
+          rejectionReason: user.rejectionReason?.trim() || 'Rejected by admin',
+        });
+        return;
+      }
+
+      const revision = user.agentDocumentRevisionRequest;
+      if (!revision?.items?.length) {
+        this.logger.warn(
+          `Skipping document update email; no revision items on user ${user._id}`,
+        );
+        return;
+      }
+
+      await this.hostingerService.sendAgentDocumentUpdateRequest({
+        to,
+        fullName,
+        message: revision.message,
+        uploadUrl: `${this.resolveFrontendUrl()}/agent/document-update`,
+        items: this.documentRequestItems(user),
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to send agent ${action} email for ${user._id}: ${detail}`,
+      );
+    }
+  }
+
+  private async sendAdminDecisionEmail(
+    user: UserDocument,
+    action: AgentReviewAction,
+  ): Promise<void> {
+    const adminEmail =
+      this.config.get('NEW_AGENT_REGISTRATION_EMAIL')?.trim()
+      || 'new_agent_registration@gmail.com';
+
+    const actedAt = new Date().toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Asia/Kolkata',
     });
+
+    try {
+      await this.hostingerService.sendAgentReviewAdminNotification({
+        to: adminEmail,
+        action,
+        userId: user._id,
+        fullName: this.displayNameForSms(user),
+        email: user.email ?? '—',
+        phoneNumber: user.phoneNumber,
+        agentTypeLabel: this.agentTypeLabelFor(user),
+        actedAt,
+        reviewUrl: `${this.resolveFrontendUrl()}/admin/agents/${encodeURIComponent(user._id)}`,
+        rejectionReason: user.rejectionReason,
+        message: user.agentDocumentRevisionRequest?.message,
+        documentItems: this.documentRequestItems(user),
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to send admin ${action} email for agent ${user._id}: ${detail}`,
+      );
+    }
+  }
+
+  private async sendAgentDecisionSms(
+    user: UserDocument,
+    action: AgentReviewAction,
+  ): Promise<void> {
+    if (!user.phoneNumber?.trim()) {
+      this.logger.warn(
+        `Skipping agent ${action} SMS; no phone on user ${user._id}`,
+      );
+      return;
+    }
+
+    const templateKey =
+      action === 'approved'
+        ? SMS_TEMPLATE_KEYS.AGENT_APPROVED
+        : action === 'rejected'
+          ? SMS_TEMPLATE_KEYS.AGENT_REJECTED
+          : SMS_TEMPLATE_KEYS.AGENT_DOCUMENT_UPDATE;
+
+    try {
+      await this.smsService.sendTemplatedSms({
+        templateKey,
+        destinations: user.phoneNumber.trim(),
+        variables: {
+          name: this.displayNameForSms(user),
+        },
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to send agent ${action} SMS for ${user._id}: ${detail}`,
+      );
+    }
   }
 
   async loginWithPassword(dto: PasswordLoginDto) {
@@ -1127,6 +1267,8 @@ export class RegistrationService {
 
     user.lastUpdatedBy = adminUserId;
     await user.save();
+
+    this.notifyAgentReviewAction(user, dto.approved ? 'approved' : 'rejected');
 
     return {
       message: dto.approved

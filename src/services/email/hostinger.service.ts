@@ -78,6 +78,48 @@ export type SendAgentAccountCreatedByAdminParams = {
   loginUrl: string;
 };
 
+export type AgentDocumentRequestItem = {
+  label: string;
+  requestType: 'update' | 'additional';
+  adminNote?: string;
+};
+
+export type AgentReviewAction =
+  | 'approved'
+  | 'rejected'
+  | 'documents_requested';
+
+export type SendAgentApprovedParams = {
+  to: string;
+  fullName: string;
+  agentTypeLabel: string;
+  userId: string;
+  loginUrl: string;
+};
+
+export type SendAgentRejectedParams = {
+  to: string;
+  fullName: string;
+  agentTypeLabel: string;
+  userId: string;
+  rejectionReason: string;
+};
+
+export type SendAgentReviewAdminNotificationParams = {
+  to: string;
+  action: AgentReviewAction;
+  userId: string;
+  fullName: string;
+  email: string;
+  phoneNumber?: string;
+  agentTypeLabel: string;
+  actedAt: string;
+  reviewUrl: string;
+  rejectionReason?: string;
+  message?: string;
+  documentItems?: AgentDocumentRequestItem[];
+};
+
 @Injectable()
 export class HostingerService {
   private readonly logger = new Logger(HostingerService.name);
@@ -248,6 +290,39 @@ export class HostingerService {
     const html = this.buildAgentAccountCreatedByAdminHtml(params);
 
     await this.sendMail({ to: params.to, subject, text, html });
+  }
+
+  async sendAgentApproved(params: SendAgentApprovedParams): Promise<void> {
+    const subject = 'Your FinPay agent account is approved';
+    const text = this.buildAgentApprovedText(params);
+    const html = this.buildAgentApprovedHtml(params);
+
+    await this.sendMail({ to: params.to, subject, text, html });
+  }
+
+  async sendAgentRejected(params: SendAgentRejectedParams): Promise<void> {
+    const subject = 'Update on your FinPay agent registration';
+    const text = this.buildAgentRejectedText(params);
+    const html = this.buildAgentRejectedHtml(params);
+
+    await this.sendMail({ to: params.to, subject, text, html });
+  }
+
+  async sendAgentReviewAdminNotification(
+    params: SendAgentReviewAdminNotificationParams,
+  ): Promise<void> {
+    const subjectByAction: Record<AgentReviewAction, string> = {
+      approved: `Agent approved — ${params.agentTypeLabel} — ${params.fullName}`,
+      rejected: `Agent registration rejected — ${params.fullName}`,
+      documents_requested: `Document update requested — ${params.fullName}`,
+    };
+
+    await this.sendMail({
+      to: params.to,
+      subject: subjectByAction[params.action],
+      text: this.buildAgentReviewAdminNotificationText(params),
+      html: this.buildAgentReviewAdminNotificationHtml(params),
+    });
   }
 
   private async sendMail(options: {
@@ -865,6 +940,283 @@ export class HostingerService {
       badge: 'Partner Agent',
       title: 'Your account is ready',
       subtitle: 'Sign in with the credentials below',
+      content,
+    });
+  }
+
+  private buildAgentApprovedText(params: SendAgentApprovedParams): string {
+    return [
+      `Dear ${params.fullName},`,
+      '',
+      'Good news — your FinPay partner agent account has been approved.',
+      '',
+      `Agent type: ${params.agentTypeLabel}`,
+      `Reference ID: ${params.userId}`,
+      '',
+      'You can now sign in and start partnering with FinPay.',
+      '',
+      `Sign in: ${params.loginUrl}`,
+      '',
+      'Best regards,',
+      'FinPay Team',
+    ].join('\n');
+  }
+
+  private buildAgentApprovedHtml(params: SendAgentApprovedParams): string {
+    const content = `
+      <p style="margin: 0 0 16px; font-size: 16px; color: #111827;">
+        Dear ${this.escapeHtml(params.fullName)},
+      </p>
+      <p style="margin: 0 0 16px; color: #374151;">
+        Good news — your <strong>FinPay partner agent</strong> account has been approved.
+        You can now sign in and start partnering with us.
+      </p>
+      <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 12px; padding: 20px; margin: 0 0 24px;">
+        <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #5b21b6; text-transform: uppercase; letter-spacing: 0.04em;">
+          Account details
+        </p>
+        <p style="margin: 0 0 6px; color: #374151;"><strong>Agent type:</strong> ${this.escapeHtml(params.agentTypeLabel)}</p>
+        <p style="margin: 0; color: #374151;"><strong>Reference ID:</strong> ${this.escapeHtml(params.userId)}</p>
+      </div>
+      <p style="margin: 0 0 24px;">
+        <a
+          href="${this.escapeHtml(params.loginUrl)}"
+          style="display: inline-block; background: #5b21b6; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 12px; font-weight: 600; font-size: 14px;"
+        >
+          Sign in to FinPay
+        </a>
+      </p>
+      <p style="margin: 0; font-size: 13px; color: #6b7280; word-break: break-all;">
+        Or open: <a href="${this.escapeHtml(params.loginUrl)}" style="color: #5b21b6;">${this.escapeHtml(params.loginUrl)}</a>
+      </p>
+      <p style="margin: 24px 0 0; color: #6b7280; font-size: 14px;">
+        Best regards,<br />
+        <strong style="color: #5b21b6;">FinPay Team</strong>
+      </p>`;
+
+    return this.buildFinPayEmailShell({
+      badge: 'Partner Agent',
+      title: 'Account approved',
+      subtitle: 'You can now sign in to FinPay',
+      content,
+    });
+  }
+
+  private buildAgentRejectedText(params: SendAgentRejectedParams): string {
+    return [
+      `Dear ${params.fullName},`,
+      '',
+      'Thank you for applying as a FinPay partner agent. After reviewing your registration, we are unable to approve your account at this time.',
+      '',
+      `Agent type: ${params.agentTypeLabel}`,
+      `Reference ID: ${params.userId}`,
+      '',
+      'Reason:',
+      params.rejectionReason,
+      '',
+      'If you believe this is a mistake or would like to re-apply, please reply to this email or contact the FinPay team.',
+      '',
+      'Best regards,',
+      'FinPay Team',
+    ].join('\n');
+  }
+
+  private buildAgentRejectedHtml(params: SendAgentRejectedParams): string {
+    const content = `
+      <p style="margin: 0 0 16px; font-size: 16px; color: #111827;">
+        Dear ${this.escapeHtml(params.fullName)},
+      </p>
+      <p style="margin: 0 0 16px; color: #374151;">
+        Thank you for applying as a <strong>FinPay partner agent</strong>.
+        After reviewing your registration, we are unable to approve your account at this time.
+      </p>
+      <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 12px; padding: 20px; margin: 0 0 24px;">
+        <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #5b21b6; text-transform: uppercase; letter-spacing: 0.04em;">
+          Application details
+        </p>
+        <p style="margin: 0 0 6px; color: #374151;"><strong>Agent type:</strong> ${this.escapeHtml(params.agentTypeLabel)}</p>
+        <p style="margin: 0; color: #374151;"><strong>Reference ID:</strong> ${this.escapeHtml(params.userId)}</p>
+      </div>
+      <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 20px; margin: 0 0 24px;">
+        <p style="margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #9a3412; text-transform: uppercase; letter-spacing: 0.04em;">
+          Reason
+        </p>
+        <p style="margin: 0; color: #374151; white-space: pre-wrap;">${this.escapeHtml(params.rejectionReason)}</p>
+      </div>
+      <p style="margin: 0; color: #374151;">
+        If you believe this is a mistake or would like to re-apply, please reply to this email or contact the FinPay team.
+      </p>
+      <p style="margin: 24px 0 0; color: #6b7280; font-size: 14px;">
+        Best regards,<br />
+        <strong style="color: #5b21b6;">FinPay Team</strong>
+      </p>`;
+
+    return this.buildFinPayEmailShell({
+      badge: 'Registration Update',
+      title: 'Application not approved',
+      subtitle: 'Please review the details below',
+      content,
+    });
+  }
+
+  private buildAgentReviewAdminNotificationText(
+    params: SendAgentReviewAdminNotificationParams,
+  ): string {
+    const heading: Record<AgentReviewAction, string> = {
+      approved: 'A partner agent registration has been approved.',
+      rejected: 'A partner agent registration has been rejected.',
+      documents_requested:
+        'A document update has been requested for a partner agent registration.',
+    };
+
+    const lines = [
+      heading[params.action],
+      '',
+      'Agent Details',
+      `User ID: ${params.userId}`,
+      `Name: ${params.fullName}`,
+      `Email: ${params.email}`,
+      `Phone: ${params.phoneNumber ?? '—'}`,
+      `Agent Type: ${params.agentTypeLabel}`,
+      `Actioned At: ${params.actedAt}`,
+    ];
+
+    if (params.action === 'rejected') {
+      lines.push('', 'Rejection Reason:', params.rejectionReason?.trim() || '—');
+    }
+
+    if (params.action === 'documents_requested') {
+      if (params.message?.trim()) {
+        lines.push('', 'Message:', params.message.trim());
+      }
+      lines.push('', 'Documents requested:');
+      for (const item of params.documentItems ?? []) {
+        const typeLabel =
+          item.requestType === 'update' ? 'Re-upload' : 'Additional document';
+        lines.push(`• [${typeLabel}] ${item.label}`);
+        if (item.adminNote?.trim()) {
+          lines.push(`  Note: ${item.adminNote.trim()}`);
+        }
+      }
+    }
+
+    lines.push('', `Review in admin: ${params.reviewUrl}`);
+    return lines.join('\n');
+  }
+
+  private buildAgentReviewAdminNotificationHtml(
+    params: SendAgentReviewAdminNotificationParams,
+  ): string {
+    const intro: Record<AgentReviewAction, string> = {
+      approved:
+        'A partner agent registration has been approved. A copy of this decision is below for your records.',
+      rejected:
+        'A partner agent registration has been rejected. A copy of this decision is below for your records.',
+      documents_requested:
+        'A document update has been requested for a partner agent. A copy of this request is below for your records.',
+    };
+
+    const title: Record<AgentReviewAction, string> = {
+      approved: 'Agent approved',
+      rejected: 'Agent registration rejected',
+      documents_requested: 'Document update requested',
+    };
+
+    const summaryRows: [string, string][] = [
+      ['User ID', params.userId],
+      ['Name', params.fullName],
+      ['Email', params.email],
+      ['Phone', params.phoneNumber ?? '—'],
+      ['Agent Type', params.agentTypeLabel],
+      ['Actioned At', params.actedAt],
+      [
+        'Status',
+        params.action === 'approved'
+          ? 'Verified'
+          : params.action === 'rejected'
+            ? 'Rejected'
+            : 'Pending document update',
+      ],
+    ];
+
+    const reasonBlock =
+      params.action === 'rejected'
+        ? `
+        <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 16px; margin: 0 0 24px;">
+          <p style="margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #9a3412; text-transform: uppercase; letter-spacing: 0.04em;">
+            Rejection reason
+          </p>
+          <p style="margin: 0; color: #374151; white-space: pre-wrap;">${this.escapeHtml(params.rejectionReason?.trim() || '—')}</p>
+        </div>`
+        : '';
+
+    const documentItems = params.documentItems ?? [];
+    const itemRows = documentItems
+      .map((item) => {
+        const typeLabel =
+          item.requestType === 'update' ? 'Re-upload required' : 'Additional document';
+        const typeColor = item.requestType === 'update' ? '#9a3412' : '#5b21b6';
+        const note = item.adminNote?.trim()
+          ? `<p style="margin: 8px 0 0; font-size: 13px; color: #6b7280;"><strong>Note:</strong> ${this.escapeHtml(item.adminNote.trim())}</p>`
+          : '';
+
+        return `
+          <div style="border: 1px solid #ede9fe; border-radius: 12px; padding: 16px; margin-bottom: 12px; background: #fafafa;">
+            <span style="display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: ${typeColor}; margin-bottom: 8px;">
+              ${this.escapeHtml(typeLabel)}
+            </span>
+            <p style="margin: 0; font-size: 14px; font-weight: 600; color: #111827;">
+              ${this.escapeHtml(item.label)}
+            </p>
+            ${note}
+          </div>`;
+      })
+      .join('');
+
+    const messageBlock =
+      params.action === 'documents_requested' && params.message?.trim()
+        ? `
+        <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 16px; margin: 0 0 24px;">
+          <p style="margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #9a3412; text-transform: uppercase; letter-spacing: 0.04em;">
+            Message sent to agent
+          </p>
+          <p style="margin: 0; color: #374151; white-space: pre-wrap;">${this.escapeHtml(params.message.trim())}</p>
+        </div>`
+        : '';
+
+    const documentsBlock =
+      params.action === 'documents_requested'
+        ? `
+        ${messageBlock}
+        <p style="margin: 0 0 12px; font-size: 13px; font-weight: 700; color: #5b21b6; text-transform: uppercase; letter-spacing: 0.04em;">
+          Documents requested
+        </p>
+        ${itemRows}`
+        : '';
+
+    const content = `
+      <p style="margin: 0 0 16px; color: #374151;">
+        ${intro[params.action]}
+      </p>
+      ${this.buildDetailsSectionHtml('Agent Summary', summaryRows)}
+      ${reasonBlock}
+      ${documentsBlock}
+      <p style="margin: 24px 0 0;">
+        <a
+          href="${this.escapeHtml(params.reviewUrl)}"
+          style="display: inline-block; background: #5b21b6; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 12px; font-weight: 600; font-size: 14px;"
+        >
+          View agent in admin
+        </a>
+      </p>
+      <p style="margin: 16px 0 0; font-size: 13px; color: #6b7280; word-break: break-all;">
+        Or open: <a href="${this.escapeHtml(params.reviewUrl)}" style="color: #5b21b6;">${this.escapeHtml(params.reviewUrl)}</a>
+      </p>`;
+
+    return this.buildFinPayEmailShell({
+      badge: 'Admin Alert',
+      title: title[params.action],
+      subtitle: params.fullName,
       content,
     });
   }
