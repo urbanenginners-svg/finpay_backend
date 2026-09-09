@@ -26,6 +26,7 @@ import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
 import { FileResourceEnum } from 'src/utils/enums/file-resource.enum';
 import { FilesService } from 'src/api/files/files.service';
 import {
+  applyLiveTtToCardRates,
   computeOrderCommissions,
   toFiniteNumber,
   validateCustomerSellRate,
@@ -941,7 +942,7 @@ export class RemittanceService {
       order.customerSellRate ?? order.agentSellingRate,
       0,
     );
-    const card = await this.agentCardRates.getOrDefault(agentId, order.currency);
+    const card = await this.resolveLiveCardSnapshot(agentId, order.currency);
     const error = validateCustomerSellRate({
       customerSellRate,
       cardRate: card.cardRate,
@@ -980,13 +981,9 @@ export class RemittanceService {
       detail.customerSellRate ?? detail.agentSellingRate,
       0,
     );
-    const card = await this.agentCardRates.getOrDefault(
-      agentId,
-      detail.currency,
-    );
-    const vendorRate = await this.getLiveTtBuyRate(detail.currency);
+    const card = await this.resolveLiveCardSnapshot(agentId, detail.currency);
     const commission = computeOrderCommissions({
-      vendorRate,
+      vendorRate: card.vendorRate,
       finpaySellRate: card.finpaySellRate,
       cardRate: card.cardRate,
       customerSellRate,
@@ -1011,39 +1008,68 @@ export class RemittanceService {
       .trim()
       .toUpperCase();
     if (!code) return 0;
+    const live = await this.getLiveTtBuyRatesByCurrency();
+    return live.get(code) ?? 0;
+  }
 
+  async getLiveTtBuyRatesByCurrency(): Promise<Map<string, number>> {
     const rates = await this.prithviService.getAgentRates({
       orderType: PrithviOrderType.BUY,
       productType: PrithviProductType.TT,
     });
-    const entry = rates.currencies.find(
-      (row) => String(row.currencyCode).toUpperCase() === code,
-    );
-    if (!entry) return 0;
-    return extractPrithviRate(
-      entry,
-      PrithviOrderType.BUY,
-      PrithviProductType.TT,
-    ) ?? 0;
+    const map = new Map<string, number>();
+    for (const row of rates.currencies) {
+      const code = String(row.currencyCode ?? '')
+        .trim()
+        .toUpperCase();
+      if (!code) continue;
+      const rate =
+        extractPrithviRate(
+          row,
+          PrithviOrderType.BUY,
+          PrithviProductType.TT,
+        ) ?? 0;
+      if (rate > 0) map.set(code, rate);
+    }
+    return map;
+  }
+
+  private async resolveLiveCardSnapshot(agentId: string, currency: string) {
+    const [saved, liveY] = await Promise.all([
+      this.agentCardRates.getOrDefault(agentId, currency),
+      this.getLiveTtBuyRate(currency),
+    ]);
+    return applyLiveTtToCardRates(saved, liveY);
   }
 
   async getMyCardRate(agentId: string, currency: string) {
-    const rate = await this.agentCardRates.getOrDefault(agentId, currency);
+    const rate = await this.resolveLiveCardSnapshot(agentId, currency);
     return {
+      vendorRate: rate.vendorRate,
       finpaySellRate: rate.finpaySellRate,
       cardRate: rate.cardRate,
     };
   }
 
   async listMyCardRates(agentId: string) {
-    const rows = await this.agentCardRates.listByAgent(agentId);
-    return rows.map((row) => ({
-      id: row.id,
-      currency: row.currency,
-      finpaySellRate: row.finpaySellRate,
-      cardRate: row.cardRate,
-      updatedAt: row.updatedAt,
-    }));
+    const [rows, liveMap] = await Promise.all([
+      this.agentCardRates.listByAgent(agentId),
+      this.getLiveTtBuyRatesByCurrency(),
+    ]);
+    return rows.map((row) => {
+      const live = applyLiveTtToCardRates(
+        row,
+        liveMap.get(row.currency) ?? 0,
+      );
+      return {
+        id: live.id,
+        currency: live.currency,
+        vendorRate: live.vendorRate,
+        finpaySellRate: live.finpaySellRate,
+        cardRate: live.cardRate,
+        updatedAt: live.updatedAt,
+      };
+    });
   }
 
   async listAdminCommissions(query: {

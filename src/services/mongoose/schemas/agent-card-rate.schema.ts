@@ -7,14 +7,14 @@ export type AgentCardRateDocument = HydratedDocument<AgentCardRate>;
 /**
  * Per-agent, per-currency commercial rates set by admin.
  *
- * y = live TT buy rate from Prithvi (not entered by admin; snapshotted on each order)
+ * y = live TT buy rate from Prithvi (not entered by admin)
  * x = finpaySellRate — Finpay sell price to the agent
- * cardRate           — ceiling: agent must not sell to customer above this
+ * cardRate / IBR     — always live TT + 3%; recomputed whenever Y changes
  *
- * vendorRate on this collection is a last-seen live TT snapshot at save time only.
- * Order commissions always use the live TT cache at booking.
+ * vendorRate and cardRate on this collection are last-seen snapshots at save.
+ * Reads and bookings always overlay the current live TT cache.
  *
- * Defaults are 0 until admin configures X and card rate.
+ * Defaults are 0 until admin configures X.
  */
 @Schema({ collection: 'agent_card_rates', timestamps: true })
 export class AgentCardRate {
@@ -45,7 +45,7 @@ export class AgentCardRate {
   @ApiProperty({
     example: 30,
     description:
-      'Card rate — maximum INR/unit the agent may sell to their customer.',
+      'Card rate / IBR — always live TT (Y) + 3%. Stored as a snapshot; reads recompute from live TT.',
     default: 0,
   })
   @Prop({ required: true, type: Number, default: 0, min: 0 })

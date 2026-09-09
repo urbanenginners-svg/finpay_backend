@@ -4,9 +4,13 @@
  * y = live TT buy rate from Prithvi (vendor cost)
  * x = finpaySellRate
  * z = customerSellRate
+ * card rate (IBR) = y × (1 + CARD_RATE_TT_MARKUP_PERCENT / 100)
  * Finpay commission / unit = x - y
  * Agent commission / unit  = z - x
  */
+
+/** Card rate / IBR is always this markup over live TT (Y). */
+export const CARD_RATE_TT_MARKUP_PERCENT = 3;
 
 export type AgentCardRateSnapshot = {
   vendorRate: number;
@@ -31,6 +35,25 @@ export function roundMoney(value: number): number {
 export function toFiniteNumber(value: unknown, fallback = 0): number {
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+/** IBR / card-rate ceiling: live TT (Y) plus 3%. */
+export function cardRateFromLiveTt(liveTtRate: number): number {
+  const y = toFiniteNumber(liveTtRate, 0);
+  if (!(y > 0)) return 0;
+  return roundMoney(y * (1 + CARD_RATE_TT_MARKUP_PERCENT / 100));
+}
+
+export function applyLiveTtToCardRates<
+  T extends { vendorRate?: number; cardRate?: number },
+>(row: T, liveTtRate: number): T {
+  const y = toFiniteNumber(liveTtRate, 0);
+  if (!(y > 0)) return row;
+  return {
+    ...row,
+    vendorRate: y,
+    cardRate: cardRateFromLiveTt(y),
+  };
 }
 
 export function computeOrderCommissions(params: {
@@ -79,10 +102,13 @@ export function validateCustomerSellRate(params: {
     return 'Customer sell rate must be greater than 0.';
   }
   if (!(card > 0)) {
-    return 'Card rate is not configured for this currency. Contact Finpay admin.';
+    return 'Live TT rate is unavailable, so card rate / IBR cannot be calculated.';
   }
   if (!(x > 0)) {
     return 'Finpay sell rate (X) is not configured for this currency. Contact Finpay admin.';
+  }
+  if (x > card) {
+    return `Finpay sell rate (X) is above the live card rate (₹${card}). Contact Finpay admin.`;
   }
   if (z <= x) {
     return `Customer sell rate must be greater than Finpay rate to you (₹${x}).`;

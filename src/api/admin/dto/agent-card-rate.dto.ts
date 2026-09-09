@@ -32,7 +32,8 @@ export class UpsertAgentCardRateDto {
 
   @ApiPropertyOptional({
     example: 30,
-    description: 'Card rate ceiling for agent→customer sell. Default 0.',
+    description:
+      'Ignored. Card rate is always live TT (Y) + 3% and updates when TT changes.',
     default: 0,
   })
   @IsOptional()

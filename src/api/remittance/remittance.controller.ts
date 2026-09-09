@@ -264,7 +264,7 @@ export class RemittanceController {
     return new DataResponse(config);
   }
 
-  /** Agent: card-rate suggestions (X / Y / card) for booking UI. */
+  /** Agent: live card-rate suggestions (X and IBR = live TT + 3%) for booking UI. */
   @ApiBearerAuth()
   @Version('1')
   @Get('agent/card-rates')
