@@ -94,6 +94,7 @@ export type UpsertForexOrderFromCompleteInput = {
   remitterAddress?: string | null;
   remitterCity?: string | null;
   remitterState?: string | null;
+  agentCustomerId?: string | null;
   documents?: Record<string, string>;
   localDocumentFileIds?: Record<string, string>;
   providerUpdatedAt?: string | Date | null;
@@ -462,6 +463,8 @@ export class PrithviForexOrderService {
       $set.remitterAddress = input.remitterAddress;
     if (input.remitterCity != null) $set.remitterCity = input.remitterCity;
     if (input.remitterState != null) $set.remitterState = input.remitterState;
+    if (input.agentCustomerId != null)
+      $set.agentCustomerId = input.agentCustomerId;
     if (input.sourceOfFunds != null) $set.sourceOfFunds = input.sourceOfFunds;
     if (input.preferredDeliveryMode != null)
       $set.preferredDeliveryMode = input.preferredDeliveryMode;

@@ -25,6 +25,7 @@ import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
 import { FileResourceEnum } from 'src/utils/enums/file-resource.enum';
 import { FilesService } from 'src/api/files/files.service';
+import { AgentCustomerService } from 'src/api/agent-customer/agent-customer.service';
 import {
   applyLiveTtToCardRates,
   computeOrderCommissions,
@@ -64,6 +65,7 @@ export class RemittanceService {
     private readonly forexOrderNotifications: ForexOrderNotificationService,
     private readonly filesService: FilesService,
     private readonly agentCardRates: AgentCardRateService,
+    private readonly agentCustomers: AgentCustomerService,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
 
@@ -166,6 +168,16 @@ export class RemittanceService {
         throw new BadRequestException(
           'Customer remitter details are required when an agent books for a walk-in customer.',
         );
+      }
+
+      for (const order of dto.orders) {
+        const customerId = order.agentCustomerId?.trim();
+        if (!customerId) {
+          throw new BadRequestException(
+            'Select an agent customer before completing the booking.',
+          );
+        }
+        await this.agentCustomers.findOwned(String(userId), customerId);
       }
     }
 
@@ -1174,8 +1186,10 @@ export class RemittanceService {
 
   private remitterPersistFields(payload: CompleteForexOrderDto) {
     const remitter = payload.remitterDetails;
+    const agentCustomerId = payload.agentCustomerId?.trim() || null;
+
     if (!remitter) {
-      return {};
+      return agentCustomerId ? { agentCustomerId } : {};
     }
 
     const travelerName = [remitter.firstName, remitter.lastName]
@@ -1195,6 +1209,7 @@ export class RemittanceService {
       remitterAddress: remitter.address,
       remitterCity: remitter.city,
       remitterState: remitter.state,
+      ...(agentCustomerId ? { agentCustomerId } : {}),
     };
   }
 

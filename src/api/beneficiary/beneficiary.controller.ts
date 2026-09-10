@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   UseGuards,
   Version,
 } from '@nestjs/common';
@@ -32,8 +33,14 @@ export class BeneficiaryController {
   @UseGuards(ThrottlerBehindProxyGuard)
   @Throttle({ default: { ttl: 60_000, limit: 60 } })
   @ListBeneficiariesSwagger()
-  async list(@GetUser('_id') userId: string) {
-    const data = await this.beneficiaryService.listForUser(userId);
+  async list(
+    @GetUser() user: { _id: string; userType?: string },
+    @Query('agentCustomerId') agentCustomerId?: string,
+  ) {
+    const data = await this.beneficiaryService.listForUser(
+      user,
+      agentCustomerId,
+    );
     return new DataResponse(data, 'Beneficiaries fetched successfully');
   }
 
@@ -44,10 +51,10 @@ export class BeneficiaryController {
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @CreateBeneficiarySwagger()
   async create(
-    @GetUser('_id') userId: string,
+    @GetUser() user: { _id: string; userType?: string },
     @Body() dto: CreateBeneficiaryDto,
   ) {
-    const data = await this.beneficiaryService.create(userId, dto);
+    const data = await this.beneficiaryService.create(user, dto);
     return new DataResponse(data, 'Beneficiary saved successfully');
   }
 }

@@ -543,6 +543,17 @@ export class CompleteForexOrderDto {
   @ValidateNested()
   @Type(() => RemitterDetailsDto)
   remitterDetails?: RemitterDetailsDto;
+
+  @ApiPropertyOptional({
+    description:
+      'Agent walk-in customer id when an agent books. Stored locally only — not a Finpay user.',
+    example: '66f1a2b3c4d5e6f7a8b9c0d1',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(40)
+  agentCustomerId?: string;
 }
 
 export class CompleteForexRequestDto {

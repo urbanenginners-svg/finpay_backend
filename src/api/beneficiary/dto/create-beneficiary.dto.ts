@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
+  IsMongoId,
   IsOptional,
   IsString,
   MaxLength,
@@ -10,6 +11,15 @@ import {
 } from 'class-validator';
 
 export class CreateBeneficiaryDto {
+  @ApiPropertyOptional({
+    description:
+      'Required when the creator is an agent — scopes the beneficiary to a walk-in customer.',
+    example: '66f1a2b3c4d5e6f7a8b9c0d1',
+  })
+  @IsOptional()
+  @IsMongoId()
+  agentCustomerId?: string;
+
   @ApiProperty({ example: 'John Smith' })
   @IsString()
   @MinLength(2)

@@ -870,7 +870,8 @@ export class PrithviForexApiService {
         key === 'documents' ||
         key === 'confirmations' ||
         key === 'purposeAnswers' ||
-        key === 'remitterDetails'
+        key === 'remitterDetails' ||
+        key === 'agentCustomerId'
       ) {
         continue;
       }

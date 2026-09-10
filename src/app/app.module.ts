@@ -14,6 +14,7 @@ import { SeedModule } from "src/api/seed/seed.module";
 import { EnquiryModule } from "src/api/enquiry/enquiry.module";
 import { RemittanceModule } from "src/api/remittance/remittance.module";
 import { BeneficiaryModule } from "src/api/beneficiary/beneficiary.module";
+import { AgentCustomerModule } from "src/api/agent-customer/agent-customer.module";
 import { SystemConfigModule } from "src/api/system-config/system-config.module";
 import { SmsModule } from "src/services/sms";
 import { EmailModule } from "src/services/email";
@@ -50,6 +51,7 @@ import { SystemApiKey, SystemApiKeySchema } from "src/services/mongoose/schemas/
         EnquiryModule,
         RemittanceModule,
         BeneficiaryModule,
+        AgentCustomerModule,
         SystemConfigModule,
         SmsModule,
         EmailModule,

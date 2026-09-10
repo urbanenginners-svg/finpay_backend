@@ -12,6 +12,19 @@ export class Beneficiary {
   @Prop({ required: true, type: String, ref: 'User', index: true })
   userId: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Agent walk-in customer this beneficiary belongs to (agent_customers._id). Required for agent-owned beneficiaries; omitted for Finpay app users.',
+  })
+  @Prop({
+    required: false,
+    type: String,
+    ref: 'AgentCustomer',
+    default: null,
+    index: true,
+  })
+  agentCustomerId?: string | null;
+
   @ApiProperty({ example: 'John Smith' })
   @Prop({ required: true, type: String, trim: true })
   institutionName: string;
@@ -86,3 +99,4 @@ export class Beneficiary {
 export const BeneficiarySchema = SchemaFactory.createForClass(Beneficiary);
 
 BeneficiarySchema.index({ userId: 1, createdAt: -1 });
+BeneficiarySchema.index({ userId: 1, agentCustomerId: 1, createdAt: -1 });

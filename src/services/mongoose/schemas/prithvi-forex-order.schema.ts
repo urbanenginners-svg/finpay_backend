@@ -207,10 +207,17 @@ export class PrithviForexOrder {
 
   @ApiPropertyOptional({
     description:
-      'Remitter / customer first name (from profile for self-bookings; entered by agent for walk-in customers).',
+      'Remitter / customer first name (from profile for self-bookings; from agent customer for agent bookings).',
   })
   @Prop({ required: false, type: String, default: null })
   remitterFirstName?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Agent walk-in customer id (agent_customers._id) when bookingSource=agent. Not a Finpay user id.',
+  })
+  @Prop({ required: false, type: String, default: null, index: true })
+  agentCustomerId?: string | null;
 
   @ApiPropertyOptional({ description: 'Remitter last name (from user profile at booking).' })
   @Prop({ required: false, type: String, default: null })
