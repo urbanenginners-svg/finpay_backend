@@ -1077,6 +1077,7 @@ export class RemittanceService {
         id: live.id,
         currency: live.currency,
         vendorRate: live.vendorRate,
+        finpayCommission: live.finpayCommission,
         finpaySellRate: live.finpaySellRate,
         cardRate: live.cardRate,
         updatedAt: live.updatedAt,

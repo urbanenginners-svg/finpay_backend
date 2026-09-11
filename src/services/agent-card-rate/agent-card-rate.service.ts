@@ -11,6 +11,7 @@ import {
   AgentCardRateDocument,
 } from 'src/services/mongoose/schemas/agent-card-rate.schema';
 import {
+  resolveFinpayCommission,
   roundMoney,
   toFiniteNumber,
   type AgentCardRateSnapshot,
@@ -20,6 +21,9 @@ export type UpsertAgentCardRateInput = {
   agentId: string;
   currency: string;
   vendorRate?: number;
+  /** Admin-configured Finpay markup over live TT (preferred). */
+  finpayCommission?: number;
+  /** Snapshot of Y + commission at save; recomputed on read. */
   finpaySellRate?: number;
   cardRate?: number;
   updatedByAdminId?: string | null;
@@ -30,6 +34,7 @@ export type AgentCardRateRow = {
   agentId: string;
   currency: string;
   vendorRate: number;
+  finpayCommission: number;
   finpaySellRate: number;
   cardRate: number;
   updatedByAdminId?: string | null;
@@ -96,12 +101,20 @@ export class AgentCardRateService {
       typeof (doc as AgentCardRateDocument)._id?.toString === 'function'
         ? (doc as AgentCardRateDocument)._id.toString()
         : String((doc as { id?: string }).id ?? '');
+    const vendorRate = toFiniteNumber(doc.vendorRate, 0);
+    const finpaySellRate = toFiniteNumber(doc.finpaySellRate, 0);
+    const finpayCommission = resolveFinpayCommission({
+      finpayCommission: (doc as AgentCardRate).finpayCommission,
+      finpaySellRate,
+      vendorRate,
+    });
     return {
       id,
       agentId: doc.agentId,
       currency: doc.currency,
-      vendorRate: toFiniteNumber(doc.vendorRate, 0),
-      finpaySellRate: toFiniteNumber(doc.finpaySellRate, 0),
+      vendorRate,
+      finpayCommission,
+      finpaySellRate,
       cardRate: toFiniteNumber(doc.cardRate, 0),
       updatedByAdminId: doc.updatedByAdminId ?? null,
       createdAt:
@@ -138,16 +151,28 @@ export class AgentCardRateService {
 
     const row = await this.model
       .findOne({ agentId, currency: code })
-      .select('vendorRate finpaySellRate cardRate')
+      .select('vendorRate finpayCommission finpaySellRate cardRate')
       .lean()
       .exec();
 
     const value: AgentCardRateSnapshot | null = row
-      ? {
-          vendorRate: toFiniteNumber(row.vendorRate, 0),
-          finpaySellRate: toFiniteNumber(row.finpaySellRate, 0),
-          cardRate: toFiniteNumber(row.cardRate, 0),
-        }
+      ? (() => {
+          const vendorRate = toFiniteNumber(row.vendorRate, 0);
+          const finpaySellRate = toFiniteNumber(row.finpaySellRate, 0);
+          const snapshot: AgentCardRateSnapshot = {
+            vendorRate,
+            finpaySellRate,
+            cardRate: toFiniteNumber(row.cardRate, 0),
+          };
+          if (row.finpayCommission != null || finpaySellRate > 0) {
+            snapshot.finpayCommission = resolveFinpayCommission({
+              finpayCommission: row.finpayCommission,
+              finpaySellRate,
+              vendorRate,
+            });
+          }
+          return snapshot;
+        })()
       : null;
 
     this.putCache(agentId, code, value);
@@ -185,19 +210,19 @@ export class AgentCardRateService {
     }
 
     const vendorRate = roundMoney(Math.max(0, toFiniteNumber(input.vendorRate, 0)));
+    const finpayCommission = resolveFinpayCommission({
+      finpayCommission: input.finpayCommission,
+      finpaySellRate: input.finpaySellRate,
+      vendorRate,
+    });
     const finpaySellRate = roundMoney(
-      Math.max(0, toFiniteNumber(input.finpaySellRate, 0)),
+      vendorRate > 0 ? vendorRate + finpayCommission : finpayCommission,
     );
     const cardRate = roundMoney(Math.max(0, toFiniteNumber(input.cardRate, 0)));
 
     if (cardRate > 0 && finpaySellRate > cardRate) {
       throw new BadRequestException(
-        'Finpay sell rate (X) cannot exceed card rate.',
-      );
-    }
-    if (vendorRate > 0 && finpaySellRate > 0 && vendorRate > finpaySellRate) {
-      throw new BadRequestException(
-        'Vendor rate (Y) cannot exceed Finpay sell rate (X).',
+        'Agent rate (live TT + commission) cannot exceed card rate.',
       );
     }
 
@@ -207,6 +232,7 @@ export class AgentCardRateService {
         {
           $set: {
             vendorRate,
+            finpayCommission,
             finpaySellRate,
             cardRate,
             updatedByAdminId: input.updatedByAdminId ?? null,
@@ -229,6 +255,7 @@ export class AgentCardRateService {
     rates: Array<{
       currency: string;
       vendorRate?: number;
+      finpayCommission?: number;
       finpaySellRate?: number;
       cardRate?: number;
     }>,
@@ -241,6 +268,7 @@ export class AgentCardRateService {
           agentId,
           currency: rate.currency,
           vendorRate: rate.vendorRate,
+          finpayCommission: rate.finpayCommission,
           finpaySellRate: rate.finpaySellRate,
           cardRate: rate.cardRate,
           updatedByAdminId,

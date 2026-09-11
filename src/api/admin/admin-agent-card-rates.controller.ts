@@ -26,6 +26,9 @@ import { GetUser } from 'src/utils/decorators/get-user.decorator';
 import {
   applyLiveTtToCardRates,
   cardRateFromLiveTt,
+  maxFinpayCommission,
+  resolveFinpayCommission,
+  roundMoney,
 } from 'src/utils/agent-commission.util';
 import {
   BulkUpsertAgentCardRatesDto,
@@ -39,6 +42,40 @@ function csvEscape(value: unknown): string {
     return `"${raw.replace(/"/g, '""')}"`;
   }
   return raw;
+}
+
+function resolveUpsertCommission(
+  dto: Pick<UpsertAgentCardRateDto, 'finpayCommission' | 'finpaySellRate'>,
+  liveTtRate: number,
+): number {
+  if (dto.finpayCommission != null) {
+    return resolveFinpayCommission({ finpayCommission: dto.finpayCommission });
+  }
+  // Legacy absolute X → commission over current live TT
+  if (dto.finpaySellRate != null && liveTtRate > 0) {
+    return roundMoney(
+      Math.max(0, Number(dto.finpaySellRate) - liveTtRate),
+    );
+  }
+  return 0;
+}
+
+function assertCommissionWithinCardRate(
+  currency: string,
+  liveTtRate: number,
+  finpayCommission: number,
+): { cardRate: number; finpaySellRate: number } {
+  const cardRate = cardRateFromLiveTt(liveTtRate);
+  const finpaySellRate =
+    liveTtRate > 0 ? roundMoney(liveTtRate + finpayCommission) : finpayCommission;
+  const maxCommission = maxFinpayCommission(liveTtRate);
+  if (cardRate > 0 && finpayCommission > maxCommission) {
+    const label = currency ? `${currency}: ` : '';
+    throw new BadRequestException(
+      `${label}Commission cannot exceed ₹${maxCommission} (card rate − live TT).`,
+    );
+  }
+  return { cardRate, finpaySellRate };
 }
 
 @ApiTags('Admin - Agent Card Rates & Commissions')
@@ -77,22 +114,17 @@ export class AdminAgentCardRatesController {
     const liveTtRate = await this.remittanceService.getLiveTtBuyRate(
       dto.currency,
     );
-    const finpaySellRate = dto.finpaySellRate ?? 0;
-    if (liveTtRate > 0 && finpaySellRate > 0 && finpaySellRate < liveTtRate) {
-      throw new BadRequestException(
-        'Finpay sell rate (X) cannot be below the live TT rate (Y).',
-      );
-    }
-    const cardRate = cardRateFromLiveTt(liveTtRate);
-    if (cardRate > 0 && finpaySellRate > cardRate) {
-      throw new BadRequestException(
-        'Finpay sell rate (X) cannot exceed card rate (live TT + 3%).',
-      );
-    }
+    const finpayCommission = resolveUpsertCommission(dto, liveTtRate);
+    const { cardRate, finpaySellRate } = assertCommissionWithinCardRate(
+      dto.currency,
+      liveTtRate,
+      finpayCommission,
+    );
     const data = await this.cardRates.upsertRate({
       agentId,
       currency: dto.currency,
       vendorRate: liveTtRate,
+      finpayCommission,
       finpaySellRate,
       cardRate,
       updatedByAdminId: String(adminId),
@@ -114,25 +146,16 @@ export class AdminAgentCardRatesController {
       dto.rates.map((rate) => {
         const liveTtRate =
           liveMap.get(String(rate.currency ?? '').trim().toUpperCase()) ?? 0;
-        const finpaySellRate = rate.finpaySellRate ?? 0;
-        if (
-          liveTtRate > 0 &&
-          finpaySellRate > 0 &&
-          finpaySellRate < liveTtRate
-        ) {
-          throw new BadRequestException(
-            `${rate.currency}: Finpay sell rate (X) cannot be below the live TT rate (Y).`,
-          );
-        }
-        const cardRate = cardRateFromLiveTt(liveTtRate);
-        if (cardRate > 0 && finpaySellRate > cardRate) {
-          throw new BadRequestException(
-            `${rate.currency}: Finpay sell rate (X) cannot exceed card rate (live TT + 3%).`,
-          );
-        }
+        const finpayCommission = resolveUpsertCommission(rate, liveTtRate);
+        const { cardRate, finpaySellRate } = assertCommissionWithinCardRate(
+          rate.currency,
+          liveTtRate,
+          finpayCommission,
+        );
         return {
           currency: rate.currency,
           vendorRate: liveTtRate,
+          finpayCommission,
           finpaySellRate,
           cardRate,
         };

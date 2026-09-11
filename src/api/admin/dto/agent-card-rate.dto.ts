@@ -20,8 +20,21 @@ export class UpsertAgentCardRateDto {
   currency: string;
 
   @ApiPropertyOptional({
+    example: 1.5,
+    description:
+      'Finpay commission over live TT (INR per unit). Agent rate X = live TT + this. Preferred.',
+    default: 0,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  finpayCommission?: number;
+
+  @ApiPropertyOptional({
     example: 25,
-    description: 'X — Finpay sell rate to agent (INR per unit). Default 0.',
+    description:
+      'Deprecated. If finpayCommission is omitted, treated as absolute X and converted to commission = X − live TT.',
     default: 0,
   })
   @IsOptional()
