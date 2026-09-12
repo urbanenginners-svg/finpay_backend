@@ -17,6 +17,7 @@ import {
   extractPrithviRate,
 } from 'src/services/prithvi-exchange';
 import { AgentCardRateService } from 'src/services/agent-card-rate/agent-card-rate.service';
+import { CustomerCardRateService } from 'src/services/customer-card-rate/customer-card-rate.service';
 import { PrithviForexOrderService } from 'src/services/prithvi-exchange/prithvi-forex-order.service';
 import { ForexOrderNotificationService } from 'src/services/prithvi-exchange/forex-order-notification.service';
 import { User, UserDocument } from 'src/services/mongoose/schemas/user.schema';
@@ -29,6 +30,8 @@ import { AgentCustomerService } from 'src/api/agent-customer/agent-customer.serv
 import {
   applyLiveTtToCardRates,
   computeOrderCommissions,
+  resolveFinpayCommission,
+  roundMoney,
   toFiniteNumber,
   validateCustomerSellRate,
 } from 'src/utils/agent-commission.util';
@@ -65,6 +68,7 @@ export class RemittanceService {
     private readonly forexOrderNotifications: ForexOrderNotificationService,
     private readonly filesService: FilesService,
     private readonly agentCardRates: AgentCardRateService,
+    private readonly customerCardRates: CustomerCardRateService,
     private readonly agentCustomers: AgentCustomerService,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
@@ -131,7 +135,7 @@ export class RemittanceService {
         if (bookingSource === ForexBookingSourceEnum.AGENT) {
           return this.normalizeAgentOrderRates(String(userId), withCharges);
         }
-        return withCharges;
+        return this.normalizeCustomerOrderRates(withCharges);
       }),
     );
     const payload: InitiateForexRequestDto = { ...dto, orderDetails };
@@ -971,6 +975,34 @@ export class RemittanceService {
     };
   }
 
+  /**
+   * Customer (self) bookings: retail rate X = live TT + admin commission.
+   * Provider sellingRate stays on live TT; agentSellingRate / customerSellRate = X.
+   */
+  private async normalizeCustomerOrderRates(
+    order: ForexOrderDetailDto,
+  ): Promise<ForexOrderDetailDto> {
+    const card = await this.resolveCustomerLiveCardSnapshot(order.currency);
+    const liveY = card.vendorRate;
+    if (!(liveY > 0)) {
+      throw new BadRequestException(
+        'Live TT rate is unavailable for this currency. Try again shortly.',
+      );
+    }
+    const retailRate = card.finpaySellRate > 0 ? card.finpaySellRate : liveY;
+    if (card.cardRate > 0 && retailRate > card.cardRate) {
+      throw new BadRequestException(
+        `Customer rate (₹${retailRate}) is above the card rate ceiling (₹${card.cardRate}). Contact Finpay admin.`,
+      );
+    }
+
+    return {
+      ...order,
+      customerSellRate: retailRate,
+      agentSellingRate: retailRate,
+    };
+  }
+
   private async commissionPersistFields(
     bookingSource: ForexBookingSourceEnum,
     agentId: string,
@@ -985,7 +1017,37 @@ export class RemittanceService {
     finpayCommissionTotal?: number | null;
     agentCommissionTotal?: number | null;
   }> {
-    if (bookingSource !== ForexBookingSourceEnum.AGENT || !detail) {
+    if (!detail) {
+      return {};
+    }
+
+    if (bookingSource === ForexBookingSourceEnum.SELF) {
+      const card = await this.resolveCustomerLiveCardSnapshot(detail.currency);
+      const retailRate =
+        card.finpaySellRate > 0 ? card.finpaySellRate : card.vendorRate;
+      if (!(retailRate > 0)) {
+        return {};
+      }
+      const commission = computeOrderCommissions({
+        vendorRate: card.vendorRate,
+        finpaySellRate: retailRate,
+        cardRate: card.cardRate,
+        customerSellRate: retailRate,
+        currencyAmount: toFiniteNumber(detail.currencyAmount, 0),
+      });
+      return {
+        vendorRate: commission.vendorRate,
+        finpaySellRate: commission.finpaySellRate,
+        cardRate: commission.cardRate,
+        customerSellRate: commission.customerSellRate,
+        finpayCommissionPerUnit: commission.finpayCommissionPerUnit,
+        agentCommissionPerUnit: 0,
+        finpayCommissionTotal: commission.finpayCommissionTotal,
+        agentCommissionTotal: 0,
+      };
+    }
+
+    if (bookingSource !== ForexBookingSourceEnum.AGENT) {
       return {};
     }
 
@@ -1054,12 +1116,107 @@ export class RemittanceService {
     return applyLiveTtToCardRates(saved, liveY);
   }
 
+  /**
+   * Retail snapshot for customers: always X = live TT + commission (c may be 0).
+   */
+  private async resolveCustomerLiveCardSnapshot(currency: string) {
+    const [saved, liveY] = await Promise.all([
+      this.customerCardRates.getOrDefault(currency),
+      this.getLiveTtBuyRate(currency),
+    ]);
+    const applied = applyLiveTtToCardRates(saved, liveY);
+    const y = toFiniteNumber(liveY, 0);
+    if (!(y > 0)) {
+      return applied;
+    }
+    const commission = resolveFinpayCommission(applied);
+    return {
+      ...applied,
+      vendorRate: y,
+      finpayCommission: commission,
+      finpaySellRate: roundMoney(y + commission),
+      cardRate: applied.cardRate,
+    };
+  }
+
   async getMyCardRate(agentId: string, currency: string) {
     const rate = await this.resolveLiveCardSnapshot(agentId, currency);
     return {
       vendorRate: rate.vendorRate,
       finpaySellRate: rate.finpaySellRate,
       cardRate: rate.cardRate,
+    };
+  }
+
+  async getCustomerCardRate(currency: string) {
+    const rate = await this.resolveCustomerLiveCardSnapshot(currency);
+    return {
+      vendorRate: rate.vendorRate,
+      finpayCommission: rate.finpayCommission ?? 0,
+      finpaySellRate: rate.finpaySellRate,
+      cardRate: rate.cardRate,
+    };
+  }
+
+  async listCustomerCardRates() {
+    const [rows, liveMap] = await Promise.all([
+      this.customerCardRates.listAll(),
+      this.getLiveTtBuyRatesByCurrency(),
+    ]);
+    const fromSaved = new Map(
+      rows.map((row) => {
+        const live = this.applyCustomerLiveOverlay(
+          row,
+          liveMap.get(row.currency) ?? 0,
+        );
+        return [row.currency, live] as const;
+      }),
+    );
+
+    // Include live TT currencies even when admin has not saved a row yet (c = 0).
+    const codes = new Set([
+      ...fromSaved.keys(),
+      ...liveMap.keys(),
+    ]);
+    return [...codes]
+      .sort()
+      .map((currency) => {
+        const existing = fromSaved.get(currency);
+        if (existing) return existing;
+        const y = liveMap.get(currency) ?? 0;
+        return this.applyCustomerLiveOverlay(
+          {
+            currency,
+            vendorRate: 0,
+            finpayCommission: 0,
+            finpaySellRate: 0,
+            cardRate: 0,
+          },
+          y,
+        );
+      });
+  }
+
+  private applyCustomerLiveOverlay<
+    T extends {
+      currency?: string;
+      vendorRate?: number;
+      finpayCommission?: number | null;
+      finpaySellRate?: number;
+      cardRate?: number;
+      id?: string;
+      updatedAt?: string;
+    },
+  >(row: T, liveY: number) {
+    const applied = applyLiveTtToCardRates(row, liveY);
+    const y = toFiniteNumber(liveY, 0);
+    const commission = resolveFinpayCommission(applied);
+    return {
+      ...applied,
+      currency: String(row.currency ?? '').toUpperCase(),
+      vendorRate: y,
+      finpayCommission: commission,
+      finpaySellRate: y > 0 ? roundMoney(y + commission) : 0,
     };
   }
 

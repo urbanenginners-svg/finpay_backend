@@ -287,6 +287,23 @@ export class RemittanceController {
     return new DataResponse(data);
   }
 
+  /** Customer: retail rate X = live TT + admin commission. */
+  @ApiBearerAuth()
+  @Version('1')
+  @Get('customer/card-rates')
+  async listCustomerCardRates() {
+    const data = await this.remittanceService.listCustomerCardRates();
+    return new DataResponse(data);
+  }
+
+  @ApiBearerAuth()
+  @Version('1')
+  @Get('customer/card-rates/:currency')
+  async getCustomerCardRate(@Param('currency') currency: string) {
+    const data = await this.remittanceService.getCustomerCardRate(currency);
+    return new DataResponse(data);
+  }
+
   @ApiBearerAuth()
   @Version('1')
   @Get('agent/commissions')
