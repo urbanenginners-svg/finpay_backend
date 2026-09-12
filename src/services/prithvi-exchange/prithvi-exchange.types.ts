@@ -204,7 +204,10 @@ export type PrithviAgentChargesResult = {
   items: PrithviChargeLine[];
   /** Absolute GST (INR) from the GST line item. */
   gst: number;
+  /** Service Charge line `totalCharge` only (not transactional). */
   serviceCharge: number;
+  /** Transactional Charge line `totalCharge` when present. */
+  transactionalCharge?: number;
   /** Sum of `prithiviCharge` on PERCENTAGE lines (passed through to initiate). */
   prithiviCharge?: number;
   deliveryCharge?: number;
@@ -244,6 +247,8 @@ export type PrithviForexOrderDetail = {
   agentSellingRate: number;
   gst: number;
   serviceCharge: number;
+  /** Transactional Charge line totalCharge from GET /charges when > 0. */
+  transactionalCharge?: number;
   /** From agent charges deliveryChargeMin when > 0. */
   deliveryCharge?: number;
   /** From agent charges nostroChargeMin when > 0. */
@@ -304,6 +309,8 @@ export type CompleteForexOrderPayload = {
   gst: number;
   /** Product modality (CASH / CARD / TT). */
   productType: PrithviProductType;
+  /** Transactional Charge line totalCharge from GET /charges when > 0. */
+  transactionalCharge?: number;
   /** From agent charges deliveryChargeMin when > 0. */
   deliveryCharge?: number;
   /** From agent charges nostroChargeMin when > 0. */

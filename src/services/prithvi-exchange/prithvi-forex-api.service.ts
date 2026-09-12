@@ -158,11 +158,17 @@ function resolveLineTotalCharge(
 
 /**
  * Map a charge line onto initiate/complete fields from `items`.
- * SERVICE_CHARGE / TRANSACTION_CHARGE / PURPOSE component → serviceCharge.
+ * SERVICE_CHARGE → serviceCharge; TRANSACTIONAL CHARGE → transactionalCharge.
  */
 function resolveChargeFieldKey(
   item: Partial<PrithviChargeLineRaw> & Partial<PrithviChargeLine>,
-): 'gst' | 'serviceCharge' | 'deliveryCharge' | 'nostroCharge' | null {
+):
+  | 'gst'
+  | 'serviceCharge'
+  | 'transactionalCharge'
+  | 'deliveryCharge'
+  | 'nostroCharge'
+  | null {
   const code = String(item.chargeCode ?? item.charge_code ?? '').toUpperCase();
   const component = String(item.component ?? '').toUpperCase();
   const label = [
@@ -179,15 +185,16 @@ function resolveChargeFieldKey(
   if (label.includes('delivery') || code.includes('DELIVERY')) {
     return 'deliveryCharge';
   }
+  if (code.includes('TRANSACTION') || label.includes('transaction')) {
+    return 'transactionalCharge';
+  }
   if (
     code.includes('SERVICE') ||
-    code.includes('TRANSACTION') ||
     code === 'PURPOSE' ||
     code.includes('PURPOSE') ||
     component === 'PURPOSE' ||
     label.includes('service') ||
-    label.includes('purpose') ||
-    label.includes('transaction')
+    label.includes('purpose')
   ) {
     return 'serviceCharge';
   }
@@ -200,6 +207,7 @@ function resolveChargeFieldKey(
 function bookingChargeFieldsFromResult(charges: PrithviAgentChargesResult): {
   gst: number;
   serviceCharge: number;
+  transactionalCharge?: number;
   deliveryCharge?: number;
   nostroCharge?: number;
   prithiviCharge?: number;
@@ -207,6 +215,7 @@ function bookingChargeFieldsFromResult(charges: PrithviAgentChargesResult): {
   const fields: {
     gst: number;
     serviceCharge: number;
+    transactionalCharge?: number;
     deliveryCharge?: number;
     nostroCharge?: number;
     prithiviCharge?: number;
@@ -214,6 +223,9 @@ function bookingChargeFieldsFromResult(charges: PrithviAgentChargesResult): {
     gst: charges.gst,
     serviceCharge: charges.serviceCharge,
   };
+  if ((charges.transactionalCharge ?? 0) > 0) {
+    fields.transactionalCharge = charges.transactionalCharge;
+  }
   if ((charges.deliveryCharge ?? 0) > 0) {
     fields.deliveryCharge = charges.deliveryCharge;
   }
@@ -343,6 +355,7 @@ export class PrithviForexApiService {
     T extends {
       gst: number;
       serviceCharge: number;
+      transactionalCharge?: number;
       deliveryCharge?: number;
       nostroCharge?: number;
       prithiviCharge?: number;
@@ -351,7 +364,7 @@ export class PrithviForexApiService {
     const charges = await this.getAgentCharges(params);
     const fields = bookingChargeFieldsFromResult(charges);
     this.logger.log(
-      `Applied provider charges gst=${fields.gst} serviceCharge=${fields.serviceCharge} for ${params.currencyCode} ${params.currencyAmount} ${params.productType} from items=${JSON.stringify(
+      `Applied provider charges gst=${fields.gst} serviceCharge=${fields.serviceCharge} transactionalCharge=${fields.transactionalCharge ?? 0} for ${params.currencyCode} ${params.currencyAmount} ${params.productType} from items=${JSON.stringify(
         charges.items.map((item) => ({
           type: item.chargeType,
           code: item.chargeCode,
@@ -363,8 +376,13 @@ export class PrithviForexApiService {
         })),
       )}`,
     );
-    const { deliveryCharge: _delivery, nostroCharge: _nostro, prithiviCharge: _prithivi, ...rest } =
-      order;
+    const {
+      deliveryCharge: _delivery,
+      nostroCharge: _nostro,
+      prithiviCharge: _prithivi,
+      transactionalCharge: _transactional,
+      ...rest
+    } = order;
     return {
       ...rest,
       ...fields,
@@ -910,13 +928,14 @@ export class PrithviForexApiService {
 
     let gst = 0;
     let serviceCharge = 0;
+    let transactionalCharge = 0;
     let deliveryCharge = 0;
     let nostroCharge = 0;
     let prithiviCharge = 0;
 
     for (const item of items) {
       const key = resolveChargeFieldKey(item);
-      // Always use items[].totalCharge for gst/service/nostro/delivery amounts.
+      // Always use items[].totalCharge for gst/service/transactional/nostro/delivery amounts.
       const amount = item.totalCharge ?? 0;
       const isPercentage =
         String(item.calculationType ?? '').toUpperCase() === 'PERCENTAGE';
@@ -926,6 +945,7 @@ export class PrithviForexApiService {
       if (!key || !(amount > 0)) continue;
       if (key === 'gst') gst += amount;
       else if (key === 'serviceCharge') serviceCharge += amount;
+      else if (key === 'transactionalCharge') transactionalCharge += amount;
       else if (key === 'deliveryCharge') deliveryCharge += amount;
       else if (key === 'nostroCharge') nostroCharge += amount;
     }
@@ -942,6 +962,7 @@ export class PrithviForexApiService {
       serviceCharge,
     };
 
+    if (transactionalCharge > 0) result.transactionalCharge = transactionalCharge;
     if (deliveryCharge > 0) result.deliveryCharge = deliveryCharge;
     if (nostroCharge > 0) result.nostroCharge = nostroCharge;
     if (prithiviCharge > 0) result.prithiviCharge = prithiviCharge;
