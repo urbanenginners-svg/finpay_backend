@@ -876,11 +876,14 @@ export class PrithviForexApiService {
    * Build Prithvi complete order body.
    * Purpose answers may arrive nested under purposeAnswers (dynamic keys per purpose).
    * Documents are uploaded separately via upload-document — do not resend them.
+   * TT orders omit preferredPaymentMode / preferredDeliveryMode (not applicable).
    */
   private toPrithviCompleteOrder(
     order: CompleteForexOrderPayload,
   ): Record<string, unknown> {
     const payload: Record<string, unknown> = {};
+    const isTt =
+      String(order.productType ?? '').toUpperCase() === PrithviProductType.TT;
 
     for (const [key, value] of Object.entries(order)) {
       if (
@@ -893,6 +896,12 @@ export class PrithviForexApiService {
       ) {
         continue;
       }
+      if (
+        isTt &&
+        (key === 'preferredPaymentMode' || key === 'preferredDeliveryMode')
+      ) {
+        continue;
+      }
       if (value === undefined) continue;
       payload[key] = value;
     }
@@ -901,6 +910,12 @@ export class PrithviForexApiService {
     if (purposeAnswers && typeof purposeAnswers === 'object') {
       for (const [key, value] of Object.entries(purposeAnswers)) {
         if (value === undefined) continue;
+        if (
+          isTt &&
+          (key === 'preferredPaymentMode' || key === 'preferredDeliveryMode')
+        ) {
+          continue;
+        }
         payload[key] = value;
       }
     }
