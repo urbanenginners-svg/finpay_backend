@@ -78,12 +78,8 @@ export class PanVerificationService {
     let message: string;
     if (verified) {
       message = 'PAN verified successfully';
-    } else if (panExists && !nameMatches) {
-      message =
-        'PAN number is valid but the name does not match the name registered on the PAN. Please check the name and try again.';
     } else {
-      message =
-        'PAN verification failed. Please check your PAN number and name. If your name is incorrect, go back and edit your personal details.';
+      message = 'Invalid PAN';
     }
 
     return {
