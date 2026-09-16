@@ -62,6 +62,21 @@ export function GetRemittanceRatesSwagger() {
   );
 }
 
+export function GetPublicCustomerRetailRatesSwagger() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Get customer retail FX rates (public)',
+      description:
+        'Homepage rates matching customer booking: finpaySellRate = live BUY TT + admin-set commission. Does not expose commission internals.',
+    }),
+    ApiResponse({
+      status: 200,
+      description: 'Customer retail rates retrieved successfully',
+    }),
+    ApiResponse({ status: 429, description: 'Too many requests' }),
+  );
+}
+
 export function GetAgentChargesSwagger() {
   return applyDecorators(
     ApiBearerAuth(),

@@ -49,6 +49,7 @@ import {
   GetPurposesSwagger,
   GetRemittanceProvidersSwagger,
   GetRemittanceRatesSwagger,
+  GetPublicCustomerRetailRatesSwagger,
   InitiateForexRequestSwagger,
   SubmitForexOfflinePaymentSwagger,
   UploadForexOrderDocumentSwagger,
@@ -284,6 +285,18 @@ export class RemittanceController {
       String(userId),
       currency,
     );
+    return new DataResponse(data);
+  }
+
+  /** Public homepage: customer retail rate X (live TT + admin commission). */
+  @Public()
+  @Version('1')
+  @Get('customer/retail-rates')
+  @UseGuards(ThrottlerBehindProxyGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @GetPublicCustomerRetailRatesSwagger()
+  async listPublicCustomerRetailRates() {
+    const data = await this.remittanceService.listPublicCustomerRetailRates();
     return new DataResponse(data);
   }
 

@@ -1197,6 +1197,20 @@ export class RemittanceService {
       });
   }
 
+  /**
+   * Public homepage rates: same retail X as customer booking
+   * (live TT + admin finpayCommission), without exposing commission internals.
+   */
+  async listPublicCustomerRetailRates() {
+    const rows = await this.listCustomerCardRates();
+    return rows
+      .filter((row) => Number(row.finpaySellRate) > 0)
+      .map((row) => ({
+        currency: String(row.currency).toUpperCase(),
+        finpaySellRate: Number(row.finpaySellRate),
+      }));
+  }
+
   private applyCustomerLiveOverlay<
     T extends {
       currency?: string;
