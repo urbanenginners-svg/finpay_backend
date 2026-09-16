@@ -185,9 +185,9 @@ export class AuthController {
   @Version('1')
   @Post('pan/verify')
   @ApiOperation({
-    summary: 'Verify PAN via Prithvi Exchange',
+    summary: 'Verify PAN via Prithvi Lead System',
     description:
-      'Validates PAN number and applicant name using the Prithvi Exchange verification API.',
+      'Validates PAN number via Prithvi Lead System and requires the provided name to match the registered name on the PAN.',
   })
   async verifyPan(@Body() dto: VerifyPanDto) {
     const result = await this.registrationService.verifyPan(dto);
