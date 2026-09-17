@@ -127,15 +127,16 @@ export class RemittanceService {
     const bookingSource = await this.resolveBookingSource(userId);
     const orderDetails = await Promise.all(
       dto.orderDetails.map(async (order) => {
-        const withCharges = await this.overlayInitiateCharges(
+        // Normalize sell rates first so provider charges use X (customer) / Z (agent).
+        const normalized =
+          bookingSource === ForexBookingSourceEnum.AGENT
+            ? await this.normalizeAgentOrderRates(String(userId), order)
+            : await this.normalizeCustomerOrderRates(order);
+        return this.overlayInitiateCharges(
           dto.orderType,
-          order,
+          normalized,
           dto.purposeCode,
         );
-        if (bookingSource === ForexBookingSourceEnum.AGENT) {
-          return this.normalizeAgentOrderRates(String(userId), withCharges);
-        }
-        return this.normalizeCustomerOrderRates(withCharges);
       }),
     );
     const payload: InitiateForexRequestDto = { ...dto, orderDetails };
@@ -734,13 +735,23 @@ export class RemittanceService {
         'Purpose is required to load provider charges for this order.',
       );
     }
+    // Percentage / slab charges are based on customer-facing INR (X or Z × amount),
+    // not provider live-TT amountInINR submitted to Prithvi.
+    const sellRate = toFiniteNumber(
+      order.customerSellRate ?? order.agentSellingRate,
+      0,
+    );
+    const chargesInrAmount =
+      sellRate > 0 && order.currencyAmount > 0
+        ? Math.round(order.currencyAmount * sellRate * 100) / 100
+        : order.amountInINR;
     return this.prithviForex.withProviderCharges(
       {
         orderType,
         productType: order.product,
         currencyCode: order.currency,
         currencyAmount: order.currencyAmount,
-        inrAmount: order.amountInINR,
+        inrAmount: chargesInrAmount,
         purposeCode: resolvedPurposeCode,
       },
       order,
@@ -948,7 +959,8 @@ export class RemittanceService {
   /**
    * Agent bookings: require X < customerSellRate (Z) ≤ card rate.
    * agentSellingRate forwarded to Prithvi is set to Z.
-   * Provider sellingRate / amountInINR stay on the live Prithvi quote.
+   * Provider sellingRate / amountInINR stay on the live Prithvi quote (Y).
+   * Charges API inr_amount uses Z × currencyAmount.
    */
   private async normalizeAgentOrderRates(
     agentId: string,
@@ -977,7 +989,9 @@ export class RemittanceService {
 
   /**
    * Customer (self) bookings: retail rate X = live TT + admin commission.
-   * Provider sellingRate stays on live TT; agentSellingRate / customerSellRate = X.
+   * Provider sellingRate / amountInINR stay on live TT (Y);
+   * agentSellingRate / customerSellRate = X.
+   * Charges API inr_amount uses X × currencyAmount.
    */
   private async normalizeCustomerOrderRates(
     order: ForexOrderDetailDto,
