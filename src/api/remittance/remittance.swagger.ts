@@ -16,6 +16,7 @@ import {
 } from 'src/services/prithvi-exchange';
 import { RemittanceProvider } from 'src/utils/enums/remittance-provider.enum';
 import {
+  CheckLrsDto,
   CompleteForexRequestDto,
   InitiateForexRequestDto,
   RemittanceProviderDto,
@@ -83,13 +84,20 @@ export function GetAgentChargesSwagger() {
     ApiOperation({
       summary: 'Get charges for order/product/amount',
       description:
-        'Proxies Prithvi GET /agents/charges. Sends configured `agentId` and selected purpose as `purpose_code`. Returns charge line items (FIXED or PERCENTAGE) with calculated totals. Use `items[].chargeType` as the UI label and `items[].totalCharge` for amounts. Also returns mapped absolute amounts (gst, serviceCharge, transactionalCharge, deliveryCharge, nostroCharge) derived from items for initiate/complete. serviceCharge is the Service Charge line only; transactionalCharge is the Transactional Charge line.',
+        'Proxies Prithvi GET /agents/charges. Sends configured `agentId` and selected purpose as `purpose_code`. Pass `totalLrsAmount` from LRS check (prior remittance INR + inrAmount, or inrAmount alone when remittance is unavailable) as Prithvi `total_lrs_amount`. Returns charge line items (FIXED or PERCENTAGE) with calculated totals. Use `items[].chargeType` as the UI label and `items[].totalCharge` for amounts. Also returns mapped absolute amounts (gst, serviceCharge, transactionalCharge, deliveryCharge, nostroCharge) derived from items for initiate/complete. serviceCharge is the Service Charge line only; transactionalCharge is the Transactional Charge line.',
     }),
     ApiQuery({ name: 'orderType', enum: PrithviOrderType, required: true }),
     ApiQuery({ name: 'productType', enum: PrithviProductType, required: true }),
     ApiQuery({ name: 'currencyCode', required: true, example: 'USD' }),
     ApiQuery({ name: 'currencyAmount', required: true, example: 10000 }),
     ApiQuery({ name: 'inrAmount', required: true, example: 952500 }),
+    ApiQuery({
+      name: 'totalLrsAmount',
+      required: false,
+      example: 952500,
+      description:
+        'Prithvi total_lrs_amount. Defaults to inrAmount when omitted.',
+    }),
     ApiQuery({ name: 'purposeCode', required: true, example: 'S0302' }),
     ApiResponse({
       status: 200,
@@ -98,6 +106,26 @@ export function GetAgentChargesSwagger() {
     ApiResponse({ status: 400, description: 'Validation failure' }),
     ApiResponse({ status: 401, description: 'Unauthorized' }),
     ApiResponse({ status: 429, description: 'Too many requests' }),
+  );
+}
+
+export function CheckLrsSwagger() {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Check LRS remittance utilisation for a PAN',
+      description:
+        'Proxies Prithvi Lead System POST /verification/lrs. Returns LRS limit and totalRemittanceInINR when available. Use totalRemittanceInINR with the booking inrAmount to build charges totalLrsAmount.',
+    }),
+    ApiBody({ type: CheckLrsDto }),
+    ApiResponse({
+      status: 200,
+      description: 'LRS limit verified successfully',
+    }),
+    ApiResponse({ status: 400, description: 'Validation failure' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+    ApiResponse({ status: 429, description: 'Too many requests' }),
+    ApiResponse({ status: 500, description: 'Provider error' }),
   );
 }
 

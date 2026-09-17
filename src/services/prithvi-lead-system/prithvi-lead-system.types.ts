@@ -5,6 +5,7 @@ export enum PrithviLeadSystemApiCallType {
   OAUTH_REVOKE = 'oauth_revoke',
   PASSPORT_VERIFY = 'passport_verify',
   PAN_VERIFY = 'pan_verify',
+  LRS_CHECK = 'lrs_check',
 }
 
 export type PrithviLeadSystemApiResponse<T> = {
@@ -78,4 +79,25 @@ export type VerifyPassportParams = {
 export type VerifyPanNumberParams = {
   panNumber: string;
   name: string;
+};
+
+export type CheckLrsParams = {
+  pan: string;
+};
+
+/** Normalized LRS check result from POST /verification/lrs. */
+export type PrithviLeadSystemLrsCheckData = {
+  success: boolean;
+  fromCache: boolean;
+  pan: string;
+  reportDate: string | null;
+  currency: string | null;
+  limit: number | null;
+  totalRemittance: string | number | null;
+  /** Numeric when RBI has remittance history; null when "not available". */
+  totalRemittanceInINR: number | null;
+  /** Raw provider value (may be a message string). */
+  totalRemittanceInINRRaw: string | number | null;
+  category: string | null;
+  detailsAvailable: boolean;
 };

@@ -42,6 +42,7 @@ import {
 import {
   CompleteForexRequestDto,
   CompleteForexOrderDto,
+  CheckLrsDto,
   ForexOrderDetailDto,
   GetAgentChargesQueryDto,
   GetForexOrdersDashboardQueryDto,
@@ -50,6 +51,7 @@ import {
   InitiateForexRequestDto,
   ProviderTokenStatusQueryDto,
 } from './dto';
+import { PrithviLeadSystemService } from 'src/services/prithvi-lead-system';
 
 export type GetAdminForexOrdersQuery = GetForexOrdersDashboardQueryDto & {
   createdByUserId?: string;
@@ -64,6 +66,7 @@ export class RemittanceService {
   constructor(
     private readonly prithviService: PrithviExchangeService,
     private readonly prithviForex: PrithviForexApiService,
+    private readonly prithviLeadSystem: PrithviLeadSystemService,
     private readonly forexOrders: PrithviForexOrderService,
     private readonly forexOrderNotifications: ForexOrderNotificationService,
     private readonly filesService: FilesService,
@@ -113,14 +116,25 @@ export class RemittanceService {
   }
 
   async getCharges(query: GetAgentChargesQueryDto) {
+    const totalLrsAmount =
+      typeof query.totalLrsAmount === 'number' &&
+      Number.isFinite(query.totalLrsAmount) &&
+      query.totalLrsAmount > 0
+        ? query.totalLrsAmount
+        : query.inrAmount;
     return this.prithviForex.getAgentCharges({
       orderType: query.orderType,
       productType: query.productType,
       currencyCode: query.currencyCode,
       currencyAmount: query.currencyAmount,
       inrAmount: query.inrAmount,
+      totalLrsAmount,
       purposeCode: query.purposeCode,
     });
+  }
+
+  async checkLrs(dto: CheckLrsDto) {
+    return this.prithviLeadSystem.checkLrs({ pan: dto.pan });
   }
 
   async initiateForex(dto: InitiateForexRequestDto, userId: string) {
@@ -144,8 +158,13 @@ export class RemittanceService {
     const data = await this.prithviForex.initiateForexRequest({
       orderType: payload.orderType,
       orderDetails: payload.orderDetails.map((order) => {
-        const { customerSellRate: _unused, ...prithviDetail } = order;
-        void _unused;
+        const {
+          customerSellRate: _customerSellRate,
+          totalLrsAmount: _totalLrsAmount,
+          ...prithviDetail
+        } = order;
+        void _customerSellRate;
+        void _totalLrsAmount;
         return prithviDetail;
       }),
     });
@@ -745,6 +764,12 @@ export class RemittanceService {
       sellRate > 0 && order.currencyAmount > 0
         ? Math.round(order.currencyAmount * sellRate * 100) / 100
         : order.amountInINR;
+    const totalLrsAmount =
+      typeof order.totalLrsAmount === 'number' &&
+      Number.isFinite(order.totalLrsAmount) &&
+      order.totalLrsAmount > 0
+        ? order.totalLrsAmount
+        : chargesInrAmount;
     return this.prithviForex.withProviderCharges(
       {
         orderType,
@@ -752,6 +777,7 @@ export class RemittanceService {
         currencyCode: order.currency,
         currencyAmount: order.currencyAmount,
         inrAmount: chargesInrAmount,
+        totalLrsAmount,
         purposeCode: resolvedPurposeCode,
       },
       order,

@@ -137,6 +137,17 @@ export class ForexOrderDetailDto {
   @Type(() => Number)
   customerSellRate?: number;
 
+  @ApiPropertyOptional({
+    example: 952500,
+    description:
+      'Total LRS INR used when re-fetching provider charges on initiate (`total_lrs_amount`). Stripped before Prithvi initiate.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  totalLrsAmount?: number;
+
   @ApiProperty({ example: 150.3 })
   @IsNumber()
   @Min(0)

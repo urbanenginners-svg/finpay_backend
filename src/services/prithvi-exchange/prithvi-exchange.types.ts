@@ -127,6 +127,11 @@ export type GetAgentChargesParams = {
   currencyCode: string;
   currencyAmount: number;
   inrAmount: number;
+  /**
+   * Prithvi `total_lrs_amount` query param.
+   * Defaults to `inrAmount` when omitted.
+   */
+  totalLrsAmount?: number;
   /** Purpose config `code` after the user selects a purpose. */
   purposeCode: string;
   /** Defaults to `PRITHVI_AGENT_ID` when omitted. */

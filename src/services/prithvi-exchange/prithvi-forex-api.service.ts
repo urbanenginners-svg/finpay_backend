@@ -324,6 +324,13 @@ export class PrithviForexApiService {
       );
     }
 
+    const totalLrsAmount =
+      typeof params.totalLrsAmount === 'number' &&
+      Number.isFinite(params.totalLrsAmount) &&
+      params.totalLrsAmount > 0
+        ? params.totalLrsAmount
+        : params.inrAmount;
+
     const raw = await this.requestJson<unknown>({
       method: 'GET',
       callType: PrithviApiCallType.AGENT_CHARGES,
@@ -335,6 +342,7 @@ export class PrithviForexApiService {
         currency_code: String(params.currencyCode).toUpperCase(),
         currency_amount: params.currencyAmount,
         inr_amount: params.inrAmount,
+        total_lrs_amount: totalLrsAmount,
         agentId,
         purpose_code: purposeCode,
       },
@@ -344,7 +352,10 @@ export class PrithviForexApiService {
         'Unable to load charges right now. Please try again later.',
     });
 
-    return this.normalizeAgentCharges(unwrapChargeLines(raw), params);
+    return this.normalizeAgentCharges(unwrapChargeLines(raw), {
+      ...params,
+      totalLrsAmount,
+    });
   }
 
   /**

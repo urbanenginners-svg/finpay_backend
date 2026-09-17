@@ -27,6 +27,7 @@ import {
   GetPurposesQueryDto,
   GetRemittanceRatesQueryDto,
   InitiateForexRequestDto,
+  CheckLrsDto,
   SubmitForexOfflinePaymentDto,
   UploadForexOrderDocumentDto,
 } from './dto';
@@ -40,6 +41,7 @@ import {
   MAX_FILE_SIZE_BYTES,
 } from 'src/utils/validators/file.validator';
 import {
+  CheckLrsSwagger,
   CompleteForexRequestSwagger,
   CreatePaymentLinkSwagger,
   GetAgentChargesSwagger,
@@ -97,6 +99,18 @@ export class RemittanceController {
   async getCharges(@Query() query: GetAgentChargesQueryDto) {
     const charges = await this.remittanceService.getCharges(query);
     return new DataResponse(charges, 'Charges fetched successfully');
+  }
+
+  @ApiBearerAuth()
+  @Version('1')
+  @Post('lrs/check')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerBehindProxyGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @CheckLrsSwagger()
+  async checkLrs(@Body() dto: CheckLrsDto) {
+    const data = await this.remittanceService.checkLrs(dto);
+    return new DataResponse(data, 'LRS limit verified successfully');
   }
 
   @ApiBearerAuth()

@@ -16,7 +16,9 @@ import {
 } from './prithvi-lead-system.constants';
 import { PrithviLeadSystemApiLogService } from './prithvi-lead-system-api-log.service';
 import type {
+  CheckLrsParams,
   PrithviLeadSystemApiResponse,
+  PrithviLeadSystemLrsCheckData,
   PrithviLeadSystemOAuthTokenData,
   PrithviLeadSystemPanInnerResult,
   PrithviLeadSystemPanVerificationData,
@@ -28,6 +30,7 @@ import type {
   VerifyPassportParams,
 } from './prithvi-lead-system.types';
 import { PrithviLeadSystemApiCallType } from './prithvi-lead-system.types';
+import { parseTotalRemittanceInInr } from 'src/utils/lrs-amount.util';
 
 const SENSITIVE_KEYS = new Set([
   'client_secret',
@@ -466,6 +469,166 @@ export class PrithviLeadSystemService {
     }
   }
 
+  /**
+   * Check Liberalised Remittance Scheme (LRS) utilisation for a PAN.
+   * Proxies Prithvi Lead System POST /verification/lrs with body `{ pan }`.
+   */
+  async checkLrs(params: CheckLrsParams): Promise<PrithviLeadSystemLrsCheckData> {
+    const pan = params.pan.trim().toUpperCase();
+    const requestBody = { pan };
+
+    if (!this.isActive) {
+      this.logger.warn(
+        `PRITHVI_LEAD_SYSTEM_ACTIVE_MODE is not "true"; returning dry-run LRS check. pan=${pan}`,
+      );
+      const dryRunResult: PrithviLeadSystemLrsCheckData = {
+        success: true,
+        fromCache: false,
+        pan,
+        reportDate: new Date().toISOString(),
+        currency: 'USD',
+        limit: 250000,
+        totalRemittance: 'Details for this PAN is not available',
+        totalRemittanceInINR: null,
+        totalRemittanceInINRRaw: 'Details for this PAN is not available',
+        category: 'NFINMAS',
+        detailsAvailable: false,
+      };
+      void this.apiLog
+        .create({
+          callType: PrithviLeadSystemApiCallType.LRS_CHECK,
+          method: 'POST',
+          url: this.buildUrl(PRITHVI_LEAD_SYSTEM_API_PATHS.LRS_CHECK),
+          requestBody: this.sanitizeObject(requestBody),
+          requestParams: null,
+          requestHeaders: this.sanitizeHeaders({
+            Authorization: 'Bearer [REDACTED]',
+            'Content-Type': 'application/json',
+            accept: 'application/json',
+          }),
+          httpStatus: null,
+          responseBody: dryRunResult as unknown as Record<string, unknown>,
+          success: true,
+          errorMessage: null,
+          durationMs: 0,
+          isDryRun: true,
+        })
+        .catch((e: unknown) =>
+          this.logger.error(
+            `Prithvi Lead System API log save failed: ${e instanceof Error ? e.message : String(e)}`,
+          ),
+        );
+      return dryRunResult;
+    }
+
+    const accessToken = await this.getValidAccessToken();
+    const url = this.buildUrl(PRITHVI_LEAD_SYSTEM_API_PATHS.LRS_CHECK);
+    const startedAt = Date.now();
+    let httpStatus: number | null = null;
+    let responseBody: Record<string, unknown> | null = null;
+    let requestHeaders: Record<string, unknown> | null = null;
+    let success = false;
+    let errorMessage: string | null = null;
+
+    try {
+      const buildHeaders = (token: string) => ({
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      });
+
+      const verifyRequest = (token: string) =>
+        axios.post<PrithviLeadSystemApiResponse<Record<string, unknown>>>(
+          url,
+          requestBody,
+          {
+            headers: buildHeaders(token),
+            validateStatus: () => true,
+          },
+        );
+
+      let token = accessToken;
+      requestHeaders = this.sanitizeHeaders(buildHeaders(token));
+      let response = await verifyRequest(token);
+
+      if (this.isAuthTokenRejected(response.status, response.data)) {
+        this.logger.warn(
+          'Prithvi Lead System LRS check received 401; refreshing OAuth token and retrying once.',
+        );
+        token = await this.getValidAccessToken({ forceRefresh: true });
+        requestHeaders = this.sanitizeHeaders(buildHeaders(token));
+        response = await verifyRequest(token);
+      }
+
+      httpStatus = response.status;
+      responseBody = this.sanitizeObject(
+        response.data as unknown as Record<string, unknown>,
+      );
+
+      if (response.status < 200 || response.status >= 300) {
+        errorMessage = `HTTP ${response.status}: ${JSON.stringify(response.data)}`;
+        this.logger.error(
+          `Prithvi Lead System LRS check HTTP ${response.status}: ${JSON.stringify(response.data)}`,
+        );
+        throw new InternalServerErrorException(
+          'Unable to check LRS limit right now. Please try again later.',
+        );
+      }
+
+      if (!response.data?.success) {
+        errorMessage = `API error: ${JSON.stringify(response.data)}`;
+        this.logger.warn(
+          `Prithvi Lead System LRS check API error: ${JSON.stringify(response.data)}`,
+        );
+        throw new InternalServerErrorException(
+          response.data?.message ||
+            'Unable to check LRS limit right now. Please try again later.',
+        );
+      }
+
+      const parsed = this.parseLrsCheckResponse(response.data, pan);
+      success = true;
+      this.logger.log(
+        `Prithvi Lead System LRS checked: pan=${pan} detailsAvailable=${parsed.detailsAvailable} totalRemittanceInINR=${parsed.totalRemittanceInINR ?? 'n/a'}`,
+      );
+      return parsed;
+    } catch (err) {
+      if (err instanceof InternalServerErrorException) throw err;
+      errorMessage = isAxiosError(err)
+        ? `Network error: ${err.message}`
+        : err instanceof Error
+          ? err.message
+          : String(err);
+      this.logger.error(
+        `Prithvi Lead System LRS check failed: ${errorMessage}`,
+      );
+      throw new InternalServerErrorException(
+        'Unable to check LRS limit right now. Please try again later.',
+      );
+    } finally {
+      void this.apiLog
+        .create({
+          callType: PrithviLeadSystemApiCallType.LRS_CHECK,
+          method: 'POST',
+          url,
+          requestBody: this.sanitizeObject(requestBody),
+          requestParams: null,
+          requestHeaders,
+          httpStatus,
+          responseBody,
+          success,
+          errorMessage,
+          durationMs: Date.now() - startedAt,
+          isDryRun: false,
+        })
+        .catch((e: unknown) =>
+          this.logger.error(
+            `Prithvi Lead System API log save failed: ${e instanceof Error ? e.message : String(e)}`,
+          ),
+        );
+    }
+  }
+
   async ensureTokenFreshness(): Promise<void> {
     if (!this.isActive) {
       return;
@@ -566,6 +729,45 @@ export class PrithviLeadSystemService {
       file_number: inner?.file_number ?? params.fileNumber,
       dob: inner?.dob ?? params.dob,
       source: wrapper?.source,
+    };
+  }
+
+  private parseLrsCheckResponse(
+    envelope: PrithviLeadSystemApiResponse<Record<string, unknown>>,
+    pan: string,
+  ): PrithviLeadSystemLrsCheckData {
+    const data = envelope.data ?? {};
+    const rawInr = data.totalRemittanceInINR ?? null;
+    const limitRaw = data.limit ?? data.Limit;
+    const limit =
+      typeof limitRaw === 'number' && Number.isFinite(limitRaw)
+        ? limitRaw
+        : typeof limitRaw === 'string' && Number.isFinite(Number(limitRaw))
+          ? Number(limitRaw)
+          : null;
+
+    return {
+      success: data.success !== false,
+      fromCache: Boolean(data.fromCache),
+      pan: typeof data.pan === 'string' ? data.pan.toUpperCase() : pan,
+      reportDate:
+        typeof data.reportDate === 'string' ? data.reportDate : null,
+      currency: typeof data.currency === 'string' ? data.currency : null,
+      limit,
+      totalRemittance:
+        typeof data.totalRemittance === 'string' ||
+        typeof data.totalRemittance === 'number'
+          ? data.totalRemittance
+          : null,
+      totalRemittanceInINR: parseTotalRemittanceInInr(rawInr),
+      totalRemittanceInINRRaw:
+        typeof rawInr === 'string' || typeof rawInr === 'number'
+          ? rawInr
+          : null,
+      category: typeof data.category === 'string' ? data.category : null,
+      detailsAvailable: Boolean(
+        data.detailsAvailable ?? parseTotalRemittanceInInr(rawInr) != null,
+      ),
     };
   }
 

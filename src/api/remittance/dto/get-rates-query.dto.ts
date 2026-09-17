@@ -90,6 +90,17 @@ export class GetAgentChargesQueryDto {
   })
   @IsString()
   purposeCode: string;
+
+  @ApiPropertyOptional({
+    example: 952500,
+    description:
+      'Total LRS INR for Prithvi charges (`total_lrs_amount`). When prior remittance INR is known this is remittance + inrAmount; otherwise equals inrAmount. Defaults to inrAmount when omitted.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  totalLrsAmount?: number;
 }
 
 export class RemittanceRateResponseDto {
