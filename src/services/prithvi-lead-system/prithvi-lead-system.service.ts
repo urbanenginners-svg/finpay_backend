@@ -15,6 +15,7 @@ import {
   PRITHVI_LEAD_SYSTEM_TOKEN_REFRESH_BUFFER_MS,
 } from './prithvi-lead-system.constants';
 import { PrithviLeadSystemApiLogService } from './prithvi-lead-system-api-log.service';
+import { PrithviLrsCacheService } from './prithvi-lrs-cache.service';
 import type {
   CheckLrsParams,
   PrithviLeadSystemApiResponse,
@@ -56,6 +57,7 @@ export class PrithviLeadSystemService {
     private readonly config: AppConfigService,
     private readonly tokenStore: RemittanceProviderTokenService,
     private readonly apiLog: PrithviLeadSystemApiLogService,
+    private readonly lrsCache: PrithviLrsCacheService,
   ) {}
 
   get isActive(): boolean {
@@ -472,10 +474,22 @@ export class PrithviLeadSystemService {
   /**
    * Check Liberalised Remittance Scheme (LRS) utilisation for a PAN.
    * Proxies Prithvi Lead System POST /verification/lrs with body `{ pan }`.
+   * Successful results are cached per PAN for 24 hours.
    */
   async checkLrs(params: CheckLrsParams): Promise<PrithviLeadSystemLrsCheckData> {
     const pan = params.pan.trim().toUpperCase();
     const requestBody = { pan };
+
+    const cached = await this.lrsCache.findValidByPan(pan);
+    if (cached) {
+      // Prefer live cache when provider is active; ignore stale dry-run rows.
+      if (!this.isActive || !cached.isDryRun) {
+        this.logger.log(
+          `Prithvi Lead System LRS served from cache: pan=${pan} expiresAt=${cached.expiresAt.toISOString()}`,
+        );
+        return this.lrsCache.toLrsCheckData(cached);
+      }
+    }
 
     if (!this.isActive) {
       this.logger.warn(
@@ -494,6 +508,13 @@ export class PrithviLeadSystemService {
         category: 'NFINMAS',
         detailsAvailable: false,
       };
+      void this.lrsCache
+        .upsert({ pan, result: dryRunResult, isDryRun: true })
+        .catch((e: unknown) =>
+          this.logger.error(
+            `Prithvi LRS cache save failed: ${e instanceof Error ? e.message : String(e)}`,
+          ),
+        );
       void this.apiLog
         .create({
           callType: PrithviLeadSystemApiCallType.LRS_CHECK,
@@ -591,6 +612,13 @@ export class PrithviLeadSystemService {
       this.logger.log(
         `Prithvi Lead System LRS checked: pan=${pan} detailsAvailable=${parsed.detailsAvailable} totalRemittanceInINR=${parsed.totalRemittanceInINR ?? 'n/a'}`,
       );
+      void this.lrsCache
+        .upsert({ pan, result: parsed, isDryRun: false })
+        .catch((e: unknown) =>
+          this.logger.error(
+            `Prithvi LRS cache save failed: ${e instanceof Error ? e.message : String(e)}`,
+          ),
+        );
       return parsed;
     } catch (err) {
       if (err instanceof InternalServerErrorException) throw err;

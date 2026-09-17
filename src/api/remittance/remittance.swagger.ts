@@ -115,7 +115,7 @@ export function CheckLrsSwagger() {
     ApiOperation({
       summary: 'Check LRS remittance utilisation for a PAN',
       description:
-        'Proxies Prithvi Lead System POST /verification/lrs. Returns LRS limit and totalRemittanceInINR when available. Use totalRemittanceInINR with the booking inrAmount to build charges totalLrsAmount.',
+        'Proxies Prithvi Lead System POST /verification/lrs. Successful results are cached per PAN for 24 hours (`fromCache: true` on hits). Returns LRS limit and totalRemittanceInINR when available. Use totalRemittanceInINR with the booking inrAmount to build charges totalLrsAmount.',
     }),
     ApiBody({ type: CheckLrsDto }),
     ApiResponse({
