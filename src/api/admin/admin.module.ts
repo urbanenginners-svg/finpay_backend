@@ -6,6 +6,7 @@ import { AdminRatesController } from './admin-rates.controller';
 import { AdminForexOrdersController } from './admin-forex-orders.controller';
 import { AdminAgentCardRatesController } from './admin-agent-card-rates.controller';
 import { AdminCustomerCardRatesController } from './admin-customer-card-rates.controller';
+import { AdminCardRateConfigController } from './admin-card-rate-config.controller';
 import { AdminService } from './admin.service';
 import { RemittanceModule } from '../remittance/remittance.module';
 import { User, UserSchema } from 'src/services/mongoose/schemas/user.schema';
@@ -31,6 +32,7 @@ import { AuthModule } from '../auth/auth.module';
     AdminForexOrdersController,
     AdminAgentCardRatesController,
     AdminCustomerCardRatesController,
+    AdminCardRateConfigController,
   ],
   providers: [AdminService, CaslAbilityFactory, PoliciesGuard],
   exports: [AdminService],

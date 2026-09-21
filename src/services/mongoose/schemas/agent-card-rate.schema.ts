@@ -10,7 +10,7 @@ export type AgentCardRateDocument = HydratedDocument<AgentCardRate>;
  * y = live TT buy rate from Prithvi (not entered by admin)
  * c = finpayCommission — admin-configured Finpay markup over live TT
  * x = finpaySellRate = y + c — always recomputed from live TT on read/booking
- * cardRate / IBR     — always live TT + 3%; recomputed whenever Y changes
+ * cardRate / IBR     — (live TT − ttPaiseOffset) × (1 + markup%/100); recomputed on read
  *
  * vendorRate / finpaySellRate / cardRate on this collection are last-seen
  * snapshots at save. Reads and bookings always overlay the current live TT.
@@ -56,7 +56,7 @@ export class AgentCardRate {
   @ApiProperty({
     example: 30,
     description:
-      'Card rate / IBR — always live TT (Y) + 3%. Stored as a snapshot; reads recompute from live TT.',
+      'Card rate / IBR — (live TT − paise offset) × (1 + markup%/100). Snapshot at save; reads recompute.',
     default: 0,
   })
   @Prop({ required: true, type: Number, default: 0, min: 0 })

@@ -15,6 +15,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 
 import { AgentCardRateService } from 'src/services/agent-card-rate/agent-card-rate.service';
+import { CardRateConfigService } from 'src/services/card-rate-config/card-rate-config.service';
 import { PrithviForexOrderService } from 'src/services/prithvi-exchange/prithvi-forex-order.service';
 import { RemittanceService } from '../remittance/remittance.service';
 import { PoliciesGuard } from 'src/services/casl/casl-policies.guard';
@@ -29,6 +30,7 @@ import {
   maxFinpayCommission,
   resolveFinpayCommission,
   roundMoney,
+  type CardRateCalcOptions,
 } from 'src/utils/agent-commission.util';
 import {
   BulkUpsertAgentCardRatesDto,
@@ -64,11 +66,12 @@ function assertCommissionWithinCardRate(
   currency: string,
   liveTtRate: number,
   finpayCommission: number,
+  options?: CardRateCalcOptions,
 ): { cardRate: number; finpaySellRate: number } {
-  const cardRate = cardRateFromLiveTt(liveTtRate);
+  const cardRate = cardRateFromLiveTt(liveTtRate, options);
   const finpaySellRate =
     liveTtRate > 0 ? roundMoney(liveTtRate + finpayCommission) : finpayCommission;
-  const maxCommission = maxFinpayCommission(liveTtRate);
+  const maxCommission = maxFinpayCommission(liveTtRate, options);
   if (cardRate > 0 && finpayCommission > maxCommission) {
     const label = currency ? `${currency}: ` : '';
     throw new BadRequestException(
@@ -85,6 +88,7 @@ function assertCommissionWithinCardRate(
 export class AdminAgentCardRatesController {
   constructor(
     private readonly cardRates: AgentCardRateService,
+    private readonly cardRateConfig: CardRateConfigService,
     private readonly forexOrders: PrithviForexOrderService,
     private readonly remittanceService: RemittanceService,
   ) {}
@@ -93,12 +97,17 @@ export class AdminAgentCardRatesController {
   @Get('agents/:agentId/card-rates')
   @CheckActionPolicy(PermissionEnum.READ, resource.User)
   async listCardRates(@Param('agentId') agentId: string) {
-    const [rows, liveMap] = await Promise.all([
+    const [rows, liveMap, configMap] = await Promise.all([
       this.cardRates.listByAgent(agentId),
       this.remittanceService.getLiveTtBuyRatesByCurrency(),
+      this.cardRateConfig.getCalcOptionsMap(),
     ]);
     const data = rows.map((row) =>
-      applyLiveTtToCardRates(row, liveMap.get(row.currency) ?? 0),
+      applyLiveTtToCardRates(
+        row,
+        liveMap.get(row.currency) ?? 0,
+        this.cardRateConfig.calcOptionsFor(row.currency, configMap),
+      ),
     );
     return new DataResponse(data);
   }
@@ -111,14 +120,16 @@ export class AdminAgentCardRatesController {
     @Body() dto: UpsertAgentCardRateDto,
     @GetUser('_id') adminId: string,
   ) {
-    const liveTtRate = await this.remittanceService.getLiveTtBuyRate(
-      dto.currency,
-    );
+    const [liveTtRate, options] = await Promise.all([
+      this.remittanceService.getLiveTtBuyRate(dto.currency),
+      this.cardRateConfig.getCalcOptions(dto.currency),
+    ]);
     const finpayCommission = resolveUpsertCommission(dto, liveTtRate);
     const { cardRate, finpaySellRate } = assertCommissionWithinCardRate(
       dto.currency,
       liveTtRate,
       finpayCommission,
+      options,
     );
     const data = await this.cardRates.upsertRate({
       agentId,
@@ -140,17 +151,22 @@ export class AdminAgentCardRatesController {
     @Body() dto: BulkUpsertAgentCardRatesDto,
     @GetUser('_id') adminId: string,
   ) {
-    const liveMap = await this.remittanceService.getLiveTtBuyRatesByCurrency();
+    const [liveMap, configMap] = await Promise.all([
+      this.remittanceService.getLiveTtBuyRatesByCurrency(),
+      this.cardRateConfig.getCalcOptionsMap(),
+    ]);
     const data = await this.cardRates.bulkUpsert(
       agentId,
       dto.rates.map((rate) => {
-        const liveTtRate =
-          liveMap.get(String(rate.currency ?? '').trim().toUpperCase()) ?? 0;
+        const currency = String(rate.currency ?? '').trim().toUpperCase();
+        const liveTtRate = liveMap.get(currency) ?? 0;
+        const options = this.cardRateConfig.calcOptionsFor(currency, configMap);
         const finpayCommission = resolveUpsertCommission(rate, liveTtRate);
         const { cardRate, finpaySellRate } = assertCommissionWithinCardRate(
           rate.currency,
           liveTtRate,
           finpayCommission,
+          options,
         );
         return {
           currency: rate.currency,

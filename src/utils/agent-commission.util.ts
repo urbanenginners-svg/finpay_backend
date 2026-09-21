@@ -5,13 +5,24 @@
  * c = finpayCommission — admin-configured Finpay markup over live TT
  * x = finpaySellRate = y + c (always tracks live TT)
  * z = customerSellRate
- * card rate (IBR) = y × (1 + CARD_RATE_TT_MARKUP_PERCENT / 100)
+ * effectiveY = max(0, y − ttPaiseOffset)  // default offset = 8 paise
+ * card rate (IBR) = effectiveY × (1 + markupPercent / 100)
  * Finpay commission / unit = c (= x - y)
  * Agent commission / unit  = z - x
  */
 
-/** Card rate / IBR is always this markup over live TT (Y). */
+/** Default card-rate / IBR markup over (live TT − paise offset). */
 export const CARD_RATE_TT_MARKUP_PERCENT = 3;
+
+/** Default amount (INR) subtracted from live TT before markup. 8 paise = ₹0.08. */
+export const DEFAULT_TT_PAISE_OFFSET = 0.08;
+
+export type CardRateCalcOptions = {
+  /** Markup percent; defaults to CARD_RATE_TT_MARKUP_PERCENT. */
+  markupPercent?: number;
+  /** INR subtracted from live TT before markup; defaults to DEFAULT_TT_PAISE_OFFSET. */
+  ttPaiseOffset?: number;
+};
 
 export type AgentCardRateSnapshot = {
   vendorRate: number;
@@ -40,11 +51,36 @@ export function toFiniteNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-/** IBR / card-rate ceiling: live TT (Y) plus 3%. */
-export function cardRateFromLiveTt(liveTtRate: number): number {
+/** Live TT after subtracting the configured paise offset (floor at 0). */
+export function effectiveTtForCardRate(
+  liveTtRate: number,
+  ttPaiseOffset: number = DEFAULT_TT_PAISE_OFFSET,
+): number {
   const y = toFiniteNumber(liveTtRate, 0);
   if (!(y > 0)) return 0;
-  return roundMoney(y * (1 + CARD_RATE_TT_MARKUP_PERCENT / 100));
+  const offset = Math.max(0, toFiniteNumber(ttPaiseOffset, DEFAULT_TT_PAISE_OFFSET));
+  return roundMoney(Math.max(0, y - offset));
+}
+
+/**
+ * IBR / card-rate ceiling:
+ * (live TT − ttPaiseOffset) × (1 + markupPercent / 100).
+ */
+export function cardRateFromLiveTt(
+  liveTtRate: number,
+  options?: CardRateCalcOptions,
+): number {
+  const markup = toFiniteNumber(
+    options?.markupPercent,
+    CARD_RATE_TT_MARKUP_PERCENT,
+  );
+  const offset = toFiniteNumber(
+    options?.ttPaiseOffset,
+    DEFAULT_TT_PAISE_OFFSET,
+  );
+  const effectiveY = effectiveTtForCardRate(liveTtRate, offset);
+  if (!(effectiveY > 0)) return 0;
+  return roundMoney(effectiveY * (1 + Math.max(0, markup) / 100));
 }
 
 /**
@@ -70,11 +106,14 @@ export function resolveFinpayCommission(row: {
   return 0;
 }
 
-/** Max Finpay commission so X stays at or below card rate (Y + 3%). */
-export function maxFinpayCommission(liveTtRate: number): number {
+/** Max Finpay commission so X stays at or below card rate. */
+export function maxFinpayCommission(
+  liveTtRate: number,
+  options?: CardRateCalcOptions,
+): number {
   const y = toFiniteNumber(liveTtRate, 0);
   if (!(y > 0)) return 0;
-  return roundMoney(cardRateFromLiveTt(y) - y);
+  return roundMoney(Math.max(0, cardRateFromLiveTt(y, options) - y));
 }
 
 export function applyLiveTtToCardRates<
@@ -84,7 +123,7 @@ export function applyLiveTtToCardRates<
     finpaySellRate?: number;
     finpayCommission?: number | null;
   },
->(row: T, liveTtRate: number): T {
+>(row: T, liveTtRate: number, options?: CardRateCalcOptions): T {
   const y = toFiniteNumber(liveTtRate, 0);
   if (!(y > 0)) return row;
 
@@ -99,7 +138,7 @@ export function applyLiveTtToCardRates<
   return {
     ...row,
     vendorRate: y,
-    cardRate: cardRateFromLiveTt(y),
+    cardRate: cardRateFromLiveTt(y, options),
     ...(configured
       ? {
           finpayCommission: commission,

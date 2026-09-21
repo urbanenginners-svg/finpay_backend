@@ -18,6 +18,7 @@ import {
 } from 'src/services/prithvi-exchange';
 import { AgentCardRateService } from 'src/services/agent-card-rate/agent-card-rate.service';
 import { CustomerCardRateService } from 'src/services/customer-card-rate/customer-card-rate.service';
+import { CardRateConfigService } from 'src/services/card-rate-config/card-rate-config.service';
 import { PrithviForexOrderService } from 'src/services/prithvi-exchange/prithvi-forex-order.service';
 import { ForexOrderNotificationService } from 'src/services/prithvi-exchange/forex-order-notification.service';
 import { User, UserDocument } from 'src/services/mongoose/schemas/user.schema';
@@ -34,6 +35,7 @@ import {
   roundMoney,
   toFiniteNumber,
   validateCustomerSellRate,
+  type CardRateCalcOptions,
 } from 'src/utils/agent-commission.util';
 import {
   isAgentForexBooking,
@@ -72,6 +74,7 @@ export class RemittanceService {
     private readonly filesService: FilesService,
     private readonly agentCardRates: AgentCardRateService,
     private readonly customerCardRates: CustomerCardRateService,
+    private readonly cardRateConfig: CardRateConfigService,
     private readonly agentCustomers: AgentCustomerService,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
@@ -1149,22 +1152,24 @@ export class RemittanceService {
   }
 
   private async resolveLiveCardSnapshot(agentId: string, currency: string) {
-    const [saved, liveY] = await Promise.all([
+    const [saved, liveY, options] = await Promise.all([
       this.agentCardRates.getOrDefault(agentId, currency),
       this.getLiveTtBuyRate(currency),
+      this.cardRateConfig.getCalcOptions(currency),
     ]);
-    return applyLiveTtToCardRates(saved, liveY);
+    return applyLiveTtToCardRates(saved, liveY, options);
   }
 
   /**
    * Retail snapshot for customers: always X = live TT + commission (c may be 0).
    */
   private async resolveCustomerLiveCardSnapshot(currency: string) {
-    const [saved, liveY] = await Promise.all([
+    const [saved, liveY, options] = await Promise.all([
       this.customerCardRates.getOrDefault(currency),
       this.getLiveTtBuyRate(currency),
+      this.cardRateConfig.getCalcOptions(currency),
     ]);
-    const applied = applyLiveTtToCardRates(saved, liveY);
+    const applied = applyLiveTtToCardRates(saved, liveY, options);
     const y = toFiniteNumber(liveY, 0);
     if (!(y > 0)) {
       return applied;
@@ -1199,15 +1204,17 @@ export class RemittanceService {
   }
 
   async listCustomerCardRates() {
-    const [rows, liveMap] = await Promise.all([
+    const [rows, liveMap, configMap] = await Promise.all([
       this.customerCardRates.listAll(),
       this.getLiveTtBuyRatesByCurrency(),
+      this.cardRateConfig.getCalcOptionsMap(),
     ]);
     const fromSaved = new Map(
       rows.map((row) => {
         const live = this.applyCustomerLiveOverlay(
           row,
           liveMap.get(row.currency) ?? 0,
+          this.cardRateConfig.calcOptionsFor(row.currency, configMap),
         );
         return [row.currency, live] as const;
       }),
@@ -1233,6 +1240,7 @@ export class RemittanceService {
             cardRate: 0,
           },
           y,
+          this.cardRateConfig.calcOptionsFor(currency, configMap),
         );
       });
   }
@@ -1261,8 +1269,12 @@ export class RemittanceService {
       id?: string;
       updatedAt?: string;
     },
-  >(row: T, liveY: number) {
-    const applied = applyLiveTtToCardRates(row, liveY);
+  >(
+    row: T,
+    liveY: number,
+    options?: CardRateCalcOptions,
+  ) {
+    const applied = applyLiveTtToCardRates(row, liveY, options);
     const y = toFiniteNumber(liveY, 0);
     const commission = resolveFinpayCommission(applied);
     return {
@@ -1275,14 +1287,16 @@ export class RemittanceService {
   }
 
   async listMyCardRates(agentId: string) {
-    const [rows, liveMap] = await Promise.all([
+    const [rows, liveMap, configMap] = await Promise.all([
       this.agentCardRates.listByAgent(agentId),
       this.getLiveTtBuyRatesByCurrency(),
+      this.cardRateConfig.getCalcOptionsMap(),
     ]);
     return rows.map((row) => {
       const live = applyLiveTtToCardRates(
         row,
         liveMap.get(row.currency) ?? 0,
+        this.cardRateConfig.calcOptionsFor(row.currency, configMap),
       );
       return {
         id: live.id,

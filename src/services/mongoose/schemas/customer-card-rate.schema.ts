@@ -10,7 +10,7 @@ export type CustomerCardRateDocument = HydratedDocument<CustomerCardRate>;
  * y = live TT buy rate from Prithvi (not entered by admin)
  * c = finpayCommission — admin-configured Finpay markup over live TT
  * x = finpaySellRate = y + c — rate customers see and pay; recomputed on read
- * cardRate / IBR     — always live TT + 3%; recomputed whenever Y changes
+ * cardRate / IBR     — (live TT − ttPaiseOffset) × (1 + markup%/100); recomputed on read
  *
  * Independent of agent_card_rates (per-agent B2B).
  */
@@ -49,7 +49,7 @@ export class CustomerCardRate {
   @ApiProperty({
     example: 30,
     description:
-      'Card rate / IBR — always live TT (Y) + 3%. Stored as a snapshot; reads recompute from live TT.',
+      'Card rate / IBR — (live TT − paise offset) × (1 + markup%/100). Snapshot at save; reads recompute.',
     default: 0,
   })
   @Prop({ required: true, type: Number, default: 0, min: 0 })

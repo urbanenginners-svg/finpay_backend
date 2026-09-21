@@ -24,6 +24,7 @@ import { PrithviExchangeModule } from "src/services/prithvi-exchange";
 import { PrithviLeadSystemModule } from "src/services/prithvi-lead-system";
 import { AgentCardRateModule } from "src/services/agent-card-rate/agent-card-rate.module";
 import { CustomerCardRateModule } from "src/services/customer-card-rate/customer-card-rate.module";
+import { CardRateConfigModule } from "src/services/card-rate-config/card-rate-config.module";
 import { JwtAuthGuard } from "src/services/auth/jwt-auth.guard";
 import { ApiKeyAuthGuard } from "src/services/auth/api-key-auth.guard";
 import { User, UserSchema } from "src/services/mongoose/schemas/user.schema";
@@ -62,6 +63,7 @@ import { SystemApiKey, SystemApiKeySchema } from "src/services/mongoose/schemas/
         PrithviLeadSystemModule,
         AgentCardRateModule,
         CustomerCardRateModule,
+        CardRateConfigModule,
     ],
     controllers: [AppController],
     providers: [
