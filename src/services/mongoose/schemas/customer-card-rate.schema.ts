@@ -5,20 +5,31 @@ import { HydratedDocument } from 'mongoose';
 export type CustomerCardRateDocument = HydratedDocument<CustomerCardRate>;
 
 /**
- * Global per-currency retail rates for registered customers (userType=user).
+ * Global per-currency, per-purpose retail rates for registered customers (userType=user).
  *
  * y = live TT buy rate from Prithvi (not entered by admin)
- * c = finpayCommission — admin-configured Finpay markup over live TT
+ * c = finpayCommission — admin-configured Finpay markup over live TT (per purpose)
  * x = finpaySellRate = y + c — rate customers see and pay; recomputed on read
  * cardRate / IBR     — (live TT − ttPaiseOffset) × (1 + markup%/100); recomputed on read
  *
  * Independent of agent_card_rates (per-agent B2B).
+ * Empty purposeCode is the legacy/default row used as fallback when no
+ * purpose-specific commission exists.
  */
 @Schema({ collection: 'customer_card_rates', timestamps: true })
 export class CustomerCardRate {
   @ApiProperty({ example: 'USD', description: 'ISO 4217 currency code.' })
-  @Prop({ required: true, type: String, uppercase: true, trim: true, unique: true })
+  @Prop({ required: true, type: String, uppercase: true, trim: true })
   currency: string;
+
+  @ApiProperty({
+    example: 'S0302',
+    description:
+      'LRS purpose code. Empty string = legacy/default commission for this currency.',
+    default: '',
+  })
+  @Prop({ required: true, type: String, trim: true, default: '' })
+  purposeCode: string;
 
   @ApiProperty({
     example: 20,
@@ -31,7 +42,7 @@ export class CustomerCardRate {
   @ApiProperty({
     example: 1.5,
     description:
-      'Finpay commission over live TT (INR per unit). Customer rate X = live TT + this.',
+      'Finpay commission over live TT (INR per unit) for this purpose. Customer rate X = live TT + this.',
     default: 0,
   })
   @Prop({ required: true, type: Number, default: 0, min: 0 })
@@ -69,4 +80,5 @@ export class CustomerCardRate {
 export const CustomerCardRateSchema =
   SchemaFactory.createForClass(CustomerCardRate);
 
-CustomerCardRateSchema.index({ currency: 1 }, { unique: true });
+CustomerCardRateSchema.index({ currency: 1, purposeCode: 1 }, { unique: true });
+CustomerCardRateSchema.index({ purposeCode: 1 });

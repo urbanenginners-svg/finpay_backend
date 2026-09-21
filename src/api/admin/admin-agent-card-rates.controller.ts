@@ -134,6 +134,7 @@ export class AdminAgentCardRatesController {
     const data = await this.cardRates.upsertRate({
       agentId,
       currency: dto.currency,
+      purposeCode: dto.purposeCode,
       vendorRate: liveTtRate,
       finpayCommission,
       finpaySellRate,
@@ -170,6 +171,7 @@ export class AdminAgentCardRatesController {
         );
         return {
           currency: rate.currency,
+          purposeCode: rate.purposeCode,
           vendorRate: liveTtRate,
           finpayCommission,
           finpaySellRate,
@@ -187,8 +189,9 @@ export class AdminAgentCardRatesController {
   async deleteCardRate(
     @Param('agentId') agentId: string,
     @Param('currency') currency: string,
+    @Query('purposeCode') purposeCode: string,
   ) {
-    await this.cardRates.deleteRate(agentId, currency);
+    await this.cardRates.deleteRate(agentId, currency, purposeCode);
     return new DataResponse(null, 'Card rate deleted.');
   }
 

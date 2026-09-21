@@ -5,17 +5,19 @@ import { HydratedDocument } from 'mongoose';
 export type AgentCardRateDocument = HydratedDocument<AgentCardRate>;
 
 /**
- * Per-agent, per-currency commercial rates set by admin.
+ * Per-agent, per-currency, per-purpose commercial rates set by admin.
  *
  * y = live TT buy rate from Prithvi (not entered by admin)
- * c = finpayCommission — admin-configured Finpay markup over live TT
+ * c = finpayCommission — admin-configured Finpay markup over live TT (per purpose)
  * x = finpaySellRate = y + c — always recomputed from live TT on read/booking
  * cardRate / IBR     — (live TT − ttPaiseOffset) × (1 + markup%/100); recomputed on read
  *
  * vendorRate / finpaySellRate / cardRate on this collection are last-seen
  * snapshots at save. Reads and bookings always overlay the current live TT.
  *
- * Defaults are 0 until admin configures commission.
+ * Defaults are 0 until admin configures commission for that purpose.
+ * Empty purposeCode is the legacy/default row used as fallback when no
+ * purpose-specific commission exists.
  */
 @Schema({ collection: 'agent_card_rates', timestamps: true })
 export class AgentCardRate {
@@ -28,6 +30,15 @@ export class AgentCardRate {
   currency: string;
 
   @ApiProperty({
+    example: 'S0302',
+    description:
+      'LRS purpose code. Empty string = legacy/default commission for this currency.',
+    default: '',
+  })
+  @Prop({ required: true, type: String, trim: true, default: '' })
+  purposeCode: string;
+
+  @ApiProperty({
     example: 20,
     description: 'Y — rate Finpay receives from third-party vendor (INR per unit).',
     default: 0,
@@ -38,7 +49,7 @@ export class AgentCardRate {
   @ApiProperty({
     example: 1.5,
     description:
-      'Finpay commission over live TT (INR per unit). Agent rate X = live TT + this.',
+      'Finpay commission over live TT (INR per unit) for this purpose. Agent rate X = live TT + this.',
     default: 0,
   })
   @Prop({ required: true, type: Number, default: 0, min: 0 })
@@ -75,5 +86,9 @@ export class AgentCardRate {
 
 export const AgentCardRateSchema = SchemaFactory.createForClass(AgentCardRate);
 
-AgentCardRateSchema.index({ agentId: 1, currency: 1 }, { unique: true });
+AgentCardRateSchema.index(
+  { agentId: 1, currency: 1, purposeCode: 1 },
+  { unique: true },
+);
 AgentCardRateSchema.index({ currency: 1 });
+AgentCardRateSchema.index({ purposeCode: 1 });

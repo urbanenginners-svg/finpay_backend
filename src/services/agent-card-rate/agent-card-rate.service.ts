@@ -1,7 +1,9 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -20,6 +22,8 @@ import {
 export type UpsertAgentCardRateInput = {
   agentId: string;
   currency: string;
+  /** LRS purpose code. Empty = default/legacy. */
+  purposeCode?: string;
   vendorRate?: number;
   /** Admin-configured Finpay markup over live TT (preferred). */
   finpayCommission?: number;
@@ -33,6 +37,7 @@ export type AgentCardRateRow = {
   id: string;
   agentId: string;
   currency: string;
+  purposeCode: string;
   vendorRate: number;
   finpayCommission: number;
   finpaySellRate: number;
@@ -52,7 +57,8 @@ const CARD_RATE_CACHE_TTL_MS = 30_000;
 const CARD_RATE_CACHE_MAX = 5_000;
 
 @Injectable()
-export class AgentCardRateService {
+export class AgentCardRateService implements OnModuleInit {
+  private readonly logger = new Logger(AgentCardRateService.name);
   private readonly cache = new Map<string, CacheEntry>();
 
   constructor(
@@ -60,8 +66,47 @@ export class AgentCardRateService {
     private readonly model: Model<AgentCardRateDocument>,
   ) {}
 
-  private cacheKey(agentId: string, currency: string): string {
-    return `${agentId}::${currency}`;
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.model.updateMany(
+        {
+          $or: [
+            { purposeCode: { $exists: false } },
+            { purposeCode: null },
+          ],
+        },
+        { $set: { purposeCode: '' } },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to backfill agent card rate purposeCode: ${String(err)}`,
+      );
+    }
+
+    for (const name of ['agentId_1_currency_1']) {
+      try {
+        await this.model.collection.dropIndex(name);
+        this.logger.log(`Dropped legacy index ${name}`);
+      } catch {
+        // Index may not exist.
+      }
+    }
+
+    try {
+      await this.model.syncIndexes();
+    } catch (err) {
+      this.logger.warn(
+        `Failed to sync agent card rate indexes: ${String(err)}`,
+      );
+    }
+  }
+
+  private cacheKey(
+    agentId: string,
+    currency: string,
+    purposeCode: string,
+  ): string {
+    return `${agentId}::${currency}::${purposeCode}`;
   }
 
   private normalizeCurrency(currency: string): string {
@@ -70,9 +115,30 @@ export class AgentCardRateService {
       .toUpperCase();
   }
 
-  private invalidate(agentId: string, currency?: string): void {
+  private normalizePurposeCode(purposeCode?: string | null): string {
+    return String(purposeCode ?? '').trim();
+  }
+
+  private invalidate(
+    agentId: string,
+    currency?: string,
+    purposeCode?: string,
+  ): void {
+    if (currency && purposeCode !== undefined) {
+      this.cache.delete(
+        this.cacheKey(
+          agentId,
+          this.normalizeCurrency(currency),
+          this.normalizePurposeCode(purposeCode),
+        ),
+      );
+      return;
+    }
     if (currency) {
-      this.cache.delete(this.cacheKey(agentId, this.normalizeCurrency(currency)));
+      const prefix = `${agentId}::${this.normalizeCurrency(currency)}::`;
+      for (const key of this.cache.keys()) {
+        if (key.startsWith(prefix)) this.cache.delete(key);
+      }
       return;
     }
     const prefix = `${agentId}::`;
@@ -84,13 +150,14 @@ export class AgentCardRateService {
   private putCache(
     agentId: string,
     currency: string,
+    purposeCode: string,
     value: AgentCardRateSnapshot | null,
   ): void {
     if (this.cache.size >= CARD_RATE_CACHE_MAX) {
       const first = this.cache.keys().next().value;
       if (first) this.cache.delete(first);
     }
-    this.cache.set(this.cacheKey(agentId, currency), {
+    this.cache.set(this.cacheKey(agentId, currency, purposeCode), {
       expiresAt: Date.now() + CARD_RATE_CACHE_TTL_MS,
       value,
     });
@@ -112,6 +179,9 @@ export class AgentCardRateService {
       id,
       agentId: doc.agentId,
       currency: doc.currency,
+      purposeCode: this.normalizePurposeCode(
+        (doc as AgentCardRate).purposeCode,
+      ),
       vendorRate,
       finpayCommission,
       finpaySellRate,
@@ -132,50 +202,71 @@ export class AgentCardRateService {
     };
   }
 
+  private snapshotFromRow(
+    row: {
+      vendorRate?: number;
+      finpayCommission?: number;
+      finpaySellRate?: number;
+      cardRate?: number;
+    } | null,
+  ): AgentCardRateSnapshot | null {
+    if (!row) return null;
+    const vendorRate = toFiniteNumber(row.vendorRate, 0);
+    const finpaySellRate = toFiniteNumber(row.finpaySellRate, 0);
+    const snapshot: AgentCardRateSnapshot = {
+      vendorRate,
+      finpaySellRate,
+      cardRate: toFiniteNumber(row.cardRate, 0),
+    };
+    if (row.finpayCommission != null || finpaySellRate > 0) {
+      snapshot.finpayCommission = resolveFinpayCommission({
+        finpayCommission: row.finpayCommission,
+        finpaySellRate,
+        vendorRate,
+      });
+    }
+    return snapshot;
+  }
+
   /**
    * Hot-path lookup for initiate/complete. Uses short TTL memory cache +
-   * compound unique index on (agentId, currency).
+   * compound unique index on (agentId, currency, purposeCode).
+   * Falls back to legacy/default purposeCode '' when purpose-specific row missing.
    */
   async getSnapshot(
     agentId: string,
     currency: string,
+    purposeCode?: string | null,
   ): Promise<AgentCardRateSnapshot | null> {
     const code = this.normalizeCurrency(currency);
+    const purpose = this.normalizePurposeCode(purposeCode);
     if (!agentId || !code) return null;
 
-    const key = this.cacheKey(agentId, code);
+    const key = this.cacheKey(agentId, code, purpose);
     const cached = this.cache.get(key);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.value;
     }
 
-    const row = await this.model
-      .findOne({ agentId, currency: code })
-      .select('vendorRate finpayCommission finpaySellRate cardRate')
+    let row = await this.model
+      .findOne({ agentId, currency: code, purposeCode: purpose })
+      .select('vendorRate finpayCommission finpaySellRate cardRate purposeCode')
       .lean()
       .exec();
 
-    const value: AgentCardRateSnapshot | null = row
-      ? (() => {
-          const vendorRate = toFiniteNumber(row.vendorRate, 0);
-          const finpaySellRate = toFiniteNumber(row.finpaySellRate, 0);
-          const snapshot: AgentCardRateSnapshot = {
-            vendorRate,
-            finpaySellRate,
-            cardRate: toFiniteNumber(row.cardRate, 0),
-          };
-          if (row.finpayCommission != null || finpaySellRate > 0) {
-            snapshot.finpayCommission = resolveFinpayCommission({
-              finpayCommission: row.finpayCommission,
-              finpaySellRate,
-              vendorRate,
-            });
-          }
-          return snapshot;
-        })()
-      : null;
+    // Fall back to default/legacy commission when purpose-specific row missing.
+    if (!row && purpose) {
+      row = await this.model
+        .findOne({ agentId, currency: code, purposeCode: '' })
+        .select(
+          'vendorRate finpayCommission finpaySellRate cardRate purposeCode',
+        )
+        .lean()
+        .exec();
+    }
 
-    this.putCache(agentId, code, value);
+    const value = this.snapshotFromRow(row);
+    this.putCache(agentId, code, purpose, value);
     return value;
   }
 
@@ -183,8 +274,9 @@ export class AgentCardRateService {
   async getOrDefault(
     agentId: string,
     currency: string,
+    purposeCode?: string | null,
   ): Promise<AgentCardRateSnapshot> {
-    const existing = await this.getSnapshot(agentId, currency);
+    const existing = await this.getSnapshot(agentId, currency, purposeCode);
     return (
       existing ?? {
         vendorRate: 0,
@@ -197,7 +289,7 @@ export class AgentCardRateService {
   async listByAgent(agentId: string): Promise<AgentCardRateRow[]> {
     const rows = await this.model
       .find({ agentId })
-      .sort({ currency: 1 })
+      .sort({ currency: 1, purposeCode: 1 })
       .lean()
       .exec();
     return rows.map((row) => this.toRow(row as AgentCardRateDocument));
@@ -205,8 +297,14 @@ export class AgentCardRateService {
 
   async upsertRate(input: UpsertAgentCardRateInput): Promise<AgentCardRateRow> {
     const currency = this.normalizeCurrency(input.currency);
+    const purposeCode = this.normalizePurposeCode(input.purposeCode);
     if (!currency || currency.length !== 3) {
       throw new BadRequestException('currency must be a 3-letter ISO code');
+    }
+    if (!purposeCode) {
+      throw new BadRequestException(
+        'purposeCode is required to set commission for a purpose',
+      );
     }
 
     const vendorRate = roundMoney(Math.max(0, toFiniteNumber(input.vendorRate, 0)));
@@ -228,7 +326,7 @@ export class AgentCardRateService {
 
     const doc = await this.model
       .findOneAndUpdate(
-        { agentId: input.agentId, currency },
+        { agentId: input.agentId, currency, purposeCode },
         {
           $set: {
             vendorRate,
@@ -240,13 +338,14 @@ export class AgentCardRateService {
           $setOnInsert: {
             agentId: input.agentId,
             currency,
+            purposeCode,
           },
         },
         { upsert: true, new: true },
       )
       .exec();
 
-    this.invalidate(input.agentId, currency);
+    this.invalidate(input.agentId, currency, purposeCode);
     return this.toRow(doc);
   }
 
@@ -254,6 +353,7 @@ export class AgentCardRateService {
     agentId: string,
     rates: Array<{
       currency: string;
+      purposeCode?: string;
       vendorRate?: number;
       finpayCommission?: number;
       finpaySellRate?: number;
@@ -267,6 +367,7 @@ export class AgentCardRateService {
         await this.upsertRate({
           agentId,
           currency: rate.currency,
+          purposeCode: rate.purposeCode,
           vendorRate: rate.vendorRate,
           finpayCommission: rate.finpayCommission,
           finpaySellRate: rate.finpaySellRate,
@@ -278,14 +379,26 @@ export class AgentCardRateService {
     return results;
   }
 
-  async deleteRate(agentId: string, currency: string): Promise<void> {
+  async deleteRate(
+    agentId: string,
+    currency: string,
+    purposeCode?: string | null,
+  ): Promise<void> {
     const code = this.normalizeCurrency(currency);
+    const purpose = this.normalizePurposeCode(purposeCode);
+    if (!purpose) {
+      throw new BadRequestException(
+        'purposeCode is required to delete a purpose commission',
+      );
+    }
     const result = await this.model
-      .deleteOne({ agentId, currency: code })
+      .deleteOne({ agentId, currency: code, purposeCode: purpose })
       .exec();
-    this.invalidate(agentId, code);
+    this.invalidate(agentId, code, purpose);
     if (!result.deletedCount) {
-      throw new NotFoundException('Card rate not found for this currency');
+      throw new NotFoundException(
+        'Card rate not found for this currency and purpose',
+      );
     }
   }
 }

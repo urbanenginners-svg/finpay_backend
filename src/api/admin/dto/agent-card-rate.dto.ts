@@ -19,10 +19,20 @@ export class UpsertAgentCardRateDto {
   @MaxLength(3)
   currency: string;
 
+  @ApiProperty({
+    example: 'S0302',
+    description:
+      'LRS purpose code. Commission (and therefore sell rate X) is per purpose.',
+  })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(32)
+  purposeCode: string;
+
   @ApiPropertyOptional({
     example: 1.5,
     description:
-      'Finpay commission over live TT (INR per unit). Agent rate X = live TT + this. Preferred.',
+      'Finpay commission over live TT (INR per unit) for this purpose. Agent rate X = live TT + this. Preferred.',
     default: 0,
   })
   @IsOptional()

@@ -294,10 +294,12 @@ export class RemittanceController {
   async getMyCardRate(
     @GetUser('_id') userId: string,
     @Param('currency') currency: string,
+    @Query('purposeCode') purposeCode?: string,
   ) {
     const data = await this.remittanceService.getMyCardRate(
       String(userId),
       currency,
+      purposeCode,
     );
     return new DataResponse(data);
   }
@@ -326,8 +328,14 @@ export class RemittanceController {
   @ApiBearerAuth()
   @Version('1')
   @Get('customer/card-rates/:currency')
-  async getCustomerCardRate(@Param('currency') currency: string) {
-    const data = await this.remittanceService.getCustomerCardRate(currency);
+  async getCustomerCardRate(
+    @Param('currency') currency: string,
+    @Query('purposeCode') purposeCode?: string,
+  ) {
+    const data = await this.remittanceService.getCustomerCardRate(
+      currency,
+      purposeCode,
+    );
     return new DataResponse(data);
   }
 

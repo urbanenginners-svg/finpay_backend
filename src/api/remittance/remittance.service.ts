@@ -147,8 +147,12 @@ export class RemittanceService {
         // Normalize sell rates first so provider charges use X (customer) / Z (agent).
         const normalized =
           bookingSource === ForexBookingSourceEnum.AGENT
-            ? await this.normalizeAgentOrderRates(String(userId), order)
-            : await this.normalizeCustomerOrderRates(order);
+            ? await this.normalizeAgentOrderRates(
+                String(userId),
+                order,
+                dto.purposeCode,
+              )
+            : await this.normalizeCustomerOrderRates(order, dto.purposeCode);
         return this.overlayInitiateCharges(
           dto.orderType,
           normalized,
@@ -822,6 +826,7 @@ export class RemittanceService {
               bookingSource,
               userId,
               detail,
+              dto.purposeCode,
             )),
             gst: order.gst ?? detail?.gst ?? null,
             serviceCharge: order.serviceCharge ?? detail?.serviceCharge ?? null,
@@ -994,12 +999,17 @@ export class RemittanceService {
   private async normalizeAgentOrderRates(
     agentId: string,
     order: ForexOrderDetailDto,
+    purposeCode?: string,
   ): Promise<ForexOrderDetailDto> {
     const customerSellRate = toFiniteNumber(
       order.customerSellRate ?? order.agentSellingRate,
       0,
     );
-    const card = await this.resolveLiveCardSnapshot(agentId, order.currency);
+    const card = await this.resolveLiveCardSnapshot(
+      agentId,
+      order.currency,
+      purposeCode,
+    );
     const error = validateCustomerSellRate({
       customerSellRate,
       cardRate: card.cardRate,
@@ -1017,15 +1027,19 @@ export class RemittanceService {
   }
 
   /**
-   * Customer (self) bookings: retail rate X = live TT + admin commission.
+   * Customer (self) bookings: retail rate X = live TT + admin commission (per purpose).
    * Provider sellingRate / amountInINR stay on live TT (Y);
    * agentSellingRate / customerSellRate = X.
    * Charges API inr_amount uses X × currencyAmount.
    */
   private async normalizeCustomerOrderRates(
     order: ForexOrderDetailDto,
+    purposeCode?: string,
   ): Promise<ForexOrderDetailDto> {
-    const card = await this.resolveCustomerLiveCardSnapshot(order.currency);
+    const card = await this.resolveCustomerLiveCardSnapshot(
+      order.currency,
+      purposeCode,
+    );
     const liveY = card.vendorRate;
     if (!(liveY > 0)) {
       throw new BadRequestException(
@@ -1050,6 +1064,7 @@ export class RemittanceService {
     bookingSource: ForexBookingSourceEnum,
     agentId: string,
     detail?: ForexOrderDetailDto | null,
+    purposeCode?: string,
   ): Promise<{
     vendorRate?: number | null;
     finpaySellRate?: number | null;
@@ -1065,7 +1080,10 @@ export class RemittanceService {
     }
 
     if (bookingSource === ForexBookingSourceEnum.SELF) {
-      const card = await this.resolveCustomerLiveCardSnapshot(detail.currency);
+      const card = await this.resolveCustomerLiveCardSnapshot(
+        detail.currency,
+        purposeCode,
+      );
       const retailRate =
         card.finpaySellRate > 0 ? card.finpaySellRate : card.vendorRate;
       if (!(retailRate > 0)) {
@@ -1098,7 +1116,11 @@ export class RemittanceService {
       detail.customerSellRate ?? detail.agentSellingRate,
       0,
     );
-    const card = await this.resolveLiveCardSnapshot(agentId, detail.currency);
+    const card = await this.resolveLiveCardSnapshot(
+      agentId,
+      detail.currency,
+      purposeCode,
+    );
     const commission = computeOrderCommissions({
       vendorRate: card.vendorRate,
       finpaySellRate: card.finpaySellRate,
@@ -1151,9 +1173,13 @@ export class RemittanceService {
     return map;
   }
 
-  private async resolveLiveCardSnapshot(agentId: string, currency: string) {
+  private async resolveLiveCardSnapshot(
+    agentId: string,
+    currency: string,
+    purposeCode?: string,
+  ) {
     const [saved, liveY, options] = await Promise.all([
-      this.agentCardRates.getOrDefault(agentId, currency),
+      this.agentCardRates.getOrDefault(agentId, currency, purposeCode),
       this.getLiveTtBuyRate(currency),
       this.cardRateConfig.getCalcOptions(currency),
     ]);
@@ -1162,10 +1188,14 @@ export class RemittanceService {
 
   /**
    * Retail snapshot for customers: always X = live TT + commission (c may be 0).
+   * Commission is resolved per purpose (falls back to default/legacy).
    */
-  private async resolveCustomerLiveCardSnapshot(currency: string) {
+  private async resolveCustomerLiveCardSnapshot(
+    currency: string,
+    purposeCode?: string,
+  ) {
     const [saved, liveY, options] = await Promise.all([
-      this.customerCardRates.getOrDefault(currency),
+      this.customerCardRates.getOrDefault(currency, purposeCode),
       this.getLiveTtBuyRate(currency),
       this.cardRateConfig.getCalcOptions(currency),
     ]);
@@ -1184,22 +1214,36 @@ export class RemittanceService {
     };
   }
 
-  async getMyCardRate(agentId: string, currency: string) {
-    const rate = await this.resolveLiveCardSnapshot(agentId, currency);
-    return {
-      vendorRate: rate.vendorRate,
-      finpaySellRate: rate.finpaySellRate,
-      cardRate: rate.cardRate,
-    };
-  }
-
-  async getCustomerCardRate(currency: string) {
-    const rate = await this.resolveCustomerLiveCardSnapshot(currency);
+  async getMyCardRate(
+    agentId: string,
+    currency: string,
+    purposeCode?: string,
+  ) {
+    const rate = await this.resolveLiveCardSnapshot(
+      agentId,
+      currency,
+      purposeCode,
+    );
     return {
       vendorRate: rate.vendorRate,
       finpayCommission: rate.finpayCommission ?? 0,
       finpaySellRate: rate.finpaySellRate,
       cardRate: rate.cardRate,
+      purposeCode: String(purposeCode ?? '').trim() || undefined,
+    };
+  }
+
+  async getCustomerCardRate(currency: string, purposeCode?: string) {
+    const rate = await this.resolveCustomerLiveCardSnapshot(
+      currency,
+      purposeCode,
+    );
+    return {
+      vendorRate: rate.vendorRate,
+      finpayCommission: rate.finpayCommission ?? 0,
+      finpaySellRate: rate.finpaySellRate,
+      cardRate: rate.cardRate,
+      purposeCode: String(purposeCode ?? '').trim() || undefined,
     };
   }
 
@@ -1209,54 +1253,80 @@ export class RemittanceService {
       this.getLiveTtBuyRatesByCurrency(),
       this.cardRateConfig.getCalcOptionsMap(),
     ]);
-    const fromSaved = new Map(
-      rows.map((row) => {
-        const live = this.applyCustomerLiveOverlay(
-          row,
-          liveMap.get(row.currency) ?? 0,
-          this.cardRateConfig.calcOptionsFor(row.currency, configMap),
-        );
-        return [row.currency, live] as const;
-      }),
-    );
+    const fromSaved = rows.map((row) => {
+      const live = this.applyCustomerLiveOverlay(
+        row,
+        liveMap.get(row.currency) ?? 0,
+        this.cardRateConfig.calcOptionsFor(row.currency, configMap),
+      );
+      return {
+        ...live,
+        purposeCode: row.purposeCode,
+      };
+    });
 
     // Include live TT currencies even when admin has not saved a row yet (c = 0).
-    const codes = new Set([
-      ...fromSaved.keys(),
-      ...liveMap.keys(),
-    ]);
-    return [...codes]
-      .sort()
+    const currenciesWithRows = new Set(fromSaved.map((r) => r.currency));
+    const extras = [...liveMap.keys()]
+      .filter((currency) => !currenciesWithRows.has(currency))
       .map((currency) => {
-        const existing = fromSaved.get(currency);
-        if (existing) return existing;
         const y = liveMap.get(currency) ?? 0;
-        return this.applyCustomerLiveOverlay(
-          {
-            currency,
-            vendorRate: 0,
-            finpayCommission: 0,
-            finpaySellRate: 0,
-            cardRate: 0,
-          },
-          y,
-          this.cardRateConfig.calcOptionsFor(currency, configMap),
-        );
+        return {
+          ...this.applyCustomerLiveOverlay(
+            {
+              currency,
+              purposeCode: '',
+              vendorRate: 0,
+              finpayCommission: 0,
+              finpaySellRate: 0,
+              cardRate: 0,
+            },
+            y,
+            this.cardRateConfig.calcOptionsFor(currency, configMap),
+          ),
+          purposeCode: '',
+        };
       });
+
+    return [...fromSaved, ...extras].sort((a, b) => {
+      const cur = String(a.currency).localeCompare(String(b.currency));
+      if (cur !== 0) return cur;
+      return String(a.purposeCode ?? '').localeCompare(
+        String(b.purposeCode ?? ''),
+      );
+    });
   }
 
   /**
-   * Public homepage rates: same retail X as customer booking
-   * (live TT + admin finpayCommission), without exposing commission internals.
+   * Public homepage rates: one retail X per currency.
+   * Prefers legacy/default (empty purpose) when present; otherwise the first
+   * purpose-specific rate for that currency.
    */
   async listPublicCustomerRetailRates() {
     const rows = await this.listCustomerCardRates();
-    return rows
-      .filter((row) => Number(row.finpaySellRate) > 0)
-      .map((row) => ({
-        currency: String(row.currency).toUpperCase(),
-        finpaySellRate: Number(row.finpaySellRate),
-      }));
+    const byCurrency = new Map<
+      string,
+      { currency: string; finpaySellRate: number; purposeCode: string }
+    >();
+    for (const row of rows) {
+      const currency = String(row.currency).toUpperCase();
+      const finpaySellRate = Number(row.finpaySellRate);
+      if (!(finpaySellRate > 0)) continue;
+      const purposeCode = String(row.purposeCode ?? '');
+      const existing = byCurrency.get(currency);
+      if (!existing) {
+        byCurrency.set(currency, { currency, finpaySellRate, purposeCode });
+        continue;
+      }
+      // Prefer default/legacy empty purpose over purpose-specific.
+      if (!existing.purposeCode && purposeCode) continue;
+      if (existing.purposeCode && !purposeCode) {
+        byCurrency.set(currency, { currency, finpaySellRate, purposeCode });
+      }
+    }
+    return [...byCurrency.values()]
+      .sort((a, b) => a.currency.localeCompare(b.currency))
+      .map(({ currency, finpaySellRate }) => ({ currency, finpaySellRate }));
   }
 
   private applyCustomerLiveOverlay<
@@ -1301,6 +1371,7 @@ export class RemittanceService {
       return {
         id: live.id,
         currency: live.currency,
+        purposeCode: row.purposeCode,
         vendorRate: live.vendorRate,
         finpayCommission: live.finpayCommission,
         finpaySellRate: live.finpaySellRate,

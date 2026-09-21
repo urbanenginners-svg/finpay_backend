@@ -6,6 +6,7 @@ import {
   Get,
   Param,
   Put,
+  Query,
   UseGuards,
   Version,
 } from '@nestjs/common';
@@ -112,6 +113,7 @@ export class AdminCustomerCardRatesController {
     );
     const data = await this.cardRates.upsertRate({
       currency: dto.currency,
+      purposeCode: dto.purposeCode,
       vendorRate: liveTtRate,
       finpayCommission,
       finpaySellRate,
@@ -124,8 +126,11 @@ export class AdminCustomerCardRatesController {
   @Version('1')
   @Delete('customer-card-rates/:currency')
   @CheckActionPolicy(PermissionEnum.UPDATE, resource.User)
-  async deleteCardRate(@Param('currency') currency: string) {
-    await this.cardRates.deleteRate(currency);
+  async deleteCardRate(
+    @Param('currency') currency: string,
+    @Query('purposeCode') purposeCode: string,
+  ) {
+    await this.cardRates.deleteRate(currency, purposeCode);
     return new DataResponse(null, 'Customer card rate deleted.');
   }
 }
