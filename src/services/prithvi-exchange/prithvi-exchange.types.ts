@@ -489,6 +489,7 @@ export type PrithviForexDashboardOrder = {
   amountInINR?: string | number;
   totalAmount?: string | number;
   travelerName?: string;
+  sessionExpiresAt?: string;
   swiftCopyDoc?: string;
   swiftCopyDocUrl?: string;
   createdAt?: string;
@@ -514,6 +515,8 @@ export type PrithviForexOrderRecord = PrithviForexDashboardOrder & {
   serviceCharge?: string | number;
   paidAmount?: string | number;
   pendingAmount?: string | number;
+  sessionId?: string;
+  sessionExpiresAt?: string;
   purpose?: string;
   travelingCountries?: string[];
   deliveryAddress?: string;

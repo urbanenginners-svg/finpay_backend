@@ -829,6 +829,7 @@ export class RemittanceService {
             statusLabel: 'Draft',
             sessionId: forexRequest.sessionId ?? null,
             sessionExpiresAt: forexRequest.sessionExpiresAt ?? null,
+            purpose: dto.purposeCode?.trim() || null,
             providerCreatedAt:
               order.createdAt ??
               order.created_at ??

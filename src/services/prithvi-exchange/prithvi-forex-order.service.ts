@@ -43,6 +43,8 @@ export type UpsertForexOrderFromInitiateInput = {
   statusLabel?: string | null;
   sessionId?: string | null;
   sessionExpiresAt?: string | Date | null;
+  /** Purpose code selected at initiate — used to resume DRAFT bookings. */
+  purpose?: string | null;
   providerCreatedAt?: string | Date | null;
   isDryRun?: boolean;
 };
@@ -260,6 +262,8 @@ type ForexOrderLeanRow = {
   swiftCopyDoc?: string | null;
   swiftCopyDocUrl?: string | null;
   offlinePaymentSubmittedAt?: Date | null;
+  sessionId?: string | null;
+  sessionExpiresAt?: Date | null;
   providerCreatedAt?: Date | null;
   providerUpdatedAt?: Date | null;
   initiatedAt?: Date | null;
@@ -300,6 +304,8 @@ function mapRowToDetail(row: ForexOrderLeanRow): PrithviForexOrderRecord {
     totalAmount: row.totalAmount ?? undefined,
     paidAmount: row.paidAmount ?? undefined,
     pendingAmount: row.pendingAmount ?? undefined,
+    sessionId: row.sessionId ?? undefined,
+    sessionExpiresAt: toIsoString(row.sessionExpiresAt),
     travelerName: row.travelerName ?? undefined,
     phoneNumber: row.phoneNumber ?? undefined,
     email: row.email ?? undefined,
@@ -388,6 +394,7 @@ export class PrithviForexOrderService {
             statusLabel: input.statusLabel ?? 'Draft',
             sessionId: input.sessionId ?? null,
             sessionExpiresAt: asDate(input.sessionExpiresAt),
+            ...(input.purpose != null ? { purpose: input.purpose } : {}),
             providerCreatedAt: asDate(input.providerCreatedAt) ?? now,
             initiatedAt: now,
             isDryRun: input.isDryRun ?? false,
@@ -727,6 +734,7 @@ export class PrithviForexOrderService {
 
     const data: PrithviForexDashboardOrder[] = rows.map((row) => ({
       id: row.prithviOrderId,
+      forexRequestId: row.forexRequestId ?? undefined,
       orderCode: row.orderCode ?? undefined,
       orderType: row.orderType ?? undefined,
       currency: row.currency ?? undefined,
@@ -738,6 +746,10 @@ export class PrithviForexOrderService {
       amountInINR: row.amountInINR ?? undefined,
       totalAmount: row.totalAmount ?? undefined,
       travelerName: row.travelerName ?? undefined,
+      sessionExpiresAt:
+        row.sessionExpiresAt instanceof Date
+          ? row.sessionExpiresAt.toISOString()
+          : undefined,
       createdAt:
         row.providerCreatedAt?.toISOString?.() ??
         (row.createdAt instanceof Date
