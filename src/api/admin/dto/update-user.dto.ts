@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  IsDateString,
   IsEmail,
   IsOptional,
   IsString,
@@ -35,13 +36,22 @@ export class UpdateUserDto {
   email?: string;
 
   @ApiProperty({
-    example: '+919876543210',
+    example: '9876543210',
     description: 'Phone number of the user',
     required: false,
   })
   @IsString()
   @IsOptional()
   phoneNumber?: string;
+
+  @ApiProperty({
+    example: '1990-01-15',
+    description: 'Date of birth (YYYY-MM-DD)',
+    required: false,
+  })
+  @IsDateString()
+  @IsOptional()
+  dateOfBirth?: string;
 
   @ApiProperty({
     example: 'file::123e4567-e89b-12d3-a456-426614174010',
