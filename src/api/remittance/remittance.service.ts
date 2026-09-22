@@ -37,10 +37,7 @@ import {
   validateCustomerSellRate,
   type CardRateCalcOptions,
 } from 'src/utils/agent-commission.util';
-import {
-  isAgentForexBooking,
-  isForexOrderPayable,
-} from 'src/utils/forex-payment.util';
+import { isForexOrderPayable } from 'src/utils/forex-payment.util';
 import {
   CompleteForexRequestDto,
   CompleteForexOrderDto,
@@ -734,19 +731,14 @@ export class RemittanceService {
       return;
     }
 
-    const agentBooking = isAgentForexBooking(owned.bookingSource);
     if (kind === 'offline') {
       throw new BadRequestException(
-        agentBooking
-          ? 'Offline payment is available once this booking is pending.'
-          : 'Offline payment is available only after your documents are approved and the order is awaiting funds.',
+        'Offline payment is available once this booking is pending.',
       );
     }
 
     throw new BadRequestException(
-      agentBooking
-        ? 'Payment is available once this booking is pending.'
-        : 'Payment is available only after your documents are approved and the order is awaiting funds. We will notify you by email and SMS.',
+      'Payment is available once this booking is pending.',
     );
   }
 

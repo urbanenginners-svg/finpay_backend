@@ -1,8 +1,6 @@
 import { ForexBookingSourceEnum } from 'src/utils/enums/forex-booking-source.enum';
 
-const CUSTOMER_PAYABLE_STATUSES = new Set(['DOCUMENTS_APPROVED_AWAITING_FUNDS']);
-
-const AGENT_PAYABLE_STATUSES = new Set([
+const FOREX_PAYABLE_STATUSES = new Set([
   'PENDING',
   'APPROVED',
   'DOCUMENTS_APPROVED_AWAITING_FUNDS',
@@ -16,12 +14,13 @@ export function isAgentForexBooking(bookingSource?: string | null) {
 }
 
 /**
- * Customer bookings: payment only after documents are approved and awaiting funds.
- * Agent bookings: payment as soon as the order is pending (and later unpaid statuses).
+ * Customer and agent bookings: payment as soon as the order is pending
+ * (and later unpaid statuses).
  */
 export function isForexOrderPayable(params: {
   status?: string | null;
   paymentStatus?: string | null;
+  /** Kept for call-site compatibility; payable statuses no longer differ by source. */
   bookingSource?: string | null;
 }) {
   const paymentStatus = String(params.paymentStatus ?? '')
@@ -30,9 +29,5 @@ export function isForexOrderPayable(params: {
   if (paymentStatus === 'PAID') return false;
 
   const status = String(params.status ?? '').trim().toUpperCase();
-  const allowed = isAgentForexBooking(params.bookingSource)
-    ? AGENT_PAYABLE_STATUSES
-    : CUSTOMER_PAYABLE_STATUSES;
-
-  return allowed.has(status);
+  return FOREX_PAYABLE_STATUSES.has(status);
 }
