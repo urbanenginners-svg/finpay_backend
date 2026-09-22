@@ -7,10 +7,12 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UseGuards,
   Version,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 
 import { AdminService } from './admin.service';
 import { RegistrationService } from '../auth/registration.service';
@@ -31,6 +33,8 @@ import { PermissionEnum } from 'src/utils/enums/permission.enum';
 import { resource } from 'src/utils/constants/resource';
 import { GetUser } from 'src/utils/decorators/get-user.decorator';
 import { DataResponse, PaginatedDataResponse } from 'src/utils/response';
+import { csvEscape, formatCsvDate } from 'src/utils/csv.util';
+import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
 
 @ApiTags('Admin - User Management')
 @Controller('admin/users')
@@ -86,6 +90,148 @@ export class AdminController {
   async findAll(@Query() query: GetUsersQueryDto) {
     const result = await this.adminService.findAll(query);
     return new PaginatedDataResponse(result.data, result.meta);
+  }
+
+  /**
+   * GET /admin/users/export/agents
+   * Export agent users as CSV (respects list filters; no pagination)
+   */
+  @Version('1')
+  @Get('export/agents')
+  @CheckActionPolicy(PermissionEnum.READ, resource.User)
+  async exportAgentsCsv(
+    @Query() query: GetUsersQueryDto,
+    @Res() res: Response,
+  ) {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="finpay-agents.csv"',
+    );
+
+    const header = [
+      'id',
+      'firstName',
+      'lastName',
+      'email',
+      'phoneNumber',
+      'dateOfBirth',
+      'agentType',
+      'registrationStatus',
+      'isActive',
+      'role',
+      'rejectionReason',
+      'createdAt',
+      'updatedAt',
+    ].join(',');
+    res.write(`${header}\n`);
+
+    const exportQuery: GetUsersQueryDto = {
+      ...query,
+      roleName: query.roleName || 'agent',
+      userType: query.userType || UserTypeEnum.AGENT,
+    };
+
+    for await (const row of this.adminService.iterateUsersForExport(
+      exportQuery,
+    )) {
+      res.write(
+        [
+          row._id,
+          row.firstName,
+          row.lastName,
+          row.email,
+          row.phoneNumber,
+          formatCsvDate(row.dateOfBirth),
+          row.agentDocuments?.agentType ?? '',
+          row.registrationStatus,
+          row.isActive,
+          row.role?.slug ?? row.role?.name ?? '',
+          row.rejectionReason,
+          formatCsvDate(row.createdAt),
+          formatCsvDate(row.updatedAt),
+        ]
+          .map(csvEscape)
+          .join(',') + '\n',
+      );
+    }
+
+    res.end();
+  }
+
+  /**
+   * GET /admin/users/export/customers
+   * Export Finpay customer users as CSV (respects list filters; no pagination)
+   */
+  @Version('1')
+  @Get('export/customers')
+  @CheckActionPolicy(PermissionEnum.READ, resource.User)
+  async exportCustomersCsv(
+    @Query() query: GetUsersQueryDto,
+    @Res() res: Response,
+  ) {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="finpay-customers.csv"',
+    );
+
+    const header = [
+      'id',
+      'firstName',
+      'lastName',
+      'email',
+      'phoneNumber',
+      'dateOfBirth',
+      'panCardNumber',
+      'aadhaarNumber',
+      'panVerificationStatus',
+      'aadhaarVerificationStatus',
+      'registrationStatus',
+      'isActive',
+      'userType',
+      'role',
+      'externalUserId',
+      'createdAt',
+      'updatedAt',
+    ].join(',');
+    res.write(`${header}\n`);
+
+    const exportQuery: GetUsersQueryDto = {
+      ...query,
+      roleName: query.roleName || 'customer',
+      userType: query.userType || UserTypeEnum.USER,
+    };
+
+    for await (const row of this.adminService.iterateUsersForExport(
+      exportQuery,
+    )) {
+      res.write(
+        [
+          row._id,
+          row.firstName,
+          row.lastName,
+          row.email,
+          row.phoneNumber,
+          formatCsvDate(row.dateOfBirth),
+          row.panCardNumber,
+          row.aadhaarNumber,
+          row.panVerificationStatus,
+          row.aadhaarVerificationStatus,
+          row.registrationStatus,
+          row.isActive,
+          row.userType,
+          row.role?.slug ?? row.role?.name ?? '',
+          row.externalUserId,
+          formatCsvDate(row.createdAt),
+          formatCsvDate(row.updatedAt),
+        ]
+          .map(csvEscape)
+          .join(',') + '\n',
+      );
+    }
+
+    res.end();
   }
 
   /**

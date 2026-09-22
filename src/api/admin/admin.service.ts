@@ -83,9 +83,7 @@ export class AdminService {
 
   // ─── Find All Users ───────────────────────────────────────────────────────
 
-  async findAll(
-    query: GetUsersQueryDto,
-  ): Promise<{ data: any[]; meta: any }> {
+  private buildUsersAggregationPipeline(query: GetUsersQueryDto): any[] {
     const {
       roleId,
       roleName,
@@ -157,7 +155,7 @@ export class AdminService {
       ];
     }
 
-    const aggregationPipeline: any[] = [
+    return [
       { $match: matchStage },
       {
         $lookup: {
@@ -190,6 +188,12 @@ export class AdminService {
         },
       },
     ];
+  }
+
+  async findAll(
+    query: GetUsersQueryDto,
+  ): Promise<{ data: any[]; meta: any }> {
+    const aggregationPipeline = this.buildUsersAggregationPipeline(query);
 
     const [data, meta] = await getPaginatedDataWithAggregation(
       this.userModel,
@@ -198,6 +202,23 @@ export class AdminService {
     );
 
     return { data, meta };
+  }
+
+  async *iterateUsersForExport(
+    query: GetUsersQueryDto,
+    maxRows = 50_000,
+  ): AsyncGenerator<Record<string, any>> {
+    const pipeline = [
+      ...this.buildUsersAggregationPipeline(query),
+      { $sort: { createdAt: -1 as const } },
+      { $limit: maxRows },
+    ];
+
+    const cursor = this.userModel.aggregate(pipeline).cursor({ batchSize: 200 });
+
+    for await (const row of cursor) {
+      yield row;
+    }
   }
 
   // ─── Find One User ────────────────────────────────────────────────────────
