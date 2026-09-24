@@ -1,5 +1,4 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { FindOneAndUpdateOptions } from 'mongodb';
 import { Schema } from 'mongoose';
 import { prefixes } from '../prefixes';
 import { referenceNumberCodes } from '../reference-number-codes';
@@ -56,19 +55,15 @@ export default function commonFieldsPlugin(schema: Schema, options: { name: stri
       SEQUENCE_COLLECTION,
     );
 
-    const findOpts: FindOneAndUpdateOptions = {
-      upsert: true,
-      returnDocument: 'after',
-    };
     const session = this.$session();
-    if (session) {
-      findOpts.session = session as FindOneAndUpdateOptions['session'];
-    }
-
     const updated = await coll.findOneAndUpdate(
       { _id: modelKey },
       { $inc: { seq: 1 } },
-      findOpts,
+      {
+        upsert: true,
+        returnDocument: 'after',
+        ...(session ? { session } : {}),
+      },
     );
 
     const seq =
