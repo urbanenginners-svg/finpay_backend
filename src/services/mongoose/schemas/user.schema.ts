@@ -249,6 +249,26 @@ export class User {
   })
   isActive: boolean;
 
+  @ApiProperty({
+    required: false,
+    description:
+      'Set by an admin. A blocked user cannot log in or register again with the same mobile number.',
+  })
+  @Prop({ required: false, type: Boolean, default: false })
+  isBlocked?: boolean;
+
+  @ApiProperty({ required: false })
+  @Prop({ required: false, type: Date })
+  blockedAt?: Date;
+
+  @ApiProperty({ required: false })
+  @Prop({ required: false, type: String })
+  blockedBy?: string;
+
+  @ApiProperty({ required: false, description: 'Internal note, never shown to the user' })
+  @Prop({ required: false, type: String })
+  blockReason?: string;
+
   @ApiProperty({ enum: UserTypeEnum, required: false })
   @Prop({
     required: false,

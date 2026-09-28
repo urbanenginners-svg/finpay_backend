@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -12,12 +13,20 @@ import { User, UserDocument } from 'src/services/mongoose/schemas/user.schema';
 import { Role } from 'src/services/mongoose/schemas/role.schema';
 import { CreateUserDto, GetUsersQueryDto, UpdateUserDto } from './dto';
 import { getPaginatedDataWithAggregation } from 'src/utils/services/get-paginated-data-aggregation.service';
+import { assertPhoneNotBlocked } from 'src/utils/services/account-block.service';
+import { UserTypeEnum } from 'src/utils/enums/user-type.enum';
+import { HostingerService } from 'src/services/email/hostinger.service';
+import { AppConfigService } from 'src/services/env/env.service';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Role.name) private roleModel: Model<Role>,
+    private readonly hostingerService: HostingerService,
+    private readonly config: AppConfigService,
   ) {}
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -54,6 +63,8 @@ export class AdminService {
 
     // Check for duplicate phone number (only if provided)
     if (phoneNumber) {
+      await assertPhoneNotBlocked(this.userModel, phoneNumber);
+
       const existingPhone = await this.userModel
         .findOne({ phoneNumber })
         .exec();
@@ -266,6 +277,8 @@ export class AdminService {
 
     // Check duplicate phone number if being changed
     if (rest.phoneNumber && rest.phoneNumber !== user.phoneNumber) {
+      await assertPhoneNotBlocked(this.userModel, rest.phoneNumber);
+
       const existingPhone = await this.userModel
         .findOne({ phoneNumber: rest.phoneNumber })
         .exec();
@@ -293,10 +306,98 @@ export class AdminService {
     return user.save();
   }
 
+  // ─── Block / Unblock Agent ────────────────────────────────────────────────
+
+  async setBlockedStatus(
+    id: string,
+    blocked: boolean,
+    requestUserId: string,
+    reason?: string,
+  ): Promise<UserDocument> {
+    if (id === requestUserId) {
+      throw new BadRequestException('You cannot block or unblock your own account');
+    }
+
+    const user = await this.findOne(id);
+
+    if (user.userType !== UserTypeEnum.AGENT) {
+      throw new BadRequestException('Only agents can be blocked or unblocked');
+    }
+
+    const update = blocked
+      ? {
+          $set: {
+            isBlocked: true,
+            blockedAt: new Date(),
+            blockedBy: requestUserId,
+            lastUpdatedBy: requestUserId,
+            ...(reason?.trim() && { blockReason: reason.trim() }),
+          },
+        }
+      : {
+          $set: { isBlocked: false, lastUpdatedBy: requestUserId },
+          $unset: { blockedAt: '', blockedBy: '', blockReason: '' },
+        };
+
+    await this.userModel.updateOne({ _id: id }, update).exec();
+
+    await this.notifyAgentBlockStatusChanged(user, blocked);
+
+    return this.findOne(id);
+  }
+
+  /** Best-effort: a mail failure must never undo or fail the block/unblock itself. */
+  private async notifyAgentBlockStatusChanged(
+    user: UserDocument,
+    blocked: boolean,
+  ): Promise<void> {
+    const to = user.email?.trim();
+    if (!to) {
+      this.logger.warn(
+        `Agent ${user._id} has no email; skipping ${blocked ? 'block' : 'unblock'} notification.`,
+      );
+      return;
+    }
+
+    try {
+      await this.hostingerService.sendAgentBlockStatusChanged({
+        to,
+        fullName:
+          [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+          'Agent',
+        blocked,
+        loginUrl: `${this.resolveFrontendUrl()}/login`,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to send ${blocked ? 'block' : 'unblock'} email to agent ${user._id}: ${detail}`,
+      );
+    }
+  }
+
+  private resolveFrontendUrl(): string {
+    const configured = this.config.get('FRONTEND_URL')?.trim();
+    if (configured) {
+      return configured.replace(/\/$/, '');
+    }
+
+    return this.config.get('NODE_ENV') === 'production'
+      ? 'https://finpayremit.com'
+      : 'http://localhost:5173';
+  }
+
   // ─── Delete User (Soft) ───────────────────────────────────────────────────
 
   async remove(id: string, requestUserId?: string): Promise<UserDocument> {
     const user = await this.findOne(id);
+
+    // A deleted user can't be found (or unblocked) any more, so the block would be stuck for good.
+    if (user.isBlocked) {
+      throw new BadRequestException(
+        'Unblock this user before deleting them. Deleting a blocked user would leave their mobile number barred with no way to lift it.',
+      );
+    }
 
     user.deletedAt = new Date();
     if (requestUserId) {

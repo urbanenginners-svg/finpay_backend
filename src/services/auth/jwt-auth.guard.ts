@@ -12,6 +12,7 @@ import { Request } from 'express';
 
 import { IS_PUBLIC_KEY } from 'src/utils/decorators/public-key.decorator';
 import { User } from 'src/services/mongoose/schemas/user.schema';
+import { assertUserNotBlocked } from 'src/utils/services/account-block.service';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -60,6 +61,9 @@ export class JwtAuthGuard implements CanActivate {
     if (!user) {
       throw new UnauthorizedException('User not found or inactive');
     }
+
+    // Applies to tokens issued before the block, so a blocked agent is cut off immediately.
+    assertUserNotBlocked(user);
 
     // Attach full user object to request so PoliciesGuard can use it
     (request as any).user = user;

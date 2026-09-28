@@ -120,6 +120,13 @@ export type SendAgentReviewAdminNotificationParams = {
   documentItems?: AgentDocumentRequestItem[];
 };
 
+export type SendAgentBlockStatusChangedParams = {
+  to: string;
+  fullName: string;
+  blocked: boolean;
+  loginUrl: string;
+};
+
 @Injectable()
 export class HostingerService {
   private readonly logger = new Logger(HostingerService.name);
@@ -323,6 +330,86 @@ export class HostingerService {
       text: this.buildAgentReviewAdminNotificationText(params),
       html: this.buildAgentReviewAdminNotificationHtml(params),
     });
+  }
+
+  async sendAgentBlockStatusChanged(
+    params: SendAgentBlockStatusChangedParams,
+  ): Promise<void> {
+    const subject = params.blocked
+      ? 'Your FinPay agent account has been blocked'
+      : 'Your FinPay agent account has been unblocked';
+
+    const text = params.blocked
+      ? [
+          `Dear ${params.fullName},`,
+          '',
+          'Your FinPay partner agent account has been blocked by our admin team. You will not be able to sign in or use your account until it is unblocked.',
+          '',
+          'If you believe this is a mistake, please contact the FinPay team.',
+          '',
+          'Best regards,',
+          'FinPay Team',
+        ].join('\n')
+      : [
+          `Dear ${params.fullName},`,
+          '',
+          'Good news — your FinPay partner agent account has been unblocked. You can sign in and use your account again.',
+          '',
+          `Sign in: ${params.loginUrl}`,
+          '',
+          'Best regards,',
+          'FinPay Team',
+        ].join('\n');
+
+    const content = params.blocked
+      ? `
+      <p style="margin: 0 0 16px; font-size: 16px; color: #111827;">
+        Dear ${this.escapeHtml(params.fullName)},
+      </p>
+      <p style="margin: 0 0 16px; color: #374151;">
+        Your <strong>FinPay partner agent</strong> account has been blocked by our admin team.
+        You will not be able to sign in or use your account until it is unblocked.
+      </p>
+      <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 20px; margin: 0 0 24px;">
+        <p style="margin: 0; color: #9a3412; font-size: 14px;">
+          If you believe this is a mistake, please contact the FinPay team.
+        </p>
+      </div>
+      <p style="margin: 0; color: #6b7280; font-size: 14px;">
+        Best regards,<br />
+        <strong style="color: #5b21b6;">FinPay Team</strong>
+      </p>`
+      : `
+      <p style="margin: 0 0 16px; font-size: 16px; color: #111827;">
+        Dear ${this.escapeHtml(params.fullName)},
+      </p>
+      <p style="margin: 0 0 16px; color: #374151;">
+        Good news — your <strong>FinPay partner agent</strong> account has been unblocked.
+        You can sign in and use your account again.
+      </p>
+      <p style="margin: 0 0 24px;">
+        <a
+          href="${this.escapeHtml(params.loginUrl)}"
+          style="display: inline-block; background: #5b21b6; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 12px; font-weight: 600; font-size: 14px;"
+        >
+          Sign in to FinPay
+        </a>
+      </p>
+      <p style="margin: 0; color: #6b7280; font-size: 14px;">
+        Best regards,<br />
+        <strong style="color: #5b21b6;">FinPay Team</strong>
+      </p>`;
+
+    const html = this.buildFinPayEmailShell({
+      badge: 'Partner Agent',
+      title: params.blocked ? 'Account blocked' : 'Account unblocked',
+      subtitle: params.blocked
+        ? 'Your access has been suspended'
+        : 'Your access has been restored',
+      content,
+    });
+
+    await this.sendMail({ to: params.to, subject, text, html });
   }
 
   private async sendMail(options: {

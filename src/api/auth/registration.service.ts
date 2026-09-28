@@ -53,7 +53,12 @@ import {
   getRequiredDocumentKeys,
 } from 'src/utils/agent-document-requirements';
 import { RequestAgentDocumentUpdateDto } from '../admin/dto/request-agent-document-update.dto';
+import { ReplaceAgentDocumentsDto } from '../admin/dto/replace-agent-documents.dto';
 import { CreateAgentDto } from '../admin/dto/create-agent.dto';
+import {
+  assertPhoneNotBlocked,
+  assertUserNotBlocked,
+} from 'src/utils/services/account-block.service';
 
 interface RegistrationTokenPayload {
   sub: string;
@@ -159,6 +164,8 @@ export class RegistrationService {
   }
 
   private buildAuthResponse(user: UserDocument, role: any) {
+    assertUserNotBlocked(user);
+
     const payload = {
       sub: user._id,
       phoneNumber: user.phoneNumber,
@@ -201,13 +208,14 @@ export class RegistrationService {
     fileId: string | undefined,
     userId: string,
     label: string,
+    updatedBy: string = userId,
   ): Promise<string> {
     if (!fileId) {
       throw new BadRequestException(`${label} is required`);
     }
 
     await this.filesService.findOne(fileId);
-    await this.filesService.updateReferenceId(fileId, userId, userId);
+    await this.filesService.updateReferenceId(fileId, userId, updatedBy);
 
     return fileId;
   }
@@ -215,6 +223,10 @@ export class RegistrationService {
   async initRegistration(dto: RegisterInitDto) {
     const { userType, firstName, lastName, email, phoneNumber, dateOfBirth, password } = dto;
     const normalizedLastName = lastName?.trim() || undefined;
+
+    // Must run before the lookups below: an unverified record with this number
+    // would otherwise be reused and re-registered under a different role.
+    await assertPhoneNotBlocked(this.userModel, phoneNumber);
 
     const existingEmail = await this.userModel.findOne({ email, deletedAt: null });
     if (existingEmail?.registrationStatus === RegistrationStatusEnum.VERIFIED) {
@@ -309,6 +321,8 @@ export class RegistrationService {
     const phoneChanged = user.phoneNumber !== phoneNumber;
 
     if (phoneChanged) {
+      await assertPhoneNotBlocked(this.userModel, phoneNumber);
+
       const existingPhone = await this.userModel.findOne({
         phoneNumber,
         deletedAt: null,
@@ -386,6 +400,8 @@ export class RegistrationService {
     if (!user) {
       throw new UnauthorizedException('Registration session not found');
     }
+
+    assertUserNotBlocked(user);
 
     this.assertRegistrationStep(user, RegistrationStatusEnum.PENDING_OTP);
 
@@ -567,6 +583,8 @@ export class RegistrationService {
     const phoneNumber = dto.phoneNumber.trim();
     const firstName = dto.firstName.trim();
     const normalizedLastName = dto.lastName?.trim() || undefined;
+
+    await assertPhoneNotBlocked(this.userModel, phoneNumber);
 
     const existingEmail = await this.userModel.findOne({ email, deletedAt: null });
     if (existingEmail) {
@@ -804,6 +822,111 @@ export class RegistrationService {
       message: 'Document update request sent to the agent',
       userId: user._id,
       registrationStatus: user.registrationStatus,
+    };
+  }
+
+  /**
+   * Admin swaps in new files on an already approved agent's profile.
+   * Registration status is left untouched; pending agents go through the
+   * document revision request flow instead.
+   */
+  async replaceAgentDocuments(
+    userId: string,
+    dto: ReplaceAgentDocumentsDto,
+    adminUserId: string,
+  ) {
+    const user = await this.userModel
+      .findOne({ _id: userId, deletedAt: null })
+      .populate('role');
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    if (user.userType !== UserTypeEnum.AGENT) {
+      throw new BadRequestException('User is not an agent');
+    }
+
+    if (user.registrationStatus !== RegistrationStatusEnum.VERIFIED) {
+      throw new BadRequestException(
+        'Documents can only be replaced directly for approved agents',
+      );
+    }
+
+    const agentType = user.agentDocuments?.agentType;
+    if (!agentType) {
+      throw new BadRequestException('Agent registration documents are missing');
+    }
+
+    const updatedBy = adminUserId?.toString?.() ?? adminUserId;
+    if (!updatedBy) {
+      throw new BadRequestException('Admin user id is required');
+    }
+
+    const documentEntries = Object.entries(dto.documents ?? {});
+    const additionalEntries = dto.additionalDocuments ?? [];
+
+    if (!documentEntries.length && !additionalEntries.length) {
+      throw new BadRequestException('At least one document is required');
+    }
+
+    const fieldLabels = new Map(
+      AGENT_DOCUMENT_FIELDS[agentType].map((field) => [field.key, field.label]),
+    );
+    const additionalIndexByKey = new Map(
+      (user.agentDocuments.additionalDocuments ?? []).map(
+        (doc, index) => [doc.key, index] as const,
+      ),
+    );
+
+    for (const [key, fileId] of documentEntries) {
+      const label = fieldLabels.get(key);
+      if (!label) {
+        throw new BadRequestException(
+          `"${key}" is not a document for a ${getAgentTypeLabel(agentType)}`,
+        );
+      }
+      if (typeof fileId !== 'string' || !fileId.trim()) {
+        throw new BadRequestException(`${label} is required`);
+      }
+    }
+
+    for (const item of additionalEntries) {
+      if (!additionalIndexByKey.has(item.key)) {
+        throw new BadRequestException(
+          `Additional document "${item.key}" was not found for this agent`,
+        );
+      }
+    }
+
+    for (const [key, fileId] of documentEntries) {
+      const linkedFileId = await this.linkAgentDocument(
+        fileId.trim(),
+        userId,
+        fieldLabels.get(key) as string,
+        updatedBy,
+      );
+      user.set(`agentDocuments.documents.${key}`, linkedFileId);
+    }
+
+    for (const item of additionalEntries) {
+      const index = additionalIndexByKey.get(item.key) as number;
+      const label = user.agentDocuments.additionalDocuments?.[index]?.label ?? item.key;
+      const linkedFileId = await this.linkAgentDocument(
+        item.fileId.trim(),
+        userId,
+        label,
+        updatedBy,
+      );
+      user.set(`agentDocuments.additionalDocuments.${index}.fileId`, linkedFileId);
+    }
+
+    user.lastUpdatedBy = updatedBy;
+    await user.save();
+
+    return {
+      message: 'Agent documents updated successfully',
+      userId: user._id,
     };
   }
 
@@ -1081,6 +1204,9 @@ export class RegistrationService {
       throw new UnauthorizedException('Invalid email, mobile number, or password');
     }
 
+    // After the password check so a wrong password can't reveal a blocked account.
+    assertUserNotBlocked(user);
+
     if (!user.isActive) {
       throw new UnauthorizedException('Your account is inactive. Please contact support.');
     }
@@ -1102,6 +1228,8 @@ export class RegistrationService {
     if (!user) {
       throw new UnauthorizedException('No account found with this phone number');
     }
+
+    assertUserNotBlocked(user);
 
     if (!this.canLogin(user.registrationStatus)) {
       throw new BadRequestException(
@@ -1132,6 +1260,8 @@ export class RegistrationService {
     if (!user) {
       throw new UnauthorizedException('No account found with this phone number');
     }
+
+    assertUserNotBlocked(user);
 
     if (!this.canLogin(user.registrationStatus)) {
       throw new BadRequestException('Please complete registration before logging in.');
@@ -1182,6 +1312,8 @@ export class RegistrationService {
       throw new UnauthorizedException('No account found with this email or mobile number');
     }
 
+    assertUserNotBlocked(user);
+
     if (!this.canLogin(user.registrationStatus)) {
       throw new BadRequestException(
         'Registration is incomplete. Please complete signup first.',
@@ -1219,6 +1351,8 @@ export class RegistrationService {
     if (!user) {
       throw new UnauthorizedException('No account found with this email or mobile number');
     }
+
+    assertUserNotBlocked(user);
 
     if (!this.canLogin(user.registrationStatus)) {
       throw new BadRequestException('Please complete registration before resetting password.');
