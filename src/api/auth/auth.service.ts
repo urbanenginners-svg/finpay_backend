@@ -17,6 +17,10 @@ import {
 } from './dto';
 import { OtpPortalType } from 'src/utils/enums/otp-portal-type.enum';
 import { SmsService } from 'src/services/sms/sms.service';
+import {
+  assertPhoneNotBlocked,
+  assertUserNotBlocked,
+} from 'src/utils/services/account-block.service';
 
 @Injectable()
 export class AuthService {
@@ -91,6 +95,9 @@ export class AuthService {
     const { phoneNumber, userType } = dto;
     const requiredSlug = this.roleSlugForOtpPortal(userType);
 
+    // Also covers +91 / 91 spellings, which the lookups below would treat as a new number.
+    await assertPhoneNotBlocked(this.userModel, phoneNumber);
+
     if (userType === OtpPortalType.CUSTOMER) {
       let user = await this.userModel.findOne({ phoneNumber, deletedAt: null });
 
@@ -157,6 +164,8 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
+    assertUserNotBlocked(user);
+
     const roleDoc = user.role as any;
     if (!roleDoc || roleDoc.slug !== requiredSlug) {
       throw new ForbiddenException(
@@ -213,6 +222,8 @@ export class AuthService {
   async sendOtp(sendOtpDto: SendOtpDto) {
     const { phoneNumber } = sendOtpDto;
 
+    await assertPhoneNotBlocked(this.userModel, phoneNumber);
+
     let user = await this.userModel.findOne({ phoneNumber, deletedAt: null });
 
     if (!user) {
@@ -248,6 +259,8 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
+
+    assertUserNotBlocked(user);
 
     if (!user.otp || user.otp !== otp) {
       throw new UnauthorizedException('Invalid OTP');
@@ -313,6 +326,8 @@ export class AuthService {
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
     }
+
+    assertUserNotBlocked(user);
 
     const role = user.role as any;
     if (role && role.isActive === false) {

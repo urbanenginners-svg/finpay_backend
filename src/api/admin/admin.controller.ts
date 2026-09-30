@@ -16,9 +16,10 @@ import type { Response } from 'express';
 
 import { AdminService } from './admin.service';
 import { RegistrationService } from '../auth/registration.service';
-import { CreateUserDto, GetUsersQueryDto, UpdateUserDto } from './dto';
+import { BlockUserDto, CreateUserDto, GetUsersQueryDto, UpdateUserDto } from './dto';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { RequestAgentDocumentUpdateDto } from './dto/request-agent-document-update.dto';
+import { ReplaceAgentDocumentsDto } from './dto/replace-agent-documents.dto';
 import { VerifyAgentDto } from '../auth/dto/register.dto';
 import {
   CreateUserSwagger,
@@ -281,6 +282,62 @@ export class AdminController {
       requestUserId,
     );
     return new DataResponse(result);
+  }
+
+  /**
+   * PUT /admin/users/:id/agent-documents
+   * Replace (or upload) documents on an approved agent's profile
+   */
+  @Version('1')
+  @Put(':id/agent-documents')
+  @CheckActionPolicy(PermissionEnum.UPDATE, resource.User)
+  async replaceAgentDocuments(
+    @Param('id') id: string,
+    @Body() dto: ReplaceAgentDocumentsDto,
+    @GetUser('_id') requestUserId: string,
+  ) {
+    const result = await this.registrationService.replaceAgentDocuments(
+      id,
+      dto,
+      requestUserId,
+    );
+    return new DataResponse(result);
+  }
+
+  /**
+   * PUT /admin/users/:id/block
+   * Block an agent: no login, no new sessions, and the mobile number cannot be re-registered
+   */
+  @Version('1')
+  @Put(':id/block')
+  @CheckActionPolicy(PermissionEnum.UPDATE, resource.User)
+  async block(
+    @Param('id') id: string,
+    @Body() dto: BlockUserDto,
+    @GetUser('_id') requestUserId: string,
+  ) {
+    const result = await this.adminService.setBlockedStatus(
+      id,
+      true,
+      requestUserId,
+      dto.reason,
+    );
+    return new DataResponse(result, 'Agent blocked successfully');
+  }
+
+  /**
+   * PUT /admin/users/:id/unblock
+   * Restore access for a blocked agent
+   */
+  @Version('1')
+  @Put(':id/unblock')
+  @CheckActionPolicy(PermissionEnum.UPDATE, resource.User)
+  async unblock(
+    @Param('id') id: string,
+    @GetUser('_id') requestUserId: string,
+  ) {
+    const result = await this.adminService.setBlockedStatus(id, false, requestUserId);
+    return new DataResponse(result, 'Agent unblocked successfully');
   }
 
   /**
