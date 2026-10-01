@@ -13,6 +13,7 @@ import {
   PRITHVI_API_PATHS,
   PRITHVI_DEFAULT_PAYMENT_REDIRECT_URL,
   PRITHVI_FOREX_DRAFT_TTL_MS,
+  PRITHVI_PURPOSE_LABELS,
 } from './prithvi-exchange.constants';
 import { PrithviApiLogService } from './prithvi-api-log.service';
 import { PrithviExchangeService } from './prithvi-exchange.service';
@@ -69,6 +70,13 @@ const REDACTED = '[REDACTED]';
 /** Prithvi forex APIs expect title-case order types (`Buy` / `Sell`), not `BUY` / `SELL`. */
 function toPrithviApiOrderType(orderType: PrithviOrderType | string): 'Buy' | 'Sell' {
   return String(orderType).toUpperCase() === 'SELL' ? 'Sell' : 'Buy';
+}
+
+function withStaticPurposeLabel<T extends { code: string; name: string }>(
+  purpose: T,
+): T {
+  const label = PRITHVI_PURPOSE_LABELS[String(purpose.code ?? '').trim()];
+  return label ? { ...purpose, name: label } : purpose;
 }
 
 function toFiniteNumber(value: unknown, fallback = 0): number {
@@ -1334,7 +1342,7 @@ export class PrithviForexApiService {
         ? cached.purposes
         : await this.syncPurposesFromProvider();
 
-    return this.filterPurposes(purposes, params);
+    return this.filterPurposes(purposes, params).map(withStaticPurposeLabel);
   }
 
   /**
@@ -1434,10 +1442,10 @@ export class PrithviForexApiService {
     );
 
     if (!this.isActive) {
-      return this.dryRunPurposeConfig(code);
+      return withStaticPurposeLabel(this.dryRunPurposeConfig(code));
     }
 
-    return this.requestJson<PrithviPurposeConfig>({
+    const config = await this.requestJson<PrithviPurposeConfig>({
       method: 'GET',
       callType: PrithviApiCallType.PURPOSE_CONFIG,
       path,
@@ -1447,6 +1455,7 @@ export class PrithviForexApiService {
       serverErrorMessage:
         'Unable to load purpose configuration right now. Please try again later.',
     });
+    return config ? withStaticPurposeLabel(config) : config;
   }
 
   private normalizeInitiateResult(

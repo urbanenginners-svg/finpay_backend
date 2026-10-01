@@ -37,6 +37,34 @@ export const PRITHVI_PROVIDER_NAME = 'prithvi';
 export const PRITHVI_AGENT_RATES_CRON = '*/5 * * * *';
 export const PRITHVI_AGENT_RATES_CRON_TIMEZONE = 'Asia/Kolkata';
 
+/**
+ * Display labels keyed by Prithvi purpose code. Prithvi may rename purposes
+ * (e.g. appending "AD1"/"AD2"); codes stay stable, so the UI label comes from
+ * here. Purposes whose code is missing fall back to the Prithvi name.
+ */
+export const PRITHVI_PURPOSE_LABELS: Readonly<Record<string, string>> = {
+  S0001: 'Leisure/Private Visit/Holiday',
+  S0011: 'Leisure/Private Visit/Holiday',
+  S0101: 'Business Visit',
+  S0111: 'Business Visit',
+  S0301: 'Education Abroad',
+  S0311: 'Education Abroad',
+  S0401: 'Employment Abroad',
+  S0411: 'Employment Abroad',
+  S0501: 'Sell Cash',
+  S0502: 'Sell Card',
+  S0305: 'Transfer to Educational Institute',
+  S0306: 'Transfer to Educational Institute (Loan)',
+  S1107: 'Transfer to Education Individual Account',
+  S0402: 'Medical Treatment Abroad',
+  S0403: 'Emigration',
+  S0901: 'Tour',
+  S0902: 'MICE',
+  S0903: 'Private Visit',
+  S1301: 'Transfer to Family Member Abroad',
+  S1302: 'Transfer to Non Relative Individual (Gift)',
+};
+
 /** Purpose list sync: 1st of each month at 2:00 AM IST. */
 export const PRITHVI_PURPOSE_LIST_CRON = '0 2 1 * *';
 export const PRITHVI_PURPOSE_LIST_CRON_TIMEZONE = 'Asia/Kolkata';
