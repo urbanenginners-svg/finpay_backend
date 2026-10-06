@@ -9,6 +9,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
 import {
+  NON_RELATIVE_GIFT_MAX_USD,
+  NON_RELATIVE_GIFT_PURPOSE_CODE,
   PrithviExchangeService,
   PrithviForexApiService,
   PrithviForexRequestStatus,
@@ -138,6 +140,7 @@ export class RemittanceService {
   }
 
   async initiateForex(dto: InitiateForexRequestDto, userId: string) {
+    await this.assertNonRelativeGiftLimit(dto);
     const bookingSource = await this.resolveBookingSource(userId);
     const orderDetails = await Promise.all(
       dto.orderDetails.map(async (order) => {
@@ -176,6 +179,43 @@ export class RemittanceService {
     await this.persistInitiateOrders(String(userId), payload, data, bookingSource);
 
     return data;
+  }
+
+  private async assertNonRelativeGiftLimit(dto: InitiateForexRequestDto) {
+    const purposeCode = String(dto.purposeCode ?? '')
+      .trim()
+      .toUpperCase();
+    if (purposeCode !== NON_RELATIVE_GIFT_PURPOSE_CODE) return;
+
+    const limitLabel = `USD ${NON_RELATIVE_GIFT_MAX_USD.toLocaleString('en-US')}`;
+    let liveRates: Map<string, number> | null = null;
+
+    for (const order of dto.orderDetails) {
+      const currency = String(order.currency ?? '')
+        .trim()
+        .toUpperCase();
+      const amount = toFiniteNumber(order.currencyAmount);
+      if (!currency || !(amount > 0)) continue;
+
+      let usdAmount = amount;
+      if (currency !== 'USD') {
+        liveRates ??= await this.getLiveTtBuyRatesByCurrency();
+        const fromRate = liveRates.get(currency) ?? 0;
+        const usdRate = liveRates.get('USD') ?? 0;
+        if (!(fromRate > 0) || !(usdRate > 0)) {
+          throw new BadRequestException(
+            `Unable to verify the ${limitLabel} limit for Non-Relative Gift transfers because the ${currency}/USD rate is unavailable. Please try again shortly.`,
+          );
+        }
+        usdAmount = (amount * fromRate) / usdRate;
+      }
+
+      if (roundMoney(usdAmount) > NON_RELATIVE_GIFT_MAX_USD) {
+        throw new BadRequestException(
+          `Non-Relative Gift transfers are limited to ${limitLabel} equivalent per transaction. ${amount} ${currency} is approx. USD ${roundMoney(usdAmount).toFixed(2)}.`,
+        );
+      }
+    }
   }
 
   async completeForex(

@@ -65,6 +65,10 @@ export const PRITHVI_PURPOSE_LABELS: Readonly<Record<string, string>> = {
   S1302: 'Transfer to Non Relative Individual (Gift)',
 };
 
+/** Per-transaction cap for "Transfer to Non Relative Individual (Gift)", in USD equivalent. */
+export const NON_RELATIVE_GIFT_PURPOSE_CODE = 'S1302';
+export const NON_RELATIVE_GIFT_MAX_USD = 14_999;
+
 /** Purpose list sync: 1st of each month at 2:00 AM IST. */
 export const PRITHVI_PURPOSE_LIST_CRON = '0 2 1 * *';
 export const PRITHVI_PURPOSE_LIST_CRON_TIMEZONE = 'Asia/Kolkata';
