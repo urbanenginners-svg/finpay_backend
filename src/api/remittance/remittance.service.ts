@@ -478,6 +478,237 @@ export class RemittanceService {
   }
 
   /**
+   * "My Documents" tab: every purpose document stored for this account.
+   * Finpay users see their self-bookings; agents see their walk-in customers'
+   * documents (all customers, or one when agentCustomerId is passed).
+   */
+  async listForexDocuments(userId: string, agentCustomerId?: string) {
+    const bookingSource = await this.resolveBookingSource(userId);
+    let scope: string | null | 'any' = null;
+    if (bookingSource === ForexBookingSourceEnum.AGENT) {
+      const customerId = agentCustomerId?.trim();
+      if (customerId) {
+        await this.agentCustomers.findOwned(String(userId), customerId);
+        scope = customerId;
+      } else {
+        scope = 'any';
+      }
+    } else if (agentCustomerId?.trim()) {
+      throw new BadRequestException(
+        'agentCustomerId is only valid for agent accounts',
+      );
+    }
+
+    const orders = await this.forexOrders.findOrdersWithDocuments({
+      createdByUserId: String(userId),
+      agentCustomerId: scope,
+      limit: 300,
+    });
+
+    type DocumentEntry = {
+      localFileId: string;
+      documentType: string;
+      agentCustomerId: string | null;
+      orders: Array<{
+        orderId: string;
+        orderCode: string | null;
+        status: string | null;
+        statusLabel: string | null;
+        purpose: string | null;
+      }>;
+    };
+    const byFileId = new Map<string, DocumentEntry>();
+
+    for (const order of orders) {
+      for (const [documentType, rawFileId] of Object.entries(
+        order.localDocumentFileIds ?? {},
+      )) {
+        if (!rawFileId) continue;
+        const localFileId = String(rawFileId);
+        let entry = byFileId.get(localFileId);
+        if (!entry) {
+          entry = {
+            localFileId,
+            documentType,
+            agentCustomerId: order.agentCustomerId ?? null,
+            orders: [],
+          };
+          byFileId.set(localFileId, entry);
+        }
+        if (!entry.orders.some((o) => o.orderId === order.prithviOrderId)) {
+          entry.orders.push({
+            orderId: order.prithviOrderId,
+            orderCode: order.orderCode ?? null,
+            status: order.status ?? null,
+            statusLabel: order.statusLabel ?? null,
+            purpose: order.purpose ?? null,
+          });
+        }
+      }
+    }
+
+    const files = await this.filesService.findActiveByIds([...byFileId.keys()]);
+    const fileById = new Map(files.map((f) => [String(f._id), f]));
+
+    return [...byFileId.values()]
+      .filter((entry) => fileById.has(entry.localFileId))
+      .map((entry) => {
+        const file = fileById.get(entry.localFileId)!;
+        const createdAt = (file as unknown as { createdAt?: Date }).createdAt;
+        return {
+          ...entry,
+          fileName: file.originalName ?? 'Document',
+          mimeType: file.mimeType ?? null,
+          size: file.size ?? null,
+          uploadedAt: createdAt ? new Date(createdAt).toISOString() : null,
+        };
+      })
+      .sort((a, b) => (b.uploadedAt ?? '').localeCompare(a.uploadedAt ?? ''));
+  }
+
+  /**
+   * Purpose documents uploaded on earlier orders, so the booking UI can offer
+   * "use previously uploaded" instead of a fresh upload.
+   * Agents must scope to one of their walk-in customers.
+   */
+  async listReusableForexDocuments(
+    userId: string,
+    agentCustomerId?: string,
+  ) {
+    const bookingSource = await this.resolveBookingSource(userId);
+    let customerId: string | null = null;
+    if (bookingSource === ForexBookingSourceEnum.AGENT) {
+      customerId = agentCustomerId?.trim() || null;
+      if (!customerId) {
+        throw new BadRequestException(
+          'agentCustomerId is required to list documents for an agent customer',
+        );
+      }
+      await this.agentCustomers.findOwned(String(userId), customerId);
+    } else if (agentCustomerId?.trim()) {
+      throw new BadRequestException(
+        'agentCustomerId is only valid for agent accounts',
+      );
+    }
+
+    const orders = await this.forexOrders.findOrdersWithDocuments({
+      createdByUserId: String(userId),
+      agentCustomerId: customerId,
+    });
+
+    const MAX_PER_TYPE = 3;
+    const seen = new Set<string>();
+    const perType = new Map<string, number>();
+    const entries: Array<{
+      documentType: string;
+      localFileId: string;
+      sourceOrderId: string;
+      orderCode: string | null;
+      uploadedAt: string | null;
+    }> = [];
+
+    for (const order of orders) {
+      for (const [documentType, localFileId] of Object.entries(
+        order.localDocumentFileIds ?? {},
+      )) {
+        if (!localFileId) continue;
+        const key = `${documentType}:${localFileId}`;
+        if (seen.has(key)) continue;
+        const count = perType.get(documentType) ?? 0;
+        if (count >= MAX_PER_TYPE) continue;
+        seen.add(key);
+        perType.set(documentType, count + 1);
+        entries.push({
+          documentType,
+          localFileId: String(localFileId),
+          sourceOrderId: order.prithviOrderId,
+          orderCode: order.orderCode ?? null,
+          uploadedAt: order.updatedAt
+            ? new Date(order.updatedAt).toISOString()
+            : null,
+        });
+      }
+    }
+
+    const files = await this.filesService.findActiveByIds([
+      ...new Set(entries.map((e) => e.localFileId)),
+    ]);
+    const fileById = new Map(files.map((f) => [String(f._id), f]));
+
+    return entries
+      .filter((e) => fileById.has(e.localFileId))
+      .map((e) => ({
+        ...e,
+        fileName: fileById.get(e.localFileId)?.originalName ?? 'Document',
+      }));
+  }
+
+  /**
+   * Attach a document stored on an earlier order to this order: re-sends the
+   * Finpay S3 copy to Prithvi upload-document for the new order id.
+   */
+  async reuseForexOrderDocument(
+    orderId: string,
+    documentType: string,
+    localFileId: string,
+    userId: string,
+  ) {
+    const trimmedOrderId = orderId?.trim();
+    const trimmedType = documentType?.trim();
+    const trimmedFileId = localFileId?.trim();
+    if (!trimmedOrderId) {
+      throw new BadRequestException('Order id is required');
+    }
+    if (!trimmedType || !trimmedFileId) {
+      throw new BadRequestException('documentType and localFileId are required');
+    }
+
+    const owned = await this.forexOrders.findOwnedByUser(
+      trimmedOrderId,
+      String(userId),
+    );
+    if (!owned) {
+      throw new NotFoundException('Forex order not found for this account');
+    }
+
+    const ownsFile = await this.forexOrders.userOwnsDocumentFile({
+      createdByUserId: String(userId),
+      documentType: trimmedType,
+      localFileId: trimmedFileId,
+    });
+    if (!ownsFile) {
+      throw new NotFoundException(
+        'Previously uploaded document not found for this account',
+      );
+    }
+
+    const stored = await this.filesService.downloadFile(trimmedFileId);
+
+    const prithviResult = await this.prithviForex.uploadOrderDocument({
+      orderId: trimmedOrderId,
+      documentType: trimmedType,
+      buffer: stored.buffer,
+      filename: stored.originalName,
+      mimeType: stored.mimeType,
+    });
+
+    await this.forexOrders.setUploadedDocument({
+      prithviOrderId: trimmedOrderId,
+      documentType: trimmedType,
+      prithviPath: prithviResult.prithviPath,
+      localFileId: trimmedFileId,
+    });
+
+    return {
+      documentType: prithviResult.documentType,
+      prithviPath: prithviResult.prithviPath,
+      localFileId: trimmedFileId,
+      fileName: stored.originalName,
+      forexOrder: prithviResult.forexOrder,
+    };
+  }
+
+  /**
    * Serve forex orders from local MongoDB (booked via Finpay + 30-minute sync).
    * Scoped to the authenticated user — never the full Prithvi agent dashboard.
    */

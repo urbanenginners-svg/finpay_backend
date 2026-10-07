@@ -271,6 +271,61 @@ export function UploadForexOrderDocumentSwagger() {
   );
 }
 
+export function ReuseForexOrderDocumentSwagger() {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Reuse a previously uploaded forex document',
+      description:
+        'Attaches a document uploaded on an earlier order (same documentType) to this order by re-sending the Finpay S3 copy to Prithvi upload-document. Returns the Prithvi path to send on complete.',
+    }),
+    ApiParam({
+      name: 'orderId',
+      description: 'Prithvi order line id from initiate (orders[].id)',
+      example: '3c4733c4-b624-48a8-9e21-312b5502d90d',
+    }),
+    ApiResponse({
+      status: 200,
+      description: 'Document attached; returns prithviPath for complete payload',
+    }),
+    ApiResponse({ status: 400, description: 'Validation failure' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+    ApiResponse({
+      status: 404,
+      description: 'Order or previously uploaded document not found',
+    }),
+  );
+}
+
+export function GetForexDocumentsSwagger() {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'List uploaded forex documents',
+      description:
+        'All purpose documents stored for this account, one entry per file with the orders it was used on. Finpay users see their self-bookings; agents see documents for their walk-in customers (optionally filtered by agentCustomerId).',
+    }),
+    ApiResponse({ status: 200, description: 'Uploaded documents' }),
+    ApiResponse({ status: 400, description: 'Invalid agentCustomerId' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+    ApiResponse({ status: 404, description: 'Agent customer not found' }),
+  );
+}
+
+export function GetReusableForexDocumentsSwagger() {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'List previously uploaded forex documents',
+      description:
+        'Documents uploaded on earlier orders (up to 3 most recent per documentType). Finpay users see their own self-bookings; agents must pass agentCustomerId.',
+    }),
+    ApiResponse({ status: 200, description: 'Reusable documents' }),
+    ApiResponse({ status: 400, description: 'Missing or invalid agentCustomerId' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
+  );
+}
+
 export function GetForexOrdersDashboardSwagger() {
   return applyDecorators(
     ApiBearerAuth(),

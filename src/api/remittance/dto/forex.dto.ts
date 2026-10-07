@@ -668,6 +668,39 @@ export class UploadForexOrderDocumentDto {
   documentType: string;
 }
 
+export class ReuseForexOrderDocumentDto {
+  @ApiProperty({
+    example: 'passportFrontImage',
+    description: 'documentType key from purpose config requiredDocuments',
+  })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(80)
+  @Matches(/^[A-Za-z0-9_-]+$/, {
+    message: 'documentType may only contain letters, numbers, _ and -',
+  })
+  documentType: string;
+
+  @ApiProperty({
+    description:
+      'Finpay file id (localFileId) of a document uploaded on an earlier order',
+  })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  localFileId: string;
+}
+
+export class GetReusableForexDocumentsQueryDto {
+  @ApiPropertyOptional({
+    description: 'Agents: walk-in customer whose earlier documents to list.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  agentCustomerId?: string;
+}
+
 export enum ForexOfflinePaymentMode {
   IMPS = 'IMPS',
   NEFT = 'NEFT',

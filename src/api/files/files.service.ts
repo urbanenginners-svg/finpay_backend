@@ -276,6 +276,42 @@ export class FilesService {
     return file;
   }
 
+  async findActiveByIds(ids: string[]): Promise<FileDocument[]> {
+    if (!ids.length) return [];
+    return this.fileModel
+      .find({ _id: { $in: ids }, isDeleted: false })
+      .exec();
+  }
+
+  async downloadFile(id: string): Promise<{
+    buffer: Buffer;
+    mimeType: string;
+    originalName: string;
+  }> {
+    const fileDoc = await this.findOne(id);
+
+    try {
+      const result = await this.s3Client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: fileDoc.s3Key }),
+      );
+      const bytes = await result.Body?.transformToByteArray();
+      if (!bytes?.length) {
+        throw new Error('Empty S3 object');
+      }
+      return {
+        buffer: Buffer.from(bytes),
+        mimeType:
+          fileDoc.mimeType || result.ContentType || 'application/octet-stream',
+        originalName:
+          fileDoc.originalName || fileDoc.s3Key.split('/').pop() || 'document',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        `Failed to read file from S3: ${error.message}`,
+      );
+    }
+  }
+
   async updateReferenceId(
     id: string,
     referenceId: string,

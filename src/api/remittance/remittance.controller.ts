@@ -28,6 +28,8 @@ import {
   GetRemittanceRatesQueryDto,
   InitiateForexRequestDto,
   CheckLrsDto,
+  GetReusableForexDocumentsQueryDto,
+  ReuseForexOrderDocumentDto,
   SubmitForexOfflinePaymentDto,
   UploadForexOrderDocumentDto,
 } from './dto';
@@ -50,6 +52,9 @@ import {
   GetPurposeConfigSwagger,
   GetPurposesSwagger,
   GetRemittanceProvidersSwagger,
+  GetForexDocumentsSwagger,
+  GetReusableForexDocumentsSwagger,
+  ReuseForexOrderDocumentSwagger,
   GetRemittanceRatesSwagger,
   GetPublicCustomerRetailRatesSwagger,
   InitiateForexRequestSwagger,
@@ -225,6 +230,57 @@ export class RemittanceController {
       userId,
     );
     return new DataResponse(data, 'Document uploaded successfully.');
+  }
+
+  @ApiBearerAuth()
+  @Version('1')
+  @Post('forex/orders/:orderId/reuse-document')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerBehindProxyGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 40 } })
+  @ReuseForexOrderDocumentSwagger()
+  async reuseForexOrderDocument(
+    @GetUser('_id') userId: string,
+    @Param('orderId') orderId: string,
+    @Body() dto: ReuseForexOrderDocumentDto,
+  ) {
+    const data = await this.remittanceService.reuseForexOrderDocument(
+      orderId,
+      dto.documentType,
+      dto.localFileId,
+      userId,
+    );
+    return new DataResponse(data, 'Document attached successfully.');
+  }
+
+  @ApiBearerAuth()
+  @Version('1')
+  @Get('forex/documents')
+  @GetForexDocumentsSwagger()
+  async listForexDocuments(
+    @GetUser('_id') userId: string,
+    @Query() query: GetReusableForexDocumentsQueryDto,
+  ) {
+    const data = await this.remittanceService.listForexDocuments(
+      userId,
+      query.agentCustomerId,
+    );
+    return new DataResponse(data);
+  }
+
+  @ApiBearerAuth()
+  @Version('1')
+  @Get('forex/documents/reusable')
+  @GetReusableForexDocumentsSwagger()
+  async listReusableForexDocuments(
+    @GetUser('_id') userId: string,
+    @Query() query: GetReusableForexDocumentsQueryDto,
+  ) {
+    const data = await this.remittanceService.listReusableForexDocuments(
+      userId,
+      query.agentCustomerId,
+    );
+    return new DataResponse(data);
   }
 
   @ApiBearerAuth()

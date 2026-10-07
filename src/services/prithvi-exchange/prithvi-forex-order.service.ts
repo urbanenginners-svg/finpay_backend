@@ -105,6 +105,17 @@ export type UpsertForexOrderFromCompleteInput = {
   product?: string | null;
 };
 
+export type ForexOrderWithDocumentsRow = {
+  prithviOrderId: string;
+  orderCode?: string | null;
+  status?: string;
+  statusLabel?: string | null;
+  purpose?: string | null;
+  agentCustomerId?: string | null;
+  localDocumentFileIds?: Record<string, string>;
+  updatedAt?: Date;
+};
+
 export type SyncForexOrderFromDashboardInput = {
   prithviOrderId: string;
   forexRequestId?: string | null;
@@ -712,6 +723,56 @@ export class PrithviForexOrderService {
         { new: true },
       )
       .exec();
+  }
+
+  /**
+   * Recent orders with locally stored purpose documents, newest first.
+   * `agentCustomerId`: a customer id = that walk-in customer only;
+   * `null` = self bookings only; `'any'` = any walk-in customer.
+   */
+  async findOrdersWithDocuments(params: {
+    createdByUserId: string;
+    agentCustomerId: string | null | 'any';
+    limit?: number;
+  }): Promise<ForexOrderWithDocumentsRow[]> {
+    const filter: FilterQuery<PrithviForexOrder> = {
+      createdByUserId: String(params.createdByUserId),
+      localDocumentFileIds: { $exists: true, $ne: {} },
+    };
+    if (params.agentCustomerId === 'any') {
+      filter.agentCustomerId = { $ne: null };
+    } else if (params.agentCustomerId) {
+      filter.agentCustomerId = params.agentCustomerId;
+    } else {
+      filter.$or = [
+        { agentCustomerId: null },
+        { agentCustomerId: { $exists: false } },
+      ];
+    }
+
+    return this.model
+      .find(filter)
+      .select(
+        'prithviOrderId orderCode status statusLabel purpose agentCustomerId localDocumentFileIds updatedAt',
+      )
+      .sort({ updatedAt: -1 })
+      .limit(Math.max(1, Math.min(300, params.limit ?? 50)))
+      .lean<ForexOrderWithDocumentsRow[]>()
+      .exec();
+  }
+
+  async userOwnsDocumentFile(input: {
+    createdByUserId: string;
+    documentType: string;
+    localFileId: string;
+  }): Promise<boolean> {
+    const exists = await this.model
+      .exists({
+        createdByUserId: String(input.createdByUserId),
+        [`localDocumentFileIds.${input.documentType}`]: input.localFileId,
+      })
+      .exec();
+    return Boolean(exists);
   }
 
   async findDashboardForUser(
