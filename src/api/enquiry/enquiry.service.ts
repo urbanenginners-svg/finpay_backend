@@ -23,6 +23,7 @@ import { SMS_TEMPLATE_KEYS } from 'src/services/sms/mappings/sms-template.regist
 import { AppConfigService } from 'src/services/env/env.service';
 import { HostingerService } from 'src/services/email/hostinger.service';
 import { User } from 'src/services/mongoose/schemas/user.schema';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 interface UpdateEnquiryActor {
   _id: string;
@@ -41,6 +42,7 @@ export class EnquiryService {
     private readonly hostingerService: HostingerService,
     private readonly config: AppConfigService,
     private readonly systemConfigService: SystemConfigService,
+    private readonly analyticsService: AnalyticsService,
   ) {}
 
   getAvailableServices() {
@@ -96,8 +98,27 @@ export class EnquiryService {
       }
     }
 
+    if (dto.tracking) {
+      try {
+        const attribution = await this.analyticsService.getAttribution(dto.tracking);
+        if (attribution) enquiryData.attribution = attribution;
+      } catch (error) {
+        this.logger.warn(
+          `Could not resolve analytics attribution for enquiry: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
     const enquiry = new this.enquiryModel(enquiryData);
     const saved = await enquiry.save();
+
+    if (saved.attribution && dto.tracking) {
+      this.analyticsService.markConverted(dto.tracking, String(saved._id)).catch((error) => {
+        this.logger.warn(
+          `Failed to link enquiry ${saved._id} to analytics session: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+    }
 
     this.notifyAdvisors(saved).catch((error) => {
       this.logger.error(

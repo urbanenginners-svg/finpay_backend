@@ -1,13 +1,25 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsNotEmpty,
   IsObject,
+  IsOptional,
   IsString,
+  IsUUID,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 import { ContactDto } from './contact.dto';
+
+export class EnquiryTrackingDto {
+  @ApiProperty({ description: 'Analytics visitor ID (only sent when the visitor consented to analytics)' })
+  @IsUUID('4')
+  visitorId: string;
+
+  @ApiProperty({ description: 'Analytics session ID of the visit that submitted the enquiry' })
+  @IsUUID('4')
+  sessionId: string;
+}
 
 export class CreateServiceEnquiryDto {
   @ApiProperty({ example: 'outward-remittance' })
@@ -28,4 +40,10 @@ export class CreateServiceEnquiryDto {
   @IsObject({ message: 'serviceDetails must be an object' })
   @IsNotEmpty({ message: 'serviceDetails is required' })
   serviceDetails: Record<string, unknown>;
+
+  @ApiPropertyOptional({ type: EnquiryTrackingDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EnquiryTrackingDto)
+  tracking?: EnquiryTrackingDto;
 }

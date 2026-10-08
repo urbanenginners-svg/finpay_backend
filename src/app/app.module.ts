@@ -16,6 +16,7 @@ import { RemittanceModule } from "src/api/remittance/remittance.module";
 import { BeneficiaryModule } from "src/api/beneficiary/beneficiary.module";
 import { AgentCustomerModule } from "src/api/agent-customer/agent-customer.module";
 import { SystemConfigModule } from "src/api/system-config/system-config.module";
+import { AnalyticsModule } from "src/api/analytics/analytics.module";
 import { SmsModule } from "src/services/sms";
 import { EmailModule } from "src/services/email";
 import { RemittanceProviderTokenModule } from "src/services/remittance-provider-token";
@@ -56,6 +57,7 @@ import { SystemApiKey, SystemApiKeySchema } from "src/services/mongoose/schemas/
         BeneficiaryModule,
         AgentCustomerModule,
         SystemConfigModule,
+        AnalyticsModule,
         SmsModule,
         EmailModule,
         RemittanceProviderTokenModule,

@@ -13,10 +13,12 @@ import { CaslAbilityFactory } from 'src/services/casl/casl-ability.factory';
 import { PoliciesGuard } from 'src/services/casl/casl-policies.guard';
 import { ThrottlerBehindProxyGuard } from 'src/services/throttler/throttler-proxy.guard';
 import { SystemConfigModule } from '../system-config/system-config.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
   imports: [
     SystemConfigModule,
+    AnalyticsModule,
     MongooseModule.forFeature([
       { name: ServiceEnquiry.name, schema: ServiceEnquirySchema },
       { name: Permission.name, schema: PermissionSchema },
