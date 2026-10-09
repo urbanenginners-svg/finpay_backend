@@ -22,7 +22,11 @@ import {
 import { AppConfigService } from 'src/services/env/env.service';
 import { PageMeta } from 'src/utils/response/page-meta';
 import { AnalyticsLeadsQueryDto, AnalyticsRangeQueryDto, AnalyticsVisitsQueryDto, CollectEventDto } from './dto';
-import { ANALYTICS_RETENTION_DAYS, ANALYTICS_TOP_LIMIT } from './constants/analytics.constants';
+import {
+  ANALYTICS_DEFAULT_TIMEZONE,
+  ANALYTICS_RETENTION_DAYS,
+  ANALYTICS_TOP_LIMIT,
+} from './constants/analytics.constants';
 import { eachDate, previousRange, resolveRange } from './analytics-range.util';
 import { parseUserAgent } from './utils/user-agent.util';
 import { classifyTrafficSource, normalizeHost } from './utils/traffic-source.util';
@@ -39,6 +43,7 @@ export interface EnquiryTrackingRef {
 }
 
 const ACTIVE_WINDOW_MS = 5 * 60 * 1000;
+const MONGO_UNKNOWN_TIMEZONE = 40485;
 const EXPORT_ROW_LIMIT = 50_000;
 
 function compact<T extends Record<string, unknown>>(obj: T): Partial<T> {
@@ -314,6 +319,17 @@ export class AnalyticsService {
   }
 
   async getOverview(query: AnalyticsRangeQueryDto) {
+    try {
+      return await this.buildOverview(query);
+    } catch (error) {
+      const unknownZone = (error as { code?: number }).code === MONGO_UNKNOWN_TIMEZONE;
+      if (!unknownZone || !query.tz || query.tz === ANALYTICS_DEFAULT_TIMEZONE) throw error;
+      this.logger.warn(`MongoDB does not recognise timezone '${query.tz}'; using ${ANALYTICS_DEFAULT_TIMEZONE}`);
+      return this.buildOverview({ ...query, tz: ANALYTICS_DEFAULT_TIMEZONE });
+    }
+  }
+
+  private async buildOverview(query: AnalyticsRangeQueryDto) {
     const range = resolveRange(query);
     const { from, to, tz } = range;
     const prev = previousRange(range);

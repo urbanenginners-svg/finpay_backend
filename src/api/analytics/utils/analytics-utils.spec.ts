@@ -1,6 +1,19 @@
 import { TrafficChannel } from '../constants/analytics.constants';
 import { classifyTrafficSource } from './traffic-source.util';
 import { parseUserAgent } from './user-agent.util';
+import { resolveTimezone } from '../analytics-range.util';
+
+describe('resolveTimezone', () => {
+  it('maps legacy names browsers report to ones MongoDB accepts', () => {
+    expect(resolveTimezone('Asia/Calcutta')).toBe('Asia/Kolkata');
+    expect(resolveTimezone('Asia/Kolkata')).toBe('Asia/Kolkata');
+    expect(resolveTimezone(undefined)).toBe('Asia/Kolkata');
+  });
+
+  it('rejects unknown zones', () => {
+    expect(() => resolveTimezone('Mars/Olympus')).toThrow();
+  });
+});
 
 const ownHosts = ['finpayremit.com'];
 

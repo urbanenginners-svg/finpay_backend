@@ -19,8 +19,37 @@ export interface ResolvedRange {
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Browsers (Chrome/ICU) still report some legacy IANA names, but MongoDB's
+ * time zone database may not know them and fails the whole aggregation.
+ */
+const LEGACY_TIMEZONES: Record<string, string> = {
+  'Asia/Calcutta': 'Asia/Kolkata',
+  'Asia/Katmandu': 'Asia/Kathmandu',
+  'Asia/Saigon': 'Asia/Ho_Chi_Minh',
+  'Asia/Rangoon': 'Asia/Yangon',
+  'Asia/Dacca': 'Asia/Dhaka',
+  'Asia/Thimbu': 'Asia/Thimphu',
+  'Asia/Ujung_Pandang': 'Asia/Makassar',
+  'Asia/Ulan_Bator': 'Asia/Ulaanbaatar',
+  'Asia/Chongqing': 'Asia/Shanghai',
+  'Asia/Harbin': 'Asia/Shanghai',
+  'Asia/Macao': 'Asia/Macau',
+  'Asia/Istanbul': 'Europe/Istanbul',
+  'Europe/Kiev': 'Europe/Kyiv',
+  'Atlantic/Faeroe': 'Atlantic/Faroe',
+  'America/Buenos_Aires': 'America/Argentina/Buenos_Aires',
+  'America/Indianapolis': 'America/Indiana/Indianapolis',
+  'America/Louisville': 'America/Kentucky/Louisville',
+  'Pacific/Truk': 'Pacific/Chuuk',
+  'Pacific/Ponape': 'Pacific/Pohnpei',
+  'Pacific/Enderbury': 'Pacific/Kanton',
+  'Australia/Canberra': 'Australia/Sydney',
+};
+
 export function resolveTimezone(tz?: string): string {
-  const zone = tz?.trim() || ANALYTICS_DEFAULT_TIMEZONE;
+  const requested = tz?.trim() || ANALYTICS_DEFAULT_TIMEZONE;
+  const zone = LEGACY_TIMEZONES[requested] ?? requested;
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: zone });
     return zone;
