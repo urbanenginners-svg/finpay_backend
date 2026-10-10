@@ -27,10 +27,12 @@ import {
 import { DataResponse } from 'src/utils/response';
 import { GetUser } from 'src/utils/decorators/get-user.decorator';
 import { ThrottlerBehindProxyGuard } from 'src/services/throttler/throttler-proxy.guard';
+import { AgentAgreementAcceptedGuard } from 'src/services/auth/agent-agreement-accepted.guard';
 
 @ApiTags('Agent Customers')
 @ApiBearerAuth()
 @Controller('agent-customers')
+@UseGuards(AgentAgreementAcceptedGuard)
 export class AgentCustomerController {
   constructor(private readonly agentCustomerService: AgentCustomerService) {}
 

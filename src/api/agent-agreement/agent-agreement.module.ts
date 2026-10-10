@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { AgentAgreementController } from './agent-agreement.controller';
@@ -14,7 +14,9 @@ import { Role, RoleSchema } from 'src/services/mongoose/schemas/role.schema';
 import { CaslAbilityFactory } from 'src/services/casl/casl-ability.factory';
 import { PoliciesGuard } from 'src/services/casl/casl-policies.guard';
 import { ThrottlerBehindProxyGuard } from 'src/services/throttler/throttler-proxy.guard';
+import { AgentAgreementAcceptedGuard } from 'src/services/auth/agent-agreement-accepted.guard';
 
+@Global()
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -25,7 +27,13 @@ import { ThrottlerBehindProxyGuard } from 'src/services/throttler/throttler-prox
     ]),
   ],
   controllers: [AgentAgreementController, AgentAgreementAdminController],
-  providers: [AgentAgreementService, CaslAbilityFactory, PoliciesGuard, ThrottlerBehindProxyGuard],
-  exports: [AgentAgreementService],
+  providers: [
+    AgentAgreementService,
+    AgentAgreementAcceptedGuard,
+    CaslAbilityFactory,
+    PoliciesGuard,
+    ThrottlerBehindProxyGuard,
+  ],
+  exports: [AgentAgreementService, AgentAgreementAcceptedGuard],
 })
 export class AgentAgreementModule {}

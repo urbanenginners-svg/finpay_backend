@@ -148,6 +148,13 @@ export class AgentAgreementService {
     return result;
   }
 
+  async hasAccepted(agentId: string): Promise<boolean> {
+    const found = await this.agreementModel
+      .exists({ agentId: String(agentId), status: AgentAgreementStatusEnum.ACCEPTED })
+      .exec();
+    return Boolean(found);
+  }
+
   async findForAgent(agentId: string): Promise<AgentAgreementDocument | null> {
     const agreement = await this.agreementModel.findOne({ agentId: String(agentId) }).exec();
     if (agreement) {

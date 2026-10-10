@@ -38,6 +38,7 @@ import { DataResponse } from 'src/utils/response';
 import { Public } from 'src/utils/decorators/public-key.decorator';
 import { GetUser } from 'src/utils/decorators/get-user.decorator';
 import { ThrottlerBehindProxyGuard } from 'src/services/throttler/throttler-proxy.guard';
+import { AgentAgreementAcceptedGuard } from 'src/services/auth/agent-agreement-accepted.guard';
 import {
   imageFileFilter,
   MAX_FILE_SIZE_BYTES,
@@ -121,6 +122,7 @@ export class RemittanceController {
   @ApiBearerAuth()
   @Version('1')
   @Post('forex/initiate')
+  @UseGuards(AgentAgreementAcceptedGuard)
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(ThrottlerBehindProxyGuard)
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
@@ -136,6 +138,7 @@ export class RemittanceController {
   @ApiBearerAuth()
   @Version('1')
   @Post('forex/:id/complete')
+  @UseGuards(AgentAgreementAcceptedGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(ThrottlerBehindProxyGuard)
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
@@ -155,6 +158,7 @@ export class RemittanceController {
   @ApiBearerAuth()
   @Version('1')
   @Post('forex/orders/:orderId/payment-link')
+  @UseGuards(AgentAgreementAcceptedGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(ThrottlerBehindProxyGuard)
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
@@ -173,6 +177,7 @@ export class RemittanceController {
   @ApiBearerAuth()
   @Version('1')
   @Post('forex/orders/:orderId/offline-payment')
+  @UseGuards(AgentAgreementAcceptedGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(ThrottlerBehindProxyGuard)
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
@@ -206,6 +211,7 @@ export class RemittanceController {
   @ApiBearerAuth()
   @Version('1')
   @Post('forex/orders/:orderId/upload-document')
+  @UseGuards(AgentAgreementAcceptedGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(ThrottlerBehindProxyGuard)
   @Throttle({ default: { ttl: 60_000, limit: 40 } })
@@ -235,6 +241,7 @@ export class RemittanceController {
   @ApiBearerAuth()
   @Version('1')
   @Post('forex/orders/:orderId/reuse-document')
+  @UseGuards(AgentAgreementAcceptedGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(ThrottlerBehindProxyGuard)
   @Throttle({ default: { ttl: 60_000, limit: 40 } })
@@ -286,6 +293,7 @@ export class RemittanceController {
   @ApiBearerAuth()
   @Version('1')
   @Get('forex/orders/dashboard')
+  @UseGuards(AgentAgreementAcceptedGuard)
   @GetForexOrdersDashboardSwagger()
   async getForexOrdersDashboard(
     @GetUser('_id') userId: string,
@@ -305,6 +313,7 @@ export class RemittanceController {
   @ApiBearerAuth()
   @Version('1')
   @Get('forex/orders/:orderId')
+  @UseGuards(AgentAgreementAcceptedGuard)
   @GetForexOrderDetailSwagger()
   async getForexOrderDetail(
     @GetUser('_id') userId: string,
@@ -398,6 +407,7 @@ export class RemittanceController {
   @ApiBearerAuth()
   @Version('1')
   @Get('agent/commissions')
+  @UseGuards(AgentAgreementAcceptedGuard)
   async listMyCommissions(
     @GetUser('_id') userId: string,
     @Query() query: GetCommissionsQueryDto,
@@ -418,6 +428,7 @@ export class RemittanceController {
   @ApiBearerAuth()
   @Version('1')
   @Get('agent/commissions/export')
+  @UseGuards(AgentAgreementAcceptedGuard)
   async exportMyCommissionsCsv(
     @GetUser('_id') userId: string,
     @Query() query: GetCommissionsQueryDto,
